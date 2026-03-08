@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NBA Prop Simulator — Monte Carlo Engine</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>" />
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <style>
+    body { margin: 0; padding: 0; background: #0b0f1a; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useCallback, useMemo } = React;
+
+// ── Monte Carlo Engine ──────────────────────────────────────────────
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+function simulateStat(mean, stdDev, n) {
+  const results = new Float64Array(n);
+  for (let i = 0; i < n; i++) results[i] = Math.max(0, mean + stdDev * randn());
+  return results;
+}
+
+function runSimulation(stats, numSims) {
+  const simResults = {};
+  Object.keys(stats).forEach((key) => {
+    const { mean, stdDev } = stats[key];
+    simResults[key] = simulateStat(parseFloat(mean) || 0, parseFloat(stdDev) || 0, numSims);
+  });
+  return simResults;
+}
+
+function calcProbability(simValues, propLine) {
+  const line = parseFloat(propLine);
+  if (isNaN(line) || simValues.length === 0) return null;
+  let over = 0, push = 0;
+  for (let i = 0; i < simValues.length; i++) {
+    if (simValues[i] > line) over++;
+    else if (simValues[i] === line) push++;
+  }
+  return {
+    over: over / simValues.length,
+    under: (simValues.length - over - push) / simValues.length,
+    push: push / simValues.length,
+  };
+}
+
+function calcCombo(simResults, keys) {
+  const n = simResults[keys[0]]?.length || 0;
+  const combined = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    for (const key of keys) sum += simResults[key]?.[i] || 0;
+    combined[i] = sum;
+  }
+  return combined;
+}
+
+// ── Odds Utilities ──────────────────────────────────────────────────
+function probToAmerican(prob) {
+  if (prob <= 0 || prob >= 1) return "—";
+  if (prob >= 0.5) return Math.round((-prob / (1 - prob)) * 100);
+  return "+" + Math.round(((1 - prob) / prob) * 100);
+}
+
+function americanToProb(odds) {
+  const o = parseFloat(odds);
+  if (isNaN(o) || o === 0) return null;
+  if (o < 0) return Math.abs(o) / (Math.abs(o) + 100);
+  return 100 / (o + 100);
+}
+
+function americanToDecimal(odds) {
+  const o = parseFloat(odds);
+  if (isNaN(o) || o === 0) return null;
+  if (o < 0) return 1 + (100 / Math.abs(o));
+  return 1 + (o / 100);
+}
+
+function calcKelly(modelProb, americanOdds) {
+  const dec = americanToDecimal(americanOdds);
+  if (!dec || dec <= 1) return null;
+  const b = dec - 1;
+  const p = modelProb;
+  const q = 1 - p;
+  const kelly = (b * p - q) / b;
+  return kelly > 0 ? kelly : 0;
+}
+
+function fmtOdds(o) {
+  const n = parseFloat(o);
+  if (isNaN(n)) return "";
+  return n > 0 ? `+${n}` : `${n}`;
+}
+
+function getEdgeColor(edge) {
+  if (edge >= 7) return "#22c55e";
+  if (edge >= 4) return "#4ade80";
+  if (edge >= 2) return "#86efac";
+  if (edge >= 0) return "#94a3b8";
+  return "#ef4444";
+}
+
+function getEdgeLabel(edge) {
+  if (edge >= 7) return "STRONG";
+  if (edge >= 4) return "SOLID";
+  if (edge >= 2) return "MARGINAL";
+  return "NO EDGE";
+}
+
+function getProbColor(prob) {
+  if (prob >= 0.65) return "#22c55e";
+  if (prob >= 0.55) return "#86efac";
+  if (prob >= 0.45) return "#94a3b8";
+  if (prob >= 0.35) return "#fca5a5";
+  return "#ef4444";
+}
+
+// ── Std Dev Estimation ──────────────────────────────────────────────
+const STD_RATIOS = { pts: 0.30, reb: 0.42, ast: 0.40, stl: 0.65, blk: 0.75, threes: 0.52 };
+
+function estimateStdDev(statKey, mean) {
+  const m = parseFloat(mean);
+  if (isNaN(m) || m <= 0) return 0;
+  return Math.round(m * (STD_RATIOS[statKey] || 0.35) * 10) / 10;
+}
+
+// ── Config ──────────────────────────────────────────────────────────
+const STAT_CONFIG = [
+  { key: "pts", label: "PTS", defaultMean: 24.5 },
+  { key: "reb", label: "REB", defaultMean: 6.0 },
+  { key: "ast", label: "AST", defaultMean: 5.5 },
+  { key: "stl", label: "STL", defaultMean: 1.2 },
+  { key: "blk", label: "BLK", defaultMean: 0.8 },
+  { key: "threes", label: "3PM", defaultMean: 2.8 },
+];
+
+const COMBO_CONFIG = [
+  { key: "pra", label: "PTS+REB+AST", parts: ["pts", "reb", "ast"] },
+  { key: "pr", label: "PTS+REB", parts: ["pts", "reb"] },
+  { key: "pa", label: "PTS+AST", parts: ["pts", "ast"] },
+  { key: "ra", label: "REB+AST", parts: ["reb", "ast"] },
+  { key: "sb", label: "STL+BLK", parts: ["stl", "blk"] },
+];
+
+// ── Distribution Bar ────────────────────────────────────────────────
+function DistBar({ simValues, propLine }) {
+  if (!simValues || simValues.length === 0) return null;
+  const line = parseFloat(propLine);
+  if (isNaN(line)) return null;
+  const samp = Array.from(simValues).slice(0, 500);
+  const min = Math.min(...samp), max = Math.max(...samp);
+  const buckets = 40, counts = new Array(buckets).fill(0), range = max - min || 1;
+  for (let i = 0; i < Math.min(simValues.length, 5000); i++) {
+    const idx = Math.min(buckets - 1, Math.floor(((simValues[i] - min) / range) * buckets));
+    counts[idx]++;
+  }
+  const maxC = Math.max(...counts);
+  const linePos = Math.min(100, Math.max(0, ((line - min) / range) * 100));
+  return (
+    <div style={{ position: "relative", height: 32, width: "100%", display: "flex", alignItems: "flex-end", gap: 1 }}>
+      {counts.map((c, i) => (
+        <div key={i} style={{
+          flex: 1, height: `${(c / maxC) * 100}%`, minHeight: c > 0 ? 2 : 0,
+          backgroundColor: ((i / buckets) * range + min) > line ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.35)",
+          borderRadius: "1px 1px 0 0",
+        }} />
+      ))}
+      <div style={{ position: "absolute", left: `${linePos}%`, top: 0, bottom: 0, width: 2, backgroundColor: "#f8fafc", opacity: 0.9 }} />
+    </div>
+  );
+}
+
+// ── Edge Box ────────────────────────────────────────────────────────
+function EdgeBox({ modelProb, bookOdds, bankroll }) {
+  const bookProb = americanToProb(bookOdds);
+  if (!bookProb) return null;
+  const edge = (modelProb - bookProb) * 100;
+  const color = getEdgeColor(edge);
+  const kelly = calcKelly(modelProb, bookOdds);
+  const qKelly = kelly ? kelly * 0.25 : 0;
+  const br = parseFloat(bankroll);
+  const hasBankroll = !isNaN(br) && br > 0;
+  return (
+    <div style={{
+      marginTop: 6, padding: "6px 8px",
+      backgroundColor: edge >= 2 ? `${color}11` : "rgba(15,23,42,0.4)",
+      border: `1px solid ${edge >= 2 ? color + "44" : "rgba(148,163,184,0.1)"}`,
+      borderRadius: 5,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+          BOOK {fmtOdds(bookOdds)} → {(bookProb * 100).toFixed(1)}%
+        </div>
+        <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, color, fontFamily: "'JetBrains Mono', monospace" }}>
+          {getEdgeLabel(edge)}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3 }}>
+        <span style={{ fontSize: 18, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: edge >= 2 ? color : "#475569" }}>
+          {edge >= 0 ? "+" : ""}{edge.toFixed(1)}%
+        </span>
+        <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>EDGE</span>
+      </div>
+      {kelly > 0 && (
+        <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(148,163,184,0.08)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+              ¼K: {(qKelly * 100).toFixed(2)}%{hasBankroll ? ` → $${Math.round(br * qKelly)}` : ""}
+            </span>
+            <span style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+              FULL: {(kelly * 100).toFixed(1)}%
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Result Row ──────────────────────────────────────────────────────
+function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll }) {
+  if (!prob) return null;
+  const overPct = (prob.over * 100).toFixed(1);
+  const underPct = (prob.under * 100).toFixed(1);
+
+  const hasOver = overOdds !== "" && !isNaN(parseFloat(overOdds));
+  const hasUnder = underOdds !== "" && !isNaN(parseFloat(underOdds));
+
+  const overEdge = hasOver ? (prob.over - americanToProb(parseFloat(overOdds))) * 100 : null;
+  const underEdge = hasUnder ? (prob.under - americanToProb(parseFloat(underOdds))) * 100 : null;
+  const bestEdge = Math.max(overEdge ?? -999, underEdge ?? -999);
+  const bestSide = (overEdge ?? -999) >= (underEdge ?? -999) ? "OVER" : "UNDER";
+
+  return (
+    <div style={{
+      backgroundColor: "rgba(15,23,42,0.6)",
+      border: bestEdge >= 4 ? `1px solid ${getEdgeColor(bestEdge)}33` : "1px solid rgba(148,163,184,0.12)",
+      borderRadius: 8, padding: "12px 16px", marginBottom: 8,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 13, color: "#e2e8f0", letterSpacing: 1 }}>
+            {label}
+          </span>
+          <span style={{ fontSize: 12, color: "#64748b" }}>LINE {propLine}</span>
+        </div>
+        {bestEdge >= 2 && (
+          <div style={{
+            padding: "2px 8px", borderRadius: 4,
+            backgroundColor: getEdgeColor(bestEdge) + "22",
+            border: `1px solid ${getEdgeColor(bestEdge)}44`,
+            fontSize: 10, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace",
+            color: getEdgeColor(bestEdge),
+          }}>
+            {bestSide} +{bestEdge.toFixed(1)}%
+          </div>
+        )}
+      </div>
+
+      <DistBar simValues={simValues} propLine={propLine} />
+
+      <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            backgroundColor: "rgba(34,197,94,0.08)", border: `1px solid ${getProbColor(prob.over)}33`,
+            borderRadius: 6, padding: "8px 12px", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 2, fontFamily: "'JetBrains Mono', monospace" }}>OVER</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: getProbColor(prob.over), fontFamily: "'JetBrains Mono', monospace" }}>
+              {overPct}%
+            </div>
+            <div style={{ fontSize: 12, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+              Fair: {probToAmerican(prob.over)}
+            </div>
+          </div>
+          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} bankroll={bankroll} /> : (
+            <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
+              No over odds entered
+            </div>
+          )}
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <div style={{
+            backgroundColor: "rgba(239,68,68,0.06)", border: `1px solid ${getProbColor(prob.under)}33`,
+            borderRadius: 6, padding: "8px 12px", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 2, fontFamily: "'JetBrains Mono', monospace" }}>UNDER</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: getProbColor(prob.under), fontFamily: "'JetBrains Mono', monospace" }}>
+              {underPct}%
+            </div>
+            <div style={{ fontSize: 12, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+              Fair: {probToAmerican(prob.under)}
+            </div>
+          </div>
+          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} bankroll={bankroll} /> : (
+            <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
+              No under odds entered
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CSV Export ───────────────────────────────────────────────────────
+function buildCSV(playerName, numSims, statResults, comboResults, timestamp, bankroll) {
+  const headers = [
+    "Timestamp", "Date", "Player", "Stat", "Projection", "Std Dev", "SD Method", "CV %",
+    "Prop Line", "Book Over Odds", "Book Under Odds",
+    "Model Over %", "Model Under %",
+    "Fair Over Odds", "Fair Under Odds",
+    "Over Edge %", "Under Edge %",
+    "Best Side", "Best Edge %", "Edge Rating",
+    "Quarter Kelly %", "Stake $",
+    "Simulations"
+  ];
+
+  const rows = [];
+  const dateStr = new Date().toLocaleDateString("en-US");
+  const br = parseFloat(bankroll);
+  const hasBr = !isNaN(br) && br > 0;
+
+  const addRow = (stat, label, prob, propLine, overOdds, underOdds, mean, std, stdMethod, cvValue) => {
+    if (!prob) return;
+    const overProb = prob.over;
+    const underProb = prob.under;
+    const bookOverProb = americanToProb(parseFloat(overOdds));
+    const bookUnderProb = americanToProb(parseFloat(underOdds));
+    const overEdge = bookOverProb ? ((overProb - bookOverProb) * 100) : "";
+    const underEdge = bookUnderProb ? ((underProb - bookUnderProb) * 100) : "";
+    const bestEdgeVal = Math.max(
+      typeof overEdge === "number" ? overEdge : -999,
+      typeof underEdge === "number" ? underEdge : -999
+    );
+    const bestSide = bestEdgeVal === -999 ? "" :
+      (overEdge >= underEdge ? "OVER" : "UNDER");
+    const bestEdgeStr = bestEdgeVal === -999 ? "" : bestEdgeVal.toFixed(1);
+    const rating = bestEdgeVal >= 7 ? "STRONG" : bestEdgeVal >= 4 ? "SOLID" :
+      bestEdgeVal >= 2 ? "MARGINAL" : "NO EDGE";
+
+    // Kelly for best side
+    let qKelly = "";
+    let stake = "";
+    if (bestSide === "OVER" && overOdds) {
+      const k = calcKelly(overProb, parseFloat(overOdds));
+      if (k && k > 0) { qKelly = (k * 25).toFixed(2); stake = hasBr ? Math.round(br * k * 0.25) : ""; }
+    } else if (bestSide === "UNDER" && underOdds) {
+      const k = calcKelly(underProb, parseFloat(underOdds));
+      if (k && k > 0) { qKelly = (k * 25).toFixed(2); stake = hasBr ? Math.round(br * k * 0.25) : ""; }
+    }
+
+    rows.push([
+      timestamp, dateStr, playerName, label,
+      mean ?? "", std ?? "", stdMethod || "", cvValue || "",
+      propLine, overOdds || "", underOdds || "",
+      (overProb * 100).toFixed(1), (underProb * 100).toFixed(1),
+      probToAmerican(overProb), probToAmerican(underProb),
+      typeof overEdge === "number" ? overEdge.toFixed(1) : "",
+      typeof underEdge === "number" ? underEdge.toFixed(1) : "",
+      bestSide, bestEdgeStr, bestEdgeVal > -999 ? rating : "",
+      qKelly, stake,
+      numSims,
+    ]);
+  };
+
+  if (statResults) {
+    STAT_CONFIG.forEach(({ key, label }) => {
+      const r = statResults[key];
+      if (r) addRow(key, label, r.prob, r.propLine, r.overOdds, r.underOdds, r.mean, r.std, r.stdMethod, r.cvValue);
+    });
+  }
+  if (comboResults) {
+    COMBO_CONFIG.forEach(({ key, label }) => {
+      const r = comboResults[key];
+      if (r) addRow(key, label, r.prob, r.propLine, r.overOdds, r.underOdds, "", "", "Combo", "");
+    });
+  }
+
+  const escape = (v) => {
+    const s = String(v ?? "");
+    return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [headers.map(escape).join(","), ...rows.map(r => r.map(escape).join(","))].join("\n");
+}
+
+// No blob download in sandbox — use clipboard + modal instead
+
+// ── Main App ────────────────────────────────────────────────────────
+function NBASimulator() {
+  const [playerName, setPlayerName] = useState("Player Name");
+  const [numSims, setNumSims] = useState(20000);
+  const [stats, setStats] = useState(() => {
+    const init = {};
+    STAT_CONFIG.forEach(({ key, defaultMean }) => {
+      init[key] = { mean: defaultMean, stdDev: estimateStdDev(key, defaultMean), propLine: "", overOdds: "", underOdds: "", stdOverride: false, cvMode: false, cvValue: "" };
+    });
+    return init;
+  });
+  const [comboLines, setComboLines] = useState(() => {
+    const init = {};
+    COMBO_CONFIG.forEach(({ key }) => { init[key] = { line: "", overOdds: "", underOdds: "" }; });
+    return init;
+  });
+  const [results, setResults] = useState(null);
+  const [simTime, setSimTime] = useState(null);
+  const [simTimestamp, setSimTimestamp] = useState(null);
+  const [csvData, setCsvData] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [includeHeaders, setIncludeHeaders] = useState(true);
+  const [bankroll, setBankroll] = useState("");
+
+  const updateStat = useCallback((key, field, value) => {
+    setStats((prev) => {
+      const updated = { ...prev, [key]: { ...prev[key], [field]: value } };
+      if (field === "mean") {
+        // Recalc auto std dev if not overridden and not in CV mode
+        if (!prev[key].stdOverride && !prev[key].cvMode) {
+          updated[key].stdDev = estimateStdDev(key, value);
+        }
+        // If in CV mode, recalc stdDev from CV × new mean
+        if (prev[key].cvMode && prev[key].cvValue !== "") {
+          const cv = parseFloat(prev[key].cvValue);
+          const m = parseFloat(value);
+          if (!isNaN(cv) && !isNaN(m)) updated[key].stdDev = Math.round(m * (cv / 100) * 10) / 10;
+        }
+      }
+      if (field === "stdDev" && !prev[key].cvMode) updated[key].stdOverride = true;
+      if (field === "cvValue") {
+        const cv = parseFloat(value);
+        const m = parseFloat(prev[key].mean);
+        if (!isNaN(cv) && !isNaN(m) && m > 0) {
+          updated[key].stdDev = Math.round(m * (cv / 100) * 10) / 10;
+        }
+      }
+      return updated;
+    });
+  }, []);
+
+  const toggleCvMode = useCallback((key) => {
+    setStats((prev) => {
+      const cur = prev[key];
+      if (cur.cvMode) {
+        // Switching OFF CV mode → back to auto
+        return { ...prev, [key]: { ...cur, cvMode: false, cvValue: "", stdOverride: false, stdDev: estimateStdDev(key, cur.mean) } };
+      } else {
+        // Switching ON CV mode → compute CV from current std/mean as starting point
+        const m = parseFloat(cur.mean);
+        const s = parseFloat(cur.stdDev);
+        const startCV = (m > 0 && s > 0) ? Math.round((s / m) * 100) : "";
+        return { ...prev, [key]: { ...cur, cvMode: true, cvValue: String(startCV), stdOverride: false } };
+      }
+    });
+  }, []);
+
+  const resetStdDev = useCallback((key) => {
+    setStats((prev) => ({
+      ...prev, [key]: { ...prev[key], stdDev: estimateStdDev(key, prev[key].mean), stdOverride: false, cvMode: false, cvValue: "" },
+    }));
+  }, []);
+
+  const handleClearPlayer = useCallback(() => {
+    setPlayerName("Player Name");
+    setStats(() => {
+      const init = {};
+      STAT_CONFIG.forEach(({ key, defaultMean }) => {
+        init[key] = { mean: "", stdDev: "", propLine: "", overOdds: "", underOdds: "", stdOverride: false, cvMode: false, cvValue: "" };
+      });
+      return init;
+    });
+    setComboLines(() => {
+      const init = {};
+      COMBO_CONFIG.forEach(({ key }) => { init[key] = { line: "", overOdds: "", underOdds: "" }; });
+      return init;
+    });
+    setResults(null);
+    setCsvData(null);
+  }, []);
+
+  const handleSimulate = useCallback(() => {
+    const t0 = performance.now();
+    const ts = new Date().toISOString();
+    const simResults = runSimulation(stats, numSims);
+
+    const statProbs = {};
+    STAT_CONFIG.forEach(({ key }) => {
+      if (stats[key].propLine !== "") {
+        const method = stats[key].cvMode ? "CV" : stats[key].stdOverride ? "Manual" : "Auto";
+        statProbs[key] = {
+          prob: calcProbability(simResults[key], stats[key].propLine),
+          simValues: simResults[key],
+          propLine: stats[key].propLine,
+          overOdds: stats[key].overOdds,
+          underOdds: stats[key].underOdds,
+          mean: stats[key].mean,
+          std: stats[key].stdDev,
+          stdMethod: method,
+          cvValue: stats[key].cvMode ? stats[key].cvValue : "",
+        };
+      }
+    });
+
+    const comboProbs = {};
+    COMBO_CONFIG.forEach(({ key, parts }) => {
+      if (comboLines[key].line !== "") {
+        const comboVals = calcCombo(simResults, parts);
+        comboProbs[key] = {
+          prob: calcProbability(comboVals, comboLines[key].line),
+          simValues: comboVals,
+          propLine: comboLines[key].line,
+          overOdds: comboLines[key].overOdds,
+          underOdds: comboLines[key].underOdds,
+        };
+      }
+    });
+
+    setSimTime(Math.round(performance.now() - t0));
+    setSimTimestamp(ts);
+    setResults({ stats: statProbs, combos: comboProbs });
+  }, [stats, comboLines, numSims]);
+
+  const handleExport = useCallback(() => {
+    if (!results) return;
+    const fullCsv = buildCSV(playerName, numSims, results.stats, results.combos, simTimestamp, bankroll);
+    const csv = includeHeaders ? fullCsv : fullCsv.split("\n").slice(1).join("\n");
+    setCsvData(csv);
+    setCopied(false);
+  }, [results, playerName, numSims, simTimestamp, includeHeaders, bankroll]);
+
+  const handleCopyCSV = useCallback(() => {
+    if (!csvData) return;
+    navigator.clipboard.writeText(csvData).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Fallback: select the textarea
+      const ta = document.getElementById("csv-output");
+      if (ta) { ta.select(); document.execCommand("copy"); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+    });
+  }, [csvData]);
+
+  const hasAnyLine = useMemo(() => {
+    return STAT_CONFIG.some(({ key }) => stats[key].propLine !== "") ||
+           COMBO_CONFIG.some(({ key }) => comboLines[key].line !== "");
+  }, [stats, comboLines]);
+
+  const inputStyle = {
+    backgroundColor: "rgba(15,23,42,0.8)", border: "1px solid rgba(148,163,184,0.2)",
+    borderRadius: 6, padding: "7px 8px", color: "#e2e8f0",
+    fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: 13,
+    width: "100%", outline: "none", boxSizing: "border-box",
+  };
+
+  const labelStyle = {
+    fontSize: 10, fontWeight: 600, color: "#64748b", textTransform: "uppercase",
+    letterSpacing: 1.2, marginBottom: 4, fontFamily: "'JetBrains Mono', monospace",
+  };
+
+  const tinyLabel = { ...labelStyle, fontSize: 7, marginBottom: 0, letterSpacing: 0.8 };
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(145deg, #0b0f1a 0%, #111827 40%, #0f172a 100%)",
+      color: "#e2e8f0", fontFamily: "'Outfit', 'Inter', system-ui, sans-serif",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        * { box-sizing: border-box; }
+        input:focus { border-color: rgba(99,102,241,0.6) !important; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+        ::selection { background: rgba(99,102,241,0.4); }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .result-row { animation: fadeUp 0.3s ease-out both; }
+      `}</style>
+
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 80px" }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: 28, paddingTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "linear-gradient(135deg, #22c55e, #16a34a)", boxShadow: "0 0 8px rgba(34,197,94,0.5)" }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#22c55e", letterSpacing: 2, fontFamily: "'JetBrains Mono', monospace" }}>MONTE CARLO ENGINE</span>
+          </div>
+          <h1 style={{
+            fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: -0.5,
+            background: "linear-gradient(135deg, #f8fafc, #94a3b8)",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+          }}>NBA Prop Simulator</h1>
+          <p style={{ color: "#475569", fontSize: 13, margin: "6px 0 0" }}>
+            Projections + lines + best available book odds → edge
+          </p>
+        </div>
+
+        {/* Player + Config */}
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.08)", borderRadius: 12, padding: 16, marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: "2 1 180px" }}>
+              <div style={labelStyle}>Player</div>
+              <input type="text" value={playerName} onChange={(e) => setPlayerName(e.target.value)}
+                style={{ ...inputStyle, fontSize: 16, fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}
+                onFocus={(e) => { if (e.target.value === "Player Name") e.target.select(); }} />
+            </div>
+            <div style={{ flex: "1 1 100px" }}>
+              <div style={labelStyle}>Sims</div>
+              <select value={numSims} onChange={(e) => setNumSims(parseInt(e.target.value))}
+                style={{ ...inputStyle, cursor: "pointer", WebkitAppearance: "none", appearance: "none" }}>
+                <option value={5000}>5K</option>
+                <option value={10000}>10K</option>
+                <option value={20000}>20K</option>
+                <option value={50000}>50K</option>
+                <option value={100000}>100K</option>
+              </select>
+            </div>
+            <div style={{ flex: "1 1 90px" }}>
+              <div style={labelStyle}>Bankroll</div>
+              <input type="number" step="100" placeholder="$" value={bankroll}
+                onChange={(e) => setBankroll(e.target.value)}
+                style={{ ...inputStyle }} />
+            </div>
+            <div style={{ flex: "0 0 auto", alignSelf: "flex-end" }}>
+              <button onClick={handleClearPlayer} style={{
+                padding: "9px 14px", borderRadius: 6,
+                border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.08)",
+                color: "#f87171", fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700, fontSize: 10, letterSpacing: 1, cursor: "pointer",
+              }}>
+                CLEAR
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Stat Inputs */}
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.08)", borderRadius: 12, padding: "16px 12px", marginBottom: 12 }}>
+          <div style={{ ...labelStyle, marginBottom: 12, fontSize: 11, paddingLeft: 4 }}>Projections & Lines</div>
+
+          <div style={{ display: "flex", gap: 4, marginBottom: 6, paddingLeft: 30 }}>
+            <div style={{ ...tinyLabel, flex: 1 }}>Mean</div>
+            <div style={{ ...tinyLabel, flex: 1 }}>Std Dev / CV%</div>
+            <div style={{ ...tinyLabel, flex: 1 }}>Line</div>
+            <div style={{ ...tinyLabel, flex: 1 }}>Over Odds</div>
+            <div style={{ ...tinyLabel, flex: 1 }}>Under Odds</div>
+          </div>
+
+          {STAT_CONFIG.map(({ key, label }) => (
+            <div key={key} style={{ display: "flex", gap: 4, marginBottom: 6, alignItems: "center" }}>
+              <div style={{
+                width: 26, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+                fontSize: 9, color: "#94a3b8", textAlign: "right", flexShrink: 0,
+              }}>{label}</div>
+              <input type="number" step="0.1" value={stats[key].mean}
+                onChange={(e) => updateStat(key, "mean", e.target.value)}
+                style={{ ...inputStyle, flex: 1 }} />
+              <div style={{ flex: 1, position: "relative" }}>
+                {stats[key].cvMode ? (
+                  <>
+                    <input type="number" step="1" placeholder="CV%" value={stats[key].cvValue}
+                      onChange={(e) => updateStat(key, "cvValue", e.target.value)}
+                      style={{ ...inputStyle, width: "100%", borderColor: "rgba(168,85,247,0.5)" }} />
+                    <div onClick={() => toggleCvMode(key)} style={{
+                      position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
+                      color: "#a855f7", backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
+                      borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
+                    }} title={`CV ${stats[key].cvValue}% → SD ${stats[key].stdDev}`}>CV% ↺</div>
+                  </>
+                ) : (
+                  <>
+                    <input type="number" step="0.1" value={stats[key].stdDev}
+                      onChange={(e) => updateStat(key, "stdDev", e.target.value)}
+                      style={{ ...inputStyle, width: "100%", borderColor: stats[key].stdOverride ? "rgba(251,191,36,0.4)" : "rgba(34,197,94,0.3)" }} />
+                    {!stats[key].stdOverride ? (
+                      <div onClick={() => toggleCvMode(key)} style={{
+                        position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
+                        color: "#22c55e", backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
+                        borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
+                      }} title="Click for CV% mode">AUTO</div>
+                    ) : (
+                      <div onClick={() => resetStdDev(key)} style={{
+                        position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
+                        color: "#fbbf24", backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
+                        borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
+                      }} title="Reset to auto">↺</div>
+                    )}
+                  </>
+                )}
+              </div>
+              <input type="number" step="0.5" placeholder="—" value={stats[key].propLine}
+                onChange={(e) => updateStat(key, "propLine", e.target.value)}
+                style={{ ...inputStyle, flex: 1, borderColor: stats[key].propLine ? "rgba(99,102,241,0.4)" : "rgba(148,163,184,0.2)" }} />
+              <input type="number" step="1" placeholder="-110" value={stats[key].overOdds}
+                onChange={(e) => updateStat(key, "overOdds", e.target.value)}
+                style={{ ...inputStyle, flex: 1, borderColor: stats[key].overOdds ? "rgba(34,197,94,0.35)" : "rgba(148,163,184,0.2)" }} />
+              <input type="number" step="1" placeholder="-110" value={stats[key].underOdds}
+                onChange={(e) => updateStat(key, "underOdds", e.target.value)}
+                style={{ ...inputStyle, flex: 1, borderColor: stats[key].underOdds ? "rgba(239,68,68,0.3)" : "rgba(148,163,184,0.2)" }} />
+            </div>
+          ))}
+
+          <div style={{
+            marginTop: 8, padding: "6px 10px", backgroundColor: "rgba(34,197,94,0.04)",
+            border: "1px solid rgba(34,197,94,0.1)", borderRadius: 6, fontSize: 8,
+            color: "#64748b", lineHeight: 1.5, fontFamily: "'JetBrains Mono', monospace",
+          }}>
+            Enter best available <span style={{ color: "#4ade80" }}>OVER</span> and <span style={{ color: "#f87171" }}>UNDER</span> odds
+            from any book — can be different books. Edge is calculated independently per side.
+            Click <span style={{ color: "#22c55e" }}>AUTO</span> to switch to <span style={{ color: "#a855f7" }}>CV%</span> mode (enter player's CV from your library, std dev auto-computes from mean × CV).
+          </div>
+        </div>
+
+        {/* Combos */}
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.08)", borderRadius: 12, padding: "16px 12px", marginBottom: 16 }}>
+          <div style={{ ...labelStyle, marginBottom: 12, fontSize: 11, paddingLeft: 4 }}>Combo Props</div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 6, paddingLeft: 95 }}>
+            <div style={{ ...tinyLabel, flex: 1 }}>Line</div>
+            <div style={{ ...tinyLabel, flex: 1 }}>Over Odds</div>
+            <div style={{ ...tinyLabel, flex: 1 }}>Under Odds</div>
+          </div>
+          {COMBO_CONFIG.map(({ key, label }) => (
+            <div key={key} style={{ display: "flex", gap: 4, marginBottom: 6, alignItems: "center" }}>
+              <div style={{ width: 90, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, fontSize: 9, color: "#94a3b8", textAlign: "right", flexShrink: 0 }}>{label}</div>
+              <input type="number" step="0.5" placeholder="—" value={comboLines[key].line}
+                onChange={(e) => setComboLines(p => ({ ...p, [key]: { ...p[key], line: e.target.value } }))}
+                style={{ ...inputStyle, flex: 1, borderColor: comboLines[key].line ? "rgba(99,102,241,0.4)" : "rgba(148,163,184,0.2)" }} />
+              <input type="number" step="1" placeholder="-110" value={comboLines[key].overOdds}
+                onChange={(e) => setComboLines(p => ({ ...p, [key]: { ...p[key], overOdds: e.target.value } }))}
+                style={{ ...inputStyle, flex: 1, borderColor: comboLines[key].overOdds ? "rgba(34,197,94,0.35)" : "rgba(148,163,184,0.2)" }} />
+              <input type="number" step="1" placeholder="-110" value={comboLines[key].underOdds}
+                onChange={(e) => setComboLines(p => ({ ...p, [key]: { ...p[key], underOdds: e.target.value } }))}
+                style={{ ...inputStyle, flex: 1, borderColor: comboLines[key].underOdds ? "rgba(239,68,68,0.3)" : "rgba(148,163,184,0.2)" }} />
+            </div>
+          ))}
+        </div>
+
+        {/* Buttons */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
+          <button onClick={handleSimulate} disabled={!hasAnyLine} style={{
+            flex: 3, padding: "14px 24px", borderRadius: 10, border: "none",
+            background: hasAnyLine ? "linear-gradient(135deg, #4f46e5, #6366f1)" : "rgba(51,65,85,0.5)",
+            color: hasAnyLine ? "#fff" : "#475569",
+            fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 13, letterSpacing: 1.5,
+            cursor: hasAnyLine ? "pointer" : "not-allowed",
+            boxShadow: hasAnyLine ? "0 4px 24px rgba(79,70,229,0.25)" : "none",
+          }}>
+            {hasAnyLine ? "RUN SIMULATION" : "ENTER A PROP LINE TO BEGIN"}
+          </button>
+          {results && (
+            <button onClick={handleExport} style={{
+              flex: 1, padding: "14px 12px", borderRadius: 10, border: "1px solid rgba(148,163,184,0.2)",
+              background: "rgba(15,23,42,0.6)", color: "#94a3b8",
+              fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11,
+              letterSpacing: 1, cursor: "pointer", transition: "all 0.2s",
+            }}>
+              EXPORT CSV
+            </button>
+          )}
+        </div>
+
+        {/* CSV Modal */}
+        {csvData && (
+          <div style={{
+            marginBottom: 20, backgroundColor: "rgba(15,23,42,0.7)",
+            border: "1px solid rgba(148,163,184,0.15)", borderRadius: 10, padding: 16,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 12, color: "#e2e8f0", letterSpacing: 1 }}>
+                  CSV EXPORT
+                </span>
+                <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                  <input type="checkbox" checked={includeHeaders}
+                    onChange={(e) => {
+                      setIncludeHeaders(e.target.checked);
+                      // Re-generate CSV with new setting
+                      if (results) {
+                        const fullCsv = buildCSV(playerName, numSims, results.stats, results.combos, simTimestamp, bankroll);
+                        setCsvData(e.target.checked ? fullCsv : fullCsv.split("\n").slice(1).join("\n"));
+                      }
+                    }}
+                    style={{ accentColor: "#6366f1", width: 14, height: 14, cursor: "pointer" }} />
+                  <span style={{ fontSize: 9, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                    HEADERS
+                  </span>
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={handleCopyCSV} style={{
+                  padding: "6px 14px", borderRadius: 6,
+                  border: copied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(99,102,241,0.4)",
+                  background: copied ? "rgba(34,197,94,0.15)" : "rgba(99,102,241,0.15)",
+                  color: copied ? "#22c55e" : "#a5b4fc",
+                  fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10,
+                  letterSpacing: 1, cursor: "pointer",
+                }}>
+                  {copied ? "COPIED ✓" : "COPY ALL"}
+                </button>
+                <button onClick={() => setCsvData(null)} style={{
+                  padding: "6px 10px", borderRadius: 6,
+                  border: "1px solid rgba(148,163,184,0.2)",
+                  background: "transparent", color: "#64748b",
+                  fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10,
+                  cursor: "pointer",
+                }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+            <textarea
+              id="csv-output"
+              readOnly
+              value={csvData}
+              onFocus={(e) => e.target.select()}
+              style={{
+                width: "100%", height: 120, resize: "vertical",
+                backgroundColor: "rgba(0,0,0,0.3)", border: "1px solid rgba(148,163,184,0.1)",
+                borderRadius: 6, padding: 10, color: "#94a3b8",
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 10, lineHeight: 1.5,
+                outline: "none",
+              }}
+            />
+            <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+              Paste into Google Sheets or a .csv file. Include headers on your first paste, then uncheck for subsequent players.
+            </div>
+          </div>
+        )}
+
+        {/* Results */}
+        {results && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 15, color: "#f8fafc" }}>
+                  {playerName}
+                </span>
+                <span style={{ color: "#475569", fontSize: 12, marginLeft: 8, fontFamily: "'JetBrains Mono', monospace" }}>RESULTS</span>
+              </div>
+              <span style={{ color: "#475569", fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
+                {numSims.toLocaleString()} sims · {simTime}ms
+              </span>
+            </div>
+
+            {/* Correlated Signal Detection */}
+            {(() => {
+              const coreStats = ["pts", "reb", "ast"];
+              const overSignals = coreStats.filter(k => {
+                const r = results.stats[k];
+                if (!r || !r.overOdds || r.overOdds === "") return false;
+                const bookProb = americanToProb(parseFloat(r.overOdds));
+                return bookProb && (r.prob.over - bookProb) * 100 >= 2;
+              });
+              const underSignals = coreStats.filter(k => {
+                const r = results.stats[k];
+                if (!r || !r.underOdds || r.underOdds === "") return false;
+                const bookProb = americanToProb(parseFloat(r.underOdds));
+                return bookProb && (r.prob.under - bookProb) * 100 >= 2;
+              });
+              if (overSignals.length >= 3) {
+                return (
+                  <div style={{
+                    marginBottom: 12, padding: "10px 14px", borderRadius: 8,
+                    background: "linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))",
+                    border: "1px solid rgba(34,197,94,0.3)",
+                  }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, color: "#22c55e", letterSpacing: 1 }}>
+                      ⚡ CORRELATED OVER SIGNAL — PTS + REB + AST
+                    </div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#86efac", marginTop: 3 }}>
+                      All three core stats show over edge. Consider PRA combo or same-game parlay.
+                    </div>
+                  </div>
+                );
+              }
+              if (underSignals.length >= 3) {
+                return (
+                  <div style={{
+                    marginBottom: 12, padding: "10px 14px", borderRadius: 8,
+                    background: "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.04))",
+                    border: "1px solid rgba(239,68,68,0.3)",
+                  }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, color: "#f87171", letterSpacing: 1 }}>
+                      ⚡ CORRELATED UNDER SIGNAL — PTS + REB + AST
+                    </div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#fca5a5", marginTop: 3 }}>
+                      All three core stats show under edge. Consider PRA combo or same-game parlay.
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {STAT_CONFIG.map(({ key, label }, i) =>
+              results.stats[key] ? (
+                <div key={key} className="result-row" style={{ animationDelay: `${i * 60}ms` }}>
+                  <ResultRow label={label} prob={results.stats[key].prob}
+                    propLine={results.stats[key].propLine} simValues={results.stats[key].simValues}
+                    overOdds={results.stats[key].overOdds} underOdds={results.stats[key].underOdds}
+                    bankroll={bankroll} />
+                </div>
+              ) : null
+            )}
+
+            {COMBO_CONFIG.map(({ key, label }, i) =>
+              results.combos[key] ? (
+                <div key={key} className="result-row" style={{ animationDelay: `${(STAT_CONFIG.length + i) * 60}ms` }}>
+                  <ResultRow label={label} prob={results.combos[key].prob}
+                    propLine={results.combos[key].propLine} simValues={results.combos[key].simValues}
+                    overOdds={results.combos[key].overOdds} underOdds={results.combos[key].underOdds}
+                    bankroll={bankroll} />
+                </div>
+              ) : null
+            )}
+
+            <div style={{
+              marginTop: 24, padding: "12px 14px",
+              backgroundColor: "rgba(15,23,42,0.3)", border: "1px solid rgba(148,163,184,0.06)",
+              borderRadius: 8, fontSize: 10, color: "#475569", lineHeight: 1.8,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}>
+              <strong style={{ color: "#64748b" }}>Edge Scale:</strong>{" "}
+              <span style={{ color: "#ef4444" }}>NO EDGE</span> {"< 2%  ·  "}
+              <span style={{ color: "#86efac" }}>MARGINAL</span> 2-4%{" · "}
+              <span style={{ color: "#4ade80" }}>SOLID</span> 4-7%{" · "}
+              <span style={{ color: "#22c55e" }}>STRONG</span> 7%+
+              <br />
+              <strong style={{ color: "#64748b" }}>Edge</strong> = your model probability minus book implied probability (from raw odds).
+              <br />
+              <strong style={{ color: "#64748b" }}>¼K</strong> = quarter Kelly stake. Enter bankroll above to see dollar amounts.
+              <br />
+              Over and under odds are compared independently — use best available from any book.
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById("root")).render(<NBASimulator />);
+  </script>
+</body>
+</html>
