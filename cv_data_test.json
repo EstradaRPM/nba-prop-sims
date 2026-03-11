@@ -1,0 +1,210 @@
+{
+  "generated_at": "2026-03-11T21:17:54Z",
+  "season": "2025-26",
+  "players": {
+    "Giannis Antetokounmpo": {
+      "nba_id": 203507,
+      "team": "MIL",
+      "position": "",
+      "games_available": 29,
+      "cv": {
+        "pts": {
+          "season": 21.1,
+          "last20": 19.8,
+          "last10": 17.0,
+          "last5": 17.6
+        },
+        "reb": {
+          "season": 36.8,
+          "last20": 38.0,
+          "last10": 39.2,
+          "last5": 37.8
+        },
+        "ast": {
+          "season": 51.5,
+          "last20": 52.8,
+          "last10": 51.3,
+          "last5": 53.5
+        },
+        "stl": {
+          "season": 93.3,
+          "last20": 104.8,
+          "last10": 101.5,
+          "last5": 140.1
+        },
+        "blk": {
+          "season": 118.2,
+          "last20": 149.2,
+          "last10": 168.6,
+          "last5": 223.6
+        },
+        "threes": {
+          "season": 138.8,
+          "last20": 187.7,
+          "last10": 216.0,
+          "last5": null
+        },
+        "pra": {
+          "season": 18.2,
+          "last20": 16.8,
+          "last10": 13.9,
+          "last5": 18.1
+        }
+      },
+      "mean_minutes_last20": 29.1
+    },
+    "LaMelo Ball": {
+      "nba_id": 1630163,
+      "team": "CHA",
+      "position": "",
+      "games_available": 51,
+      "cv": {
+        "pts": {
+          "season": 32.0,
+          "last20": 29.1,
+          "last10": 34.1,
+          "last5": 14.6
+        },
+        "reb": {
+          "season": 46.5,
+          "last20": 52.4,
+          "last10": 46.7,
+          "last5": 47.0
+        },
+        "ast": {
+          "season": 33.9,
+          "last20": 30.2,
+          "last10": 29.2,
+          "last5": 31.5
+        },
+        "stl": {
+          "season": 96.0,
+          "last20": 111.0,
+          "last10": 114.8,
+          "last5": 143.9
+        },
+        "blk": {
+          "season": 222.7,
+          "last20": 247.6,
+          "last10": 213.3,
+          "last5": 223.6
+        },
+        "threes": {
+          "season": 59.8,
+          "last20": 54.4,
+          "last10": 57.7,
+          "last5": 23.2
+        },
+        "pra": {
+          "season": 23.9,
+          "last20": 23.0,
+          "last10": 28.1,
+          "last5": 14.4
+        }
+      },
+      "mean_minutes_last20": 28.4
+    },
+    "Stephen Curry": {
+      "nba_id": 201939,
+      "team": "GSW",
+      "position": "",
+      "games_available": 37,
+      "cv": {
+        "pts": {
+          "season": 32.5,
+          "last20": 25.7,
+          "last10": 33.2,
+          "last5": 18.9
+        },
+        "reb": {
+          "season": 57.2,
+          "last20": 66.0,
+          "last10": 40.3,
+          "last5": 52.8
+        },
+        "ast": {
+          "season": 56.5,
+          "last20": 54.0,
+          "last10": 71.3,
+          "last5": 76.7
+        },
+        "stl": {
+          "season": 99.7,
+          "last20": 118.3,
+          "last10": 142.3,
+          "last5": 117.1
+        },
+        "blk": {
+          "season": 173.1,
+          "last20": 218.6,
+          "last10": 213.9,
+          "last5": 223.6
+        },
+        "threes": {
+          "season": 47.1,
+          "last20": 38.6,
+          "last10": 42.3,
+          "last5": 40.8
+        },
+        "pra": {
+          "season": 22.7,
+          "last20": 14.1,
+          "last10": 16.7,
+          "last5": 14.5
+        }
+      },
+      "mean_minutes_last20": 30.9
+    },
+    "Anthony Davis": {
+      "nba_id": 203076,
+      "team": "DAL",
+      "position": "",
+      "games_available": 16,
+      "cv": {
+        "pts": {
+          "season": 36.4,
+          "last20": 36.4,
+          "last10": 43.5,
+          "last5": 39.0
+        },
+        "reb": {
+          "season": 31.4,
+          "last20": 31.4,
+          "last10": 32.5,
+          "last5": 34.6
+        },
+        "ast": {
+          "season": 55.0,
+          "last20": 55.0,
+          "last10": 60.9,
+          "last5": 39.9
+        },
+        "stl": {
+          "season": 89.0,
+          "last20": 89.0,
+          "last10": 93.6,
+          "last5": 90.7
+        },
+        "blk": {
+          "season": 68.0,
+          "last20": 68.0,
+          "last10": 81.1,
+          "last5": 103.5
+        },
+        "threes": {
+          "season": 150.4,
+          "last20": 150.4,
+          "last10": 185.5,
+          "last5": 137.0
+        },
+        "pra": {
+          "season": 23.7,
+          "last20": 23.7,
+          "last10": 26.1,
+          "last5": 30.8
+        }
+      },
+      "mean_minutes_last20": 33.2
+    }
+  }
+}
