@@ -148,6 +148,9 @@ def apply_situation_filter(games: list[dict]) -> list[dict]:
         # Condition 2: trailing mean deviation
         if all_mins_so_far:
             trailing_mean = sum(all_mins_so_far) / len(all_mins_so_far)
+            if trailing_mean == 0:
+                all_mins_so_far.append(min_played)
+                continue
             deviation = abs(min_played - trailing_mean) / trailing_mean
             if deviation > 0.25:
                 all_mins_so_far.append(min_played)
