@@ -421,6 +421,17 @@ function NBASimulator() {
   const [copied, setCopied] = useState(false);
   const [includeHeaders, setIncludeHeaders] = useState(true);
   const [bankroll, setBankroll] = useState("");
+  const [cvDatabase, setCvDatabase] = useState(null);
+  const [cvWindow, setCvWindow] = useState("last20");
+  const [praDirectCv, setPraDirectCv] = useState(null);
+  const [cvLoadStatus, setCvLoadStatus] = useState(null); // "found" | "notfound" | null
+
+  React.useEffect(() => {
+    fetch('./cv_data.json')
+      .then(r => r.json())
+      .then(data => setCvDatabase(data.players))
+      .catch(() => {}); // degrade gracefully — CV lookup is optional
+  }, []);
 
   const updateStat = useCallback((key, field, value) => {
     setStats((prev) => {
@@ -471,6 +482,40 @@ function NBASimulator() {
     }));
   }, []);
 
+  const handleLoadCv = useCallback(() => {
+    if (!cvDatabase) return;
+    const normalized = playerName.trim().normalize('NFD');
+    const playerData = cvDatabase[normalized];
+    if (!playerData) {
+      setCvLoadStatus('notfound');
+      return;
+    }
+    const win = cvWindow;
+    const cvMin = playerData.cv_minutes?.[win];
+    setStats(prev => {
+      const updated = { ...prev };
+      STAT_CONFIG.forEach(({ key }) => {
+        const cvPer36 = playerData.cv?.[key]?.[win];
+        if (cvPer36 == null || cvMin == null) return;
+        // Combine per-36 rate variance with minutes variance: CV_eff = √(CV_per36² + CV_min²)
+        const effectiveCV = Math.round(Math.sqrt(cvPer36 ** 2 + cvMin ** 2) * 10) / 10;
+        const m = parseFloat(prev[key].mean);
+        const std = m > 0 ? Math.round(m * (effectiveCV / 100) * 10) / 10 : 0;
+        updated[key] = { ...prev[key], cvMode: true, cvValue: String(effectiveCV), stdDev: std, stdOverride: false };
+      });
+      return updated;
+    });
+    // PRA: store effective CV for direct simulation (avoids independence assumption error)
+    const cvPraPer36 = playerData.cv?.pra?.[win];
+    if (cvPraPer36 != null && cvMin != null) {
+      const effectivePraCV = Math.round(Math.sqrt(cvPraPer36 ** 2 + cvMin ** 2) * 10) / 10;
+      setPraDirectCv(effectivePraCV);
+    } else {
+      setPraDirectCv(null);
+    }
+    setCvLoadStatus('found');
+  }, [cvDatabase, cvWindow, playerName]);
+
   const handleClearPlayer = useCallback(() => {
     setPlayerName("Player Name");
     setStats(() => {
@@ -487,6 +532,8 @@ function NBASimulator() {
     });
     setResults(null);
     setCsvData(null);
+    setPraDirectCv(null);
+    setCvLoadStatus(null);
   }, []);
 
   const handleSimulate = useCallback(() => {
@@ -515,7 +562,19 @@ function NBASimulator() {
     const comboProbs = {};
     COMBO_CONFIG.forEach(({ key, parts }) => {
       if (comboLines[key].line !== "") {
-        const comboVals = calcCombo(simResults, parts);
+        let comboVals;
+        if (key === "pra" && praDirectCv != null) {
+          // Direct PRA simulation: avoids the independence assumption error from summing
+          // three separately drawn distributions. Uses empirical PRA CV from cv_data.json
+          // (already captures within-game correlations) combined with minutes variance.
+          const meanPRA = (parseFloat(stats.pts.mean) || 0)
+                        + (parseFloat(stats.reb.mean) || 0)
+                        + (parseFloat(stats.ast.mean) || 0);
+          const stdPRA = meanPRA * (praDirectCv / 100);
+          comboVals = simulateStat(meanPRA, stdPRA, numSims);
+        } else {
+          comboVals = calcCombo(simResults, parts);
+        }
         comboProbs[key] = {
           prob: calcProbability(comboVals, comboLines[key].line),
           simValues: comboVals,
@@ -643,6 +702,40 @@ function NBASimulator() {
               </button>
             </div>
           </div>
+
+          {/* CV Database row — only shown when database loaded */}
+          {cvDatabase && (
+            <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <select value={cvWindow} onChange={e => { setCvWindow(e.target.value); setCvLoadStatus(null); }}
+                style={{ ...inputStyle, flex: "0 0 auto", width: 84, fontSize: 11 }}>
+                <option value="last5">Last 5</option>
+                <option value="last10">Last 10</option>
+                <option value="last20">Last 20</option>
+                <option value="season">Season</option>
+              </select>
+              <button onClick={handleLoadCv} style={{
+                padding: "7px 14px", borderRadius: 6,
+                border: "1px solid rgba(99,102,241,0.4)", background: "rgba(99,102,241,0.12)",
+                color: "#a5b4fc", fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700, fontSize: 10, letterSpacing: 1, cursor: "pointer",
+              }}>
+                LOAD CV
+              </button>
+              {cvLoadStatus === "found" && (
+                <span style={{ fontSize: 10, color: "#22c55e", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                  CV LOADED ✓{praDirectCv != null ? " + PRA direct" : ""}
+                </span>
+              )}
+              {cvLoadStatus === "notfound" && (
+                <span style={{ fontSize: 10, color: "#ef4444", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                  NOT IN DB
+                </span>
+              )}
+              <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginLeft: "auto" }}>
+                {Object.keys(cvDatabase).length} players
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Stat Inputs */}

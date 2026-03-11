@@ -235,6 +235,13 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
         return None
 
     # Compute CV for each stat across each window
+    # windows_filtered holds the raw filtered games per window (for minutes CV)
+    windows_filtered = {
+        "season": filtered,
+        "last20": filtered[-20:],
+        "last10": filtered[-10:],
+        "last5":  filtered[-5:],
+    }
     windows = {
         "season": per36,
         "last20": per36[-20:],
@@ -249,6 +256,13 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
             rates = [g[stat] for g in window_games]
             cv_result[stat][window_name] = compute_cv(rates)
 
+    # CV of minutes per window (raw filtered minutes, not per-36)
+    # Used by the simulator to combine: CV_effective = sqrt(CV_per36² + CV_minutes²)
+    cv_minutes: dict[str, float | None] = {}
+    for window_name, window_games in windows_filtered.items():
+        mins = [g["min"] for g in window_games]
+        cv_minutes[window_name] = compute_cv(mins)
+
     # Mean minutes across last 20 qualifying games
     last20_mins = [g["min"] for g in filtered[-20:]]
     mean_min_last20 = round(sum(last20_mins) / len(last20_mins), 1) if last20_mins else None
@@ -262,6 +276,7 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
         "position": "",  # not available in PlayerGameLog; populated by ETR on JS side
         "games_available": n_filtered,
         "cv": cv_result,
+        "cv_minutes": cv_minutes,
         "mean_minutes_last20": mean_min_last20,
     }
 
@@ -370,10 +385,14 @@ def main() -> None:
         sample_name = next(iter(output["players"]))
         sample = output["players"][sample_name]
         assert "cv" in sample, "Schema error: missing 'cv' key"
+        assert "cv_minutes" in sample, "Schema error: missing 'cv_minutes' key"
         assert all(stat in sample["cv"] for stat in STAT_KEYS), "Schema error: missing stat keys"
         assert all(
             w in sample["cv"]["pts"] for w in ["season", "last20", "last10", "last5"]
-        ), "Schema error: missing window keys"
+        ), "Schema error: missing window keys in cv"
+        assert all(
+            w in sample["cv_minutes"] for w in ["season", "last20", "last10", "last5"]
+        ), "Schema error: missing window keys in cv_minutes"
         print(f"Schema check PASSED (validated against '{sample_name}')")
 
 
