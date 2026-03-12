@@ -365,6 +365,195 @@ function getProbColor(prob) {
   return "#ef4444";
 }
 
+// ── Odds API Engine ─────────────────────────────────────────────────
+const ODDS_API_BASE = 'https://api.the-odds-api.com/v4';
+
+// Internal stat key → Odds API market name
+const ODDS_MARKET_MAP = {
+  pts:    'player_points',
+  reb:    'player_rebounds',
+  ast:    'player_assists',
+  threes: 'player_threes',
+  stl:    'player_steals',
+  blk:    'player_blocks',
+};
+
+const SUPPORTED_BOOKS = [
+  { key: 'draftkings',   label: 'DraftKings' },
+  { key: 'fanduel',      label: 'FanDuel' },
+  { key: 'betmgm',       label: 'BetMGM' },
+  { key: 'caesars',      label: 'Caesars' },
+  { key: 'pointsbet_us', label: 'PointsBet' },
+  { key: 'betrivers',    label: 'BetRivers' },
+  { key: 'espnbet',      label: 'ESPN Bet' },
+];
+
+// Full team name → abbreviation (for game context badge)
+const NBA_TEAM_ABBR = {
+  'Atlanta Hawks': 'ATL', 'Boston Celtics': 'BOS', 'Brooklyn Nets': 'BKN',
+  'Charlotte Hornets': 'CHA', 'Chicago Bulls': 'CHI', 'Cleveland Cavaliers': 'CLE',
+  'Dallas Mavericks': 'DAL', 'Denver Nuggets': 'DEN', 'Detroit Pistons': 'DET',
+  'Golden State Warriors': 'GSW', 'Houston Rockets': 'HOU', 'Indiana Pacers': 'IND',
+  'LA Clippers': 'LAC', 'Los Angeles Clippers': 'LAC', 'Los Angeles Lakers': 'LAL',
+  'Memphis Grizzlies': 'MEM', 'Miami Heat': 'MIA', 'Milwaukee Bucks': 'MIL',
+  'Minnesota Timberwolves': 'MIN', 'New Orleans Pelicans': 'NOP', 'New York Knicks': 'NYK',
+  'Oklahoma City Thunder': 'OKC', 'Orlando Magic': 'ORL', 'Philadelphia 76ers': 'PHI',
+  'Phoenix Suns': 'PHX', 'Portland Trail Blazers': 'POR', 'Sacramento Kings': 'SAC',
+  'San Antonio Spurs': 'SAS', 'Toronto Raptors': 'TOR', 'Utah Jazz': 'UTA',
+  'Washington Wizards': 'WAS',
+};
+
+function normalizeOddsName(name) {
+  return (name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().trim()
+    .replace(/\bjr\.?$/i, 'jr').replace(/\bsr\.?$/i, 'sr')
+    .replace(/\bii$/i, 'ii').replace(/\biii$/i, 'iii').replace(/\biv$/i, 'iv');
+}
+
+function bigramSimilarity(a, b) {
+  if (a.length < 2 || b.length < 2) return a === b ? 1 : 0;
+  const bigrams = s => { const set = new Set(); for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2)); return set; };
+  const ab = bigrams(a), bb = bigrams(b);
+  let intersection = 0;
+  ab.forEach(g => { if (bb.has(g)) intersection++; });
+  return (2 * intersection) / (ab.size + bb.size);
+}
+
+function findFuzzyOddsMatch(oddsIndex, normName, threshold = 0.72) {
+  let best = null, bestScore = 0;
+  for (const key of Object.keys(oddsIndex)) {
+    const score = bigramSimilarity(key, normName);
+    if (score > bestScore) { bestScore = score; best = key; }
+  }
+  return bestScore >= threshold ? oddsIndex[best] : null;
+}
+
+// Best American odds = numerically highest price (higher = better value for bettor)
+function bestAmericanOdds(prices) {
+  if (!prices || prices.length === 0) return null;
+  return prices.reduce((best, p) => {
+    if (!best) return p;
+    const curr = parseFloat(p.price), b = parseFloat(best.price);
+    return (!isNaN(curr) && (isNaN(b) || curr > b)) ? p : best;
+  }, null);
+}
+
+async function fetchNbaGames(apiKey) {
+  const now = new Date();
+  const from = now.toISOString().slice(0, 10) + 'T00:00:00Z';
+  const to = new Date(now.getTime() + 30 * 60 * 60 * 1000).toISOString();
+  const url = `${ODDS_API_BASE}/sports/basketball_nba/events?apiKey=${apiKey}&commenceTimeFrom=${from}&commenceTimeTo=${to}`;
+  const r = await fetch(url);
+  if (!r.ok) { const txt = await r.text().catch(() => ''); throw new Error(`Odds API ${r.status}: ${txt.slice(0, 120)}`); }
+  return { games: await r.json(), remainingRequests: r.headers.get('x-requests-remaining') };
+}
+
+async function fetchGameLines(apiKey, eventIds) {
+  if (!eventIds || eventIds.length === 0) return { lines: {}, remainingRequests: null };
+  const url = `${ODDS_API_BASE}/sports/basketball_nba/odds?apiKey=${apiKey}&regions=us&markets=spreads,totals&oddsFormat=american&eventIds=${eventIds.join(',')}`;
+  const r = await fetch(url);
+  if (!r.ok) return { lines: {}, remainingRequests: null };
+  const data = await r.json();
+  const lines = {};
+  data.forEach(event => {
+    let total = null, spread = null, favoriteTeam = null;
+    (event.bookmakers || []).forEach(bk => {
+      (bk.markets || []).forEach(mkt => {
+        if (mkt.key === 'totals' && total == null) {
+          const ov = mkt.outcomes?.find(o => o.name === 'Over');
+          if (ov) total = ov.point;
+        }
+        if (mkt.key === 'spreads' && spread == null) {
+          const away = mkt.outcomes?.find(o => o.name === event.away_team);
+          if (away) { spread = away.point; favoriteTeam = away.point < 0 ? event.away_team : event.home_team; }
+        }
+      });
+    });
+    lines[event.id] = { total, spread, favoriteTeam, homeTeam: event.home_team, awayTeam: event.away_team };
+  });
+  return { lines, remainingRequests: r.headers.get('x-requests-remaining') };
+}
+
+async function fetchEventProps(apiKey, eventId) {
+  const markets = Object.values(ODDS_MARKET_MAP).join(',');
+  const url = `${ODDS_API_BASE}/sports/basketball_nba/events/${eventId}/odds?apiKey=${apiKey}&regions=us&markets=${markets}&oddsFormat=american`;
+  const r = await fetch(url);
+  if (!r.ok) return { bookmakers: [], remainingRequests: null };
+  const data = await r.json();
+  return { bookmakers: data.bookmakers || [], remainingRequests: r.headers.get('x-requests-remaining') };
+}
+
+// Builds { normalizedPlayerName → { pts: { line, overOdds, underOdds, overBook, underBook, allBooks[] }, ... } }
+function buildOddsIndex(allPropsData, selectedBooks) {
+  const index = {};
+  allPropsData.forEach(({ bookmakers }) => {
+    (bookmakers || []).forEach(bk => {
+      if (selectedBooks.length > 0 && !selectedBooks.includes(bk.key)) return;
+      (bk.markets || []).forEach(mkt => {
+        const statKey = Object.keys(ODDS_MARKET_MAP).find(k => ODDS_MARKET_MAP[k] === mkt.key);
+        if (!statKey) return;
+        (mkt.outcomes || []).forEach(outcome => {
+          const normName = normalizeOddsName(outcome.description || '');
+          if (!normName) return;
+          if (!index[normName]) index[normName] = {};
+          if (!index[normName][statKey]) index[normName][statKey] = { allBooks: [] };
+          const entry = index[normName][statKey];
+          const side = (outcome.name || '').toLowerCase();
+          entry.allBooks.push({ book: bk.key, bookLabel: bk.title, price: outcome.price, point: outcome.point, side });
+          if (outcome.point != null) entry.line = outcome.point;
+        });
+      });
+    });
+  });
+  Object.keys(index).forEach(player => {
+    Object.keys(index[player]).forEach(statKey => {
+      const entry = index[player][statKey];
+      const overPrices  = entry.allBooks.filter(b => b.side === 'over');
+      const underPrices = entry.allBooks.filter(b => b.side === 'under');
+      const bestOver  = bestAmericanOdds(overPrices);
+      const bestUnder = bestAmericanOdds(underPrices);
+      if (bestOver)  { entry.overOdds  = bestOver.price;  entry.overBook  = bestOver.bookLabel;  }
+      if (bestUnder) { entry.underOdds = bestUnder.price; entry.underBook = bestUnder.bookLabel; }
+    });
+  });
+  return index;
+}
+
+// Maps team abbreviation → { opponent, total, spread, favoriteTeam, homeTeam, awayTeam }
+function buildGameIndex(games, gameLines) {
+  const index = {};
+  games.forEach(game => {
+    const toAbbr = t => NBA_TEAM_ABBR[t] || (t || '').split(' ').pop().toUpperCase();
+    const homeAbbr = toAbbr(game.home_team), awayAbbr = toAbbr(game.away_team);
+    const gl = gameLines[game.id] || {};
+    const favAbbr = gl.favoriteTeam ? toAbbr(gl.favoriteTeam) : null;
+    const ctx = { homeTeam: homeAbbr, awayTeam: awayAbbr, total: gl.total, spread: gl.spread, favoriteTeam: favAbbr };
+    if (homeAbbr) index[homeAbbr] = { ...ctx, opponent: awayAbbr };
+    if (awayAbbr) index[awayAbbr] = { ...ctx, opponent: homeAbbr };
+  });
+  return index;
+}
+
+async function fetchFullSlate(apiKey, selectedBooks) {
+  const { games, remainingRequests: rr0 } = await fetchNbaGames(apiKey);
+  if (!games || games.length === 0) throw new Error('No NBA games found for today — lines may not be posted yet.');
+  const { lines: gameLines } = await fetchGameLines(apiKey, games.map(g => g.id));
+  const allPropsData = [];
+  let lastRR = rr0;
+  for (const game of games) {
+    const { bookmakers, remainingRequests } = await fetchEventProps(apiKey, game.id);
+    allPropsData.push({ gameId: game.id, bookmakers });
+    if (remainingRequests != null) lastRR = remainingRequests;
+    await new Promise(res => setTimeout(res, 150));
+  }
+  return {
+    oddsIndex: buildOddsIndex(allPropsData, selectedBooks),
+    gameIndex:  buildGameIndex(games, gameLines),
+    remainingRequests: lastRR != null ? parseInt(lastRR) : null,
+    gamesCount: games.length,
+  };
+}
+
 // ── Std Dev Estimation ──────────────────────────────────────────────
 const STD_RATIOS = { pts: 0.30, reb: 0.42, ast: 0.40, stl: 0.65, blk: 0.75, threes: 0.52 };
 
@@ -849,12 +1038,47 @@ function NBASimulator() {
   const [projUpdatedAt, setProjUpdatedAt] = useState(null);
   const [ladderOpen, setLadderOpen] = useState({});
 
+  // Odds API state
+  const [oddsApiKey, setOddsApiKey] = useState(() => localStorage.getItem('oddsApiKey') || '');
+  const [selectedBooks, setSelectedBooks] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('selectedBooks') || '["draftkings","fanduel","betmgm","caesars"]'); }
+    catch { return ['draftkings','fanduel','betmgm','caesars']; }
+  });
+  const [oddsData, setOddsData]           = useState(null);
+  const [gameData, setGameData]           = useState(null);
+  const [oddsLoading, setOddsLoading]     = useState(false);
+  const [oddsError, setOddsError]         = useState(null);
+  const [oddsLastFetched, setOddsLastFetched]   = useState(null);
+  const [oddsRequestsLeft, setOddsRequestsLeft] = useState(null);
+  const [showOddsPanel, setShowOddsPanel] = useState(false);
+  const [openBooksPanel, setOpenBooksPanel] = useState(null); // stat key with expanded multi-book view
+
   React.useEffect(() => {
     fetch('./cv_data.json')
       .then(r => r.json())
       .then(data => setCvDatabase(data.players))
       .catch(() => {}); // degrade gracefully — CV lookup is optional
   }, []);
+
+  React.useEffect(() => { localStorage.setItem('oddsApiKey', oddsApiKey); }, [oddsApiKey]);
+  React.useEffect(() => { localStorage.setItem('selectedBooks', JSON.stringify(selectedBooks)); }, [selectedBooks]);
+
+  const handleFetchLines = useCallback(async () => {
+    if (!oddsApiKey.trim()) { setOddsError('Enter your Odds API key first.'); setShowOddsPanel(true); return; }
+    setOddsLoading(true); setOddsError(null);
+    try {
+      const result = await fetchFullSlate(oddsApiKey.trim(), selectedBooks);
+      setOddsData(result.oddsIndex);
+      setGameData(result.gameIndex);
+      setOddsLastFetched(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+      setOddsRequestsLeft(result.remainingRequests);
+      setShowOddsPanel(false);
+    } catch(e) {
+      setOddsError(e.message || 'Fetch failed — check API key and network.');
+    } finally {
+      setOddsLoading(false);
+    }
+  }, [oddsApiKey, selectedBooks]);
 
   const updateStat = useCallback((key, field, value) => {
     setStats((prev) => {
@@ -1008,7 +1232,27 @@ function NBASimulator() {
       });
       return updated;
     });
-  }, [projections]);
+    // Auto-populate prop lines + odds from Odds API if available
+    if (oddsData) {
+      const normName = normalizeOddsName(p.name);
+      const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
+      if (playerOdds) {
+        setStats(prev => {
+          const next = { ...prev };
+          STAT_CONFIG.forEach(({ key }) => {
+            const o = playerOdds[key];
+            if (!o) return;
+            const patch = {};
+            if (o.line != null)      patch.propLine  = String(o.line);
+            if (o.overOdds  != null) patch.overOdds  = String(Math.round(o.overOdds));
+            if (o.underOdds != null) patch.underOdds = String(Math.round(o.underOdds));
+            if (Object.keys(patch).length > 0) next[key] = { ...next[key], ...patch };
+          });
+          return next;
+        });
+      }
+    }
+  }, [projections, oddsData]);
 
   const handleClearPlayer = useCallback(() => {
     setPlayerName("Player Name");
@@ -1277,12 +1521,116 @@ function NBASimulator() {
                 }}
               >
                 <option value="">— Select player from slate —</option>
-                {projections.map(p => (
-                  <option key={p.name} value={p.name}>
-                    {p.name}{p.pos ? ` (${p.pos}` : ''}{p.team ? `${p.pos ? ' · ' : ' ('}${p.team}` : ''}{p.opp ? ` vs ${p.opp}` : ''}{(p.pos || p.team) ? ')' : ''}{p.pts ? ` — ${p.pts} pts` : ''}
-                  </option>
-                ))}
+                {projections.map(p => {
+                  // Coverage dot: check if this player has any odds loaded
+                  let hasOdds = false;
+                  if (oddsData) {
+                    const nm = normalizeOddsName(p.name);
+                    hasOdds = !!(oddsData[nm] || findFuzzyOddsMatch(oddsData, nm));
+                  }
+                  const hasMeta = p.pos || p.team;
+                  return (
+                    <option key={p.name} value={p.name}>
+                      {hasOdds ? '● ' : ''}{p.name}{hasMeta ? ` (${p.pos ? p.pos : ''}${p.pos && p.team ? ' · ' : ''}${p.team || ''}${p.opp ? ` vs ${p.opp}` : ''})` : ''}{p.pts ? ` — ${p.pts} pts` : ''}
+                    </option>
+                  );
+                })}
               </select>
+            </div>
+          )}
+        </div>
+
+        {/* Live Lines — Odds API */}
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: `1px solid ${oddsData ? "rgba(34,197,94,0.2)" : "rgba(148,163,184,0.08)"}`, borderRadius: 12, marginBottom: 12 }}>
+          <div onClick={() => setShowOddsPanel(o => !o)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", cursor: "pointer" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10,
+                color: oddsData ? "#4ade80" : "#64748b", letterSpacing: 1 }}>
+                LIVE LINES
+              </span>
+              <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+                · The Odds API
+              </span>
+              {oddsData ? (
+                <span style={{ fontSize: 9, color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {Object.keys(oddsData).length} players · {oddsLastFetched}
+                  {oddsRequestsLeft != null && <span style={{ color: "#64748b" }}> · {oddsRequestsLeft} req left</span>}
+                </span>
+              ) : (
+                <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+                  auto-populates lines + odds on player select
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {oddsData && (
+                <button onClick={e => { e.stopPropagation(); handleFetchLines(); }}
+                  disabled={oddsLoading}
+                  style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.08)",
+                    color: "#4ade80", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9, cursor: "pointer" }}>
+                  {oddsLoading ? "..." : "REFRESH"}
+                </button>
+              )}
+              <span style={{ color: "#475569", fontSize: 9, fontFamily: "'JetBrains Mono', monospace" }}>
+                {showOddsPanel ? "▲ CLOSE" : oddsData ? "▼ SETTINGS" : "▼ SETUP"}
+              </span>
+            </div>
+          </div>
+
+          {showOddsPanel && (
+            <div style={{ padding: "0 16px 14px" }}>
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4, letterSpacing: 0.5 }}>
+                  API KEY — the-odds-api.com
+                </div>
+                <input
+                  type="password"
+                  placeholder="Paste your Odds API key here"
+                  value={oddsApiKey}
+                  onChange={e => { setOddsApiKey(e.target.value); setOddsError(null); }}
+                  style={{ width: "100%", backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid rgba(148,163,184,0.15)",
+                    borderRadius: 6, padding: "8px 10px", color: "#e2e8f0",
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6, letterSpacing: 0.5 }}>
+                  BOOKS — select which to include (best odds across selection)
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  {SUPPORTED_BOOKS.map(b => {
+                    const active = selectedBooks.includes(b.key);
+                    return (
+                      <div key={b.key} onClick={() => setSelectedBooks(prev =>
+                          active ? prev.filter(k => k !== b.key) : [...prev, b.key]
+                        )}
+                        style={{ padding: "4px 9px", borderRadius: 4, cursor: "pointer", fontSize: 9, fontWeight: 700,
+                          fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.5,
+                          backgroundColor: active ? "rgba(34,197,94,0.12)" : "rgba(15,23,42,0.6)",
+                          border: `1px solid ${active ? "rgba(34,197,94,0.35)" : "rgba(148,163,184,0.15)"}`,
+                          color: active ? "#4ade80" : "#475569" }}>
+                        {b.label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              {oddsError && (
+                <div style={{ fontSize: 9, color: "#f87171", fontFamily: "'JetBrains Mono', monospace", marginBottom: 8 }}>
+                  {oddsError}
+                </div>
+              )}
+              <button onClick={handleFetchLines} disabled={oddsLoading}
+                style={{ padding: "8px 20px", borderRadius: 6,
+                  border: "1px solid rgba(34,197,94,0.4)", background: oddsLoading ? "rgba(15,23,42,0.5)" : "rgba(34,197,94,0.12)",
+                  color: oddsLoading ? "#475569" : "#4ade80", fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 700, fontSize: 10, letterSpacing: 1, cursor: oddsLoading ? "not-allowed" : "pointer" }}>
+                {oddsLoading ? "FETCHING LINES..." : "FETCH LINES"}
+              </button>
+              <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginLeft: 10 }}>
+                ~{(selectedBooks.length > 0 ? 10 : 10)}–17 API requests per slate
+              </span>
             </div>
           )}
         </div>
@@ -1324,6 +1672,37 @@ function NBASimulator() {
               </button>
             </div>
           </div>
+
+          {/* Game context badge — shown when Odds API game data is available for this player's team */}
+          {(() => {
+            const selProj = projections?.find(p => p.name === playerName);
+            const team = selProj?.team?.toUpperCase();
+            const ctx = team && gameData ? gameData[team] : null;
+            if (!ctx) return null;
+            const total = ctx.total;
+            const totalColor = total >= 230 ? "#22c55e" : total >= 215 ? "#facc15" : "#64748b";
+            const spreadTeam = ctx.favoriteTeam === team ? team : ctx.opponent;
+            const spreadNum = ctx.favoriteTeam === team ? ctx.spread : ctx.spread != null ? -ctx.spread : null;
+            return (
+              <div style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {team} vs {ctx.opponent}
+                </span>
+                {total != null && (
+                  <span style={{ fontSize: 9, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: totalColor,
+                    backgroundColor: `${totalColor}11`, border: `1px solid ${totalColor}33`, padding: "1px 5px", borderRadius: 3 }}>
+                    O/U {total}
+                  </span>
+                )}
+                {spreadNum != null && (
+                  <span style={{ fontSize: 9, fontFamily: "'JetBrains Mono', monospace", color: "#94a3b8",
+                    backgroundColor: "rgba(15,23,42,0.5)", border: "1px solid rgba(148,163,184,0.15)", padding: "1px 5px", borderRadius: 3 }}>
+                    {spreadTeam} {spreadNum > 0 ? '+' : ''}{spreadNum}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
 
           {/* CV Database row — only shown when database loaded */}
           {cvDatabase && (
@@ -1377,80 +1756,156 @@ function NBASimulator() {
             <div style={{ ...tinyLabel, flex: 1 }}>Under Odds</div>
           </div>
 
-          {STAT_CONFIG.map(({ key, label }) => (
-            <div key={key} style={{ display: "flex", gap: 4, marginBottom: 6, alignItems: "center" }}>
-              <div style={{
-                width: 26, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
-                fontSize: 9, color: "#94a3b8", textAlign: "right", flexShrink: 0,
-              }}>{label}</div>
-              <input type="number" step="0.1" value={stats[key].mean}
-                onChange={(e) => updateStat(key, "mean", e.target.value)}
-                style={{ ...inputStyle, flex: 1 }} />
-              <div style={{ flex: 1, position: "relative" }}>
-                {stats[key].cvMode ? (
-                  <>
-                    {(() => {
-                      const isPoissonStat = POISSON_STATS.has(key);
-                      const enteredCV = parseFloat(stats[key].cvValue);
-                      const m = parseFloat(stats[key].mean);
-                      const thresh = isPoissonStat && m > 0 ? Math.round(100 / Math.sqrt(m)) : null;
-                      const negBinActive = thresh !== null && !isNaN(enteredCV) && enteredCV > thresh;
-                      const borderColor = isPoissonStat
-                        ? (negBinActive ? "rgba(168,85,247,0.7)" : "rgba(245,158,11,0.6)")
-                        : "rgba(168,85,247,0.5)";
-                      const badgeColor = isPoissonStat ? (negBinActive ? "#a855f7" : "#f59e0b") : "#a855f7";
-                      const badgeText = isPoissonStat ? (negBinActive ? "NB% ↺" : "CV%⚠ ↺") : "CV% ↺";
-                      const badgeTitle = isPoissonStat
-                        ? (negBinActive
-                            ? `NegBin active — CV ${stats[key].cvValue}% > Poisson threshold ${thresh}%`
-                            : `Poisson fallback — enter >${thresh}% to activate NegBin (Poisson CV = ${thresh}% at this mean)`)
-                        : `CV ${stats[key].cvValue}% → SD ${stats[key].stdDev}`;
-                      return (
+          {(() => {
+            const selProj = projections?.find(p => p.name === playerName);
+            const normName = selProj ? normalizeOddsName(selProj.name) : null;
+            const currentPlayerOdds = normName && oddsData
+              ? (oddsData[normName] || findFuzzyOddsMatch(oddsData, normName))
+              : null;
+            return STAT_CONFIG.map(({ key, label }) => {
+              const statOdds = currentPlayerOdds?.[key];
+              const booksOpen = openBooksPanel === key;
+              return (
+                <div key={key} style={{ marginBottom: 6 }}>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <div style={{
+                      width: 26, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+                      fontSize: 9, color: "#94a3b8", textAlign: "right", flexShrink: 0,
+                    }}>{label}</div>
+                    <input type="number" step="0.1" value={stats[key].mean}
+                      onChange={(e) => updateStat(key, "mean", e.target.value)}
+                      style={{ ...inputStyle, flex: 1 }} />
+                    <div style={{ flex: 1, position: "relative" }}>
+                      {stats[key].cvMode ? (
                         <>
-                          <input type="number" step="1" placeholder="CV%" value={stats[key].cvValue}
-                            onChange={(e) => updateStat(key, "cvValue", e.target.value)}
-                            style={{ ...inputStyle, width: "100%", borderColor }} />
-                          <div onClick={() => toggleCvMode(key)} style={{
-                            position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
-                            color: badgeColor, backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
-                            borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
-                          }} title={badgeTitle}>{badgeText}</div>
+                          {(() => {
+                            const isPoissonStat = POISSON_STATS.has(key);
+                            const enteredCV = parseFloat(stats[key].cvValue);
+                            const m = parseFloat(stats[key].mean);
+                            const thresh = isPoissonStat && m > 0 ? Math.round(100 / Math.sqrt(m)) : null;
+                            const negBinActive = thresh !== null && !isNaN(enteredCV) && enteredCV > thresh;
+                            const borderColor = isPoissonStat
+                              ? (negBinActive ? "rgba(168,85,247,0.7)" : "rgba(245,158,11,0.6)")
+                              : "rgba(168,85,247,0.5)";
+                            const badgeColor = isPoissonStat ? (negBinActive ? "#a855f7" : "#f59e0b") : "#a855f7";
+                            const badgeText = isPoissonStat ? (negBinActive ? "NB% ↺" : "CV%⚠ ↺") : "CV% ↺";
+                            const badgeTitle = isPoissonStat
+                              ? (negBinActive
+                                  ? `NegBin active — CV ${stats[key].cvValue}% > Poisson threshold ${thresh}%`
+                                  : `Poisson fallback — enter >${thresh}% to activate NegBin (Poisson CV = ${thresh}% at this mean)`)
+                              : `CV ${stats[key].cvValue}% → SD ${stats[key].stdDev}`;
+                            return (
+                              <>
+                                <input type="number" step="1" placeholder="CV%" value={stats[key].cvValue}
+                                  onChange={(e) => updateStat(key, "cvValue", e.target.value)}
+                                  style={{ ...inputStyle, width: "100%", borderColor }} />
+                                <div onClick={() => toggleCvMode(key)} style={{
+                                  position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
+                                  color: badgeColor, backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
+                                  borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
+                                }} title={badgeTitle}>{badgeText}</div>
+                              </>
+                            );
+                          })()}
                         </>
-                      );
-                    })()}
-                  </>
-                ) : (
-                  <>
-                    <input type="number" step="0.1" value={stats[key].stdDev}
-                      onChange={(e) => updateStat(key, "stdDev", e.target.value)}
-                      style={{ ...inputStyle, width: "100%", borderColor: stats[key].stdOverride ? "rgba(251,191,36,0.4)" : "rgba(34,197,94,0.3)" }} />
-                    {!stats[key].stdOverride ? (
-                      <div onClick={() => toggleCvMode(key)} style={{
-                        position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
-                        color: "#22c55e", backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
-                        borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
-                      }} title="Click for CV% mode">AUTO</div>
-                    ) : (
-                      <div onClick={() => resetStdDev(key)} style={{
-                        position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
-                        color: "#fbbf24", backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
-                        borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
-                      }} title="Reset to auto">↺</div>
+                      ) : (
+                        <>
+                          <input type="number" step="0.1" value={stats[key].stdDev}
+                            onChange={(e) => updateStat(key, "stdDev", e.target.value)}
+                            style={{ ...inputStyle, width: "100%", borderColor: stats[key].stdOverride ? "rgba(251,191,36,0.4)" : "rgba(34,197,94,0.3)" }} />
+                          {!stats[key].stdOverride ? (
+                            <div onClick={() => toggleCvMode(key)} style={{
+                              position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
+                              color: "#22c55e", backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
+                              borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
+                            }} title="Click for CV% mode">AUTO</div>
+                          ) : (
+                            <div onClick={() => resetStdDev(key)} style={{
+                              position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
+                              color: "#fbbf24", backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
+                              borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
+                            }} title="Reset to auto">↺</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <input type="number" step="0.5" placeholder="—" value={stats[key].propLine}
+                      onChange={(e) => updateStat(key, "propLine", e.target.value)}
+                      style={{ ...inputStyle, flex: 1, borderColor: stats[key].propLine ? "rgba(99,102,241,0.4)" : "rgba(148,163,184,0.2)" }} />
+                    <input type="number" step="1" placeholder="-110" value={stats[key].overOdds}
+                      onChange={(e) => updateStat(key, "overOdds", e.target.value)}
+                      style={{ ...inputStyle, flex: 1, borderColor: stats[key].overOdds ? "rgba(34,197,94,0.35)" : "rgba(148,163,184,0.2)" }} />
+                    <input type="number" step="1" placeholder="-110" value={stats[key].underOdds}
+                      onChange={(e) => updateStat(key, "underOdds", e.target.value)}
+                      style={{ ...inputStyle, flex: 1, borderColor: stats[key].underOdds ? "rgba(239,68,68,0.3)" : "rgba(148,163,184,0.2)" }} />
+                    {/* Multi-book toggle — only shown when odds data exists for this stat */}
+                    {statOdds && (
+                      <div onClick={() => setOpenBooksPanel(booksOpen ? null : key)}
+                        style={{ flexShrink: 0, fontSize: 7, fontWeight: 700, cursor: "pointer", padding: "2px 4px",
+                          borderRadius: 3, fontFamily: "'JetBrains Mono', monospace",
+                          color: booksOpen ? "#0b0f1a" : "#4ade80",
+                          backgroundColor: booksOpen ? "#4ade80" : "rgba(34,197,94,0.1)",
+                          border: "1px solid rgba(34,197,94,0.3)" }}
+                        title="Show all books">
+                        SHOP
+                      </div>
                     )}
-                  </>
-                )}
-              </div>
-              <input type="number" step="0.5" placeholder="—" value={stats[key].propLine}
-                onChange={(e) => updateStat(key, "propLine", e.target.value)}
-                style={{ ...inputStyle, flex: 1, borderColor: stats[key].propLine ? "rgba(99,102,241,0.4)" : "rgba(148,163,184,0.2)" }} />
-              <input type="number" step="1" placeholder="-110" value={stats[key].overOdds}
-                onChange={(e) => updateStat(key, "overOdds", e.target.value)}
-                style={{ ...inputStyle, flex: 1, borderColor: stats[key].overOdds ? "rgba(34,197,94,0.35)" : "rgba(148,163,184,0.2)" }} />
-              <input type="number" step="1" placeholder="-110" value={stats[key].underOdds}
-                onChange={(e) => updateStat(key, "underOdds", e.target.value)}
-                style={{ ...inputStyle, flex: 1, borderColor: stats[key].underOdds ? "rgba(239,68,68,0.3)" : "rgba(148,163,184,0.2)" }} />
-            </div>
-          ))}
+                  </div>
+                  {/* Multi-book comparison panel */}
+                  {booksOpen && statOdds && statOdds.allBooks && (
+                    <div style={{ marginLeft: 30, marginTop: 3, padding: "6px 8px",
+                      backgroundColor: "rgba(15,23,42,0.6)", border: "1px solid rgba(34,197,94,0.15)",
+                      borderRadius: 5 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr 1fr", gap: "2px 8px",
+                        fontSize: 8, fontFamily: "'JetBrains Mono', monospace" }}>
+                        <div style={{ color: "#475569" }}>Book</div>
+                        <div style={{ color: "#475569", textAlign: "center" }}>Line</div>
+                        <div style={{ color: "#4ade80", textAlign: "center" }}>Over</div>
+                        <div style={{ color: "#f87171", textAlign: "center" }}>Under</div>
+                        {SUPPORTED_BOOKS.filter(b =>
+                          statOdds.allBooks.some(ab => ab.book === b.key)
+                        ).map(b => {
+                          const overEntry  = statOdds.allBooks.find(ab => ab.book === b.key && ab.side === 'over');
+                          const underEntry = statOdds.allBooks.find(ab => ab.book === b.key && ab.side === 'under');
+                          const isTopOver  = overEntry  && overEntry.price  === statOdds.overOdds;
+                          const isTopUnder = underEntry && underEntry.price === statOdds.underOdds;
+                          return (
+                            <React.Fragment key={b.key}>
+                              <div style={{ color: "#94a3b8" }}>{b.label}</div>
+                              <div style={{ color: "#64748b", textAlign: "center" }}>
+                                {overEntry?.point ?? underEntry?.point ?? "—"}
+                              </div>
+                              <div onClick={() => {
+                                  if (overEntry?.point != null) updateStat(key, 'propLine', String(overEntry.point));
+                                  if (overEntry?.price != null) updateStat(key, 'overOdds', String(Math.round(overEntry.price)));
+                                }}
+                                style={{ color: isTopOver ? "#22c55e" : "#64748b", textAlign: "center",
+                                  cursor: overEntry ? "pointer" : "default", fontWeight: isTopOver ? 700 : 400 }}
+                                title={overEntry ? "Click to use this over line" : ""}>
+                                {overEntry ? fmtOdds(Math.round(overEntry.price)) : "—"}
+                              </div>
+                              <div onClick={() => {
+                                  if (underEntry?.point != null) updateStat(key, 'propLine', String(underEntry.point));
+                                  if (underEntry?.price != null) updateStat(key, 'underOdds', String(Math.round(underEntry.price)));
+                                }}
+                                style={{ color: isTopUnder ? "#f87171" : "#64748b", textAlign: "center",
+                                  cursor: underEntry ? "pointer" : "default", fontWeight: isTopUnder ? 700 : 400 }}
+                                title={underEntry ? "Click to use this under line" : ""}>
+                                {underEntry ? fmtOdds(Math.round(underEntry.price)) : "—"}
+                              </div>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                      <div style={{ fontSize: 7, color: "#475569", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>
+                        Highlighted = best available · Click any odds to apply to input
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
 
           <div style={{
             marginTop: 8, padding: "6px 10px", backgroundColor: "rgba(34,197,94,0.04)",
