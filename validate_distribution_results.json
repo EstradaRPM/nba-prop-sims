@@ -1,0 +1,1345 @@
+{
+  "players": [
+    {
+      "player": "Darius Garland",
+      "n_games": 27,
+      "mean": 17.93,
+      "std": 6.62,
+      "cv_pct": 36.9,
+      "emp_median": 18.0,
+      "emp_skew": 0.363,
+      "pred_median": {
+        "tn": 84.14,
+        "ln": 16.82,
+        "gamma": 17.12
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.158,
+        "gamma": 0.739
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 16.4,
+          "empirical": 0.5926,
+          "tn": 0.5916,
+          "ln": 0.5261,
+          "gamma": 0.5433,
+          "err_tn": -0.001,
+          "err_ln": -0.0665,
+          "err_gamma": -0.0493
+        },
+        {
+          "line_offset": -0.5,
+          "line": 17.4,
+          "empirical": 0.5556,
+          "tn": 0.5319,
+          "ln": 0.4603,
+          "gamma": 0.481,
+          "err_tn": -0.0237,
+          "err_ln": -0.0953,
+          "err_gamma": -0.0745
+        },
+        {
+          "line_offset": 0.5,
+          "line": 18.4,
+          "empirical": 0.4815,
+          "tn": 0.4715,
+          "ln": 0.3991,
+          "gamma": 0.4215,
+          "err_tn": -0.01,
+          "err_ln": -0.0824,
+          "err_gamma": -0.06
+        },
+        {
+          "line_offset": 1.5,
+          "line": 19.4,
+          "empirical": 0.4444,
+          "tn": 0.4118,
+          "ln": 0.3433,
+          "gamma": 0.3657,
+          "err_tn": -0.0327,
+          "err_ln": -0.1012,
+          "err_gamma": -0.0787
+        }
+      ]
+    },
+    {
+      "player": "Zach LaVine",
+      "n_games": 31,
+      "mean": 21.48,
+      "std": 8.62,
+      "cv_pct": 40.1,
+      "emp_median": 19.0,
+      "emp_skew": 0.381,
+      "pred_median": {
+        "tn": 107.66,
+        "ln": 19.94,
+        "gamma": 20.35
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.268,
+        "gamma": 0.802
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 20.0,
+          "empirical": 0.4839,
+          "tn": 0.5727,
+          "ln": 0.4977,
+          "gamma": 0.5173,
+          "err_tn": 0.0888,
+          "err_ln": 0.0138,
+          "err_gamma": 0.0334
+        },
+        {
+          "line_offset": -0.5,
+          "line": 21.0,
+          "empirical": 0.4194,
+          "tn": 0.5265,
+          "ln": 0.4474,
+          "gamma": 0.4697,
+          "err_tn": 0.1071,
+          "err_ln": 0.0281,
+          "err_gamma": 0.0504
+        },
+        {
+          "line_offset": 0.5,
+          "line": 22.0,
+          "empirical": 0.4194,
+          "tn": 0.4799,
+          "ln": 0.4003,
+          "gamma": 0.4241,
+          "err_tn": 0.0605,
+          "err_ln": -0.0191,
+          "err_gamma": 0.0047
+        },
+        {
+          "line_offset": 1.5,
+          "line": 23.0,
+          "empirical": 0.4194,
+          "tn": 0.4337,
+          "ln": 0.3565,
+          "gamma": 0.3807,
+          "err_tn": 0.0143,
+          "err_ln": -0.0629,
+          "err_gamma": -0.0386
+        }
+      ]
+    },
+    {
+      "player": "Mikal Bridges",
+      "n_games": 61,
+      "mean": 15.62,
+      "std": 6.23,
+      "cv_pct": 39.9,
+      "emp_median": 15.0,
+      "emp_skew": 0.358,
+      "pred_median": {
+        "tn": 77.92,
+        "ln": 14.51,
+        "gamma": 14.81
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.26,
+        "gamma": 0.797
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 14.1,
+          "empirical": 0.5738,
+          "tn": 0.5988,
+          "ln": 0.5282,
+          "gamma": 0.5456,
+          "err_tn": 0.025,
+          "err_ln": -0.0456,
+          "err_gamma": -0.0282
+        },
+        {
+          "line_offset": -0.5,
+          "line": 15.1,
+          "empirical": 0.4754,
+          "tn": 0.5352,
+          "ln": 0.4572,
+          "gamma": 0.479,
+          "err_tn": 0.0598,
+          "err_ln": -0.0182,
+          "err_gamma": 0.0036
+        },
+        {
+          "line_offset": 0.5,
+          "line": 16.1,
+          "empirical": 0.377,
+          "tn": 0.4709,
+          "ln": 0.392,
+          "gamma": 0.4159,
+          "err_tn": 0.0938,
+          "err_ln": 0.015,
+          "err_gamma": 0.0388
+        },
+        {
+          "line_offset": 1.5,
+          "line": 17.1,
+          "empirical": 0.377,
+          "tn": 0.4073,
+          "ln": 0.3333,
+          "gamma": 0.3572,
+          "err_tn": 0.0303,
+          "err_ln": -0.0437,
+          "err_gamma": -0.0198
+        }
+      ]
+    },
+    {
+      "player": "Brandon Ingram",
+      "n_games": 61,
+      "mean": 21.64,
+      "std": 6.87,
+      "cv_pct": 31.7,
+      "emp_median": 22.0,
+      "emp_skew": 0.031,
+      "pred_median": {
+        "tn": 90.32,
+        "ln": 20.63,
+        "gamma": 20.92
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 0.984,
+        "gamma": 0.635
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 20.1,
+          "empirical": 0.541,
+          "tn": 0.5869,
+          "ln": 0.5307,
+          "gamma": 0.5466,
+          "err_tn": 0.0459,
+          "err_ln": -0.0103,
+          "err_gamma": 0.0056
+        },
+        {
+          "line_offset": -0.5,
+          "line": 21.1,
+          "empirical": 0.5082,
+          "tn": 0.5294,
+          "ln": 0.4683,
+          "gamma": 0.4869,
+          "err_tn": 0.0213,
+          "err_ln": -0.0399,
+          "err_gamma": -0.0213
+        },
+        {
+          "line_offset": 0.5,
+          "line": 22.1,
+          "empirical": 0.4098,
+          "tn": 0.4714,
+          "ln": 0.4096,
+          "gamma": 0.4293,
+          "err_tn": 0.0615,
+          "err_ln": -0.0003,
+          "err_gamma": 0.0195
+        },
+        {
+          "line_offset": 1.5,
+          "line": 23.1,
+          "empirical": 0.3934,
+          "tn": 0.4139,
+          "ln": 0.3552,
+          "gamma": 0.3749,
+          "err_tn": 0.0204,
+          "err_ln": -0.0382,
+          "err_gamma": -0.0186
+        }
+      ]
+    },
+    {
+      "player": "OG Anunoby",
+      "n_games": 49,
+      "mean": 16.78,
+      "std": 6.98,
+      "cv_pct": 41.6,
+      "emp_median": 16.0,
+      "emp_skew": -0.102,
+      "pred_median": {
+        "tn": 86.54,
+        "ln": 15.49,
+        "gamma": 15.83
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.32,
+        "gamma": 0.832
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 15.3,
+          "empirical": 0.5714,
+          "tn": 0.5899,
+          "ln": 0.5139,
+          "gamma": 0.5325,
+          "err_tn": 0.0185,
+          "err_ln": -0.0575,
+          "err_gamma": -0.0389
+        },
+        {
+          "line_offset": -0.5,
+          "line": 16.3,
+          "empirical": 0.4898,
+          "tn": 0.5329,
+          "ln": 0.4507,
+          "gamma": 0.4732,
+          "err_tn": 0.0431,
+          "err_ln": -0.0391,
+          "err_gamma": -0.0166
+        },
+        {
+          "line_offset": 0.5,
+          "line": 17.3,
+          "empirical": 0.4898,
+          "tn": 0.4753,
+          "ln": 0.3923,
+          "gamma": 0.4169,
+          "err_tn": -0.0145,
+          "err_ln": -0.0975,
+          "err_gamma": -0.0729
+        },
+        {
+          "line_offset": 1.5,
+          "line": 18.3,
+          "empirical": 0.4694,
+          "tn": 0.4183,
+          "ln": 0.3394,
+          "gamma": 0.3643,
+          "err_tn": -0.0511,
+          "err_ln": -0.13,
+          "err_gamma": -0.1051
+        }
+      ]
+    },
+    {
+      "player": "Coby White",
+      "n_games": 28,
+      "mean": 19.29,
+      "std": 5.87,
+      "cv_pct": 30.4,
+      "emp_median": 21.0,
+      "emp_skew": -0.857,
+      "pred_median": {
+        "tn": 77.97,
+        "ln": 18.45,
+        "gamma": 18.7
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 0.941,
+        "gamma": 0.609
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 17.8,
+          "empirical": 0.6429,
+          "tn": 0.6012,
+          "ln": 0.5491,
+          "gamma": 0.5637,
+          "err_tn": -0.0417,
+          "err_ln": -0.0938,
+          "err_gamma": -0.0792
+        },
+        {
+          "line_offset": -0.5,
+          "line": 18.8,
+          "empirical": 0.6429,
+          "tn": 0.5342,
+          "ln": 0.4759,
+          "gamma": 0.4937,
+          "err_tn": -0.1086,
+          "err_ln": -0.167,
+          "err_gamma": -0.1492
+        },
+        {
+          "line_offset": 0.5,
+          "line": 19.8,
+          "empirical": 0.6429,
+          "tn": 0.4663,
+          "ln": 0.4072,
+          "gamma": 0.4263,
+          "err_tn": -0.1766,
+          "err_ln": -0.2357,
+          "err_gamma": -0.2166
+        },
+        {
+          "line_offset": 1.5,
+          "line": 20.8,
+          "empirical": 0.5357,
+          "tn": 0.3993,
+          "ln": 0.3444,
+          "gamma": 0.3631,
+          "err_tn": -0.1364,
+          "err_ln": -0.1913,
+          "err_gamma": -0.1727
+        }
+      ]
+    },
+    {
+      "player": "De'Aaron Fox",
+      "n_games": 51,
+      "mean": 19.65,
+      "std": 7.28,
+      "cv_pct": 37.1,
+      "emp_median": 20.0,
+      "emp_skew": 0.056,
+      "pred_median": {
+        "tn": 92.44,
+        "ln": 18.42,
+        "gamma": 18.76
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.162,
+        "gamma": 0.741
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 18.1,
+          "empirical": 0.549,
+          "tn": 0.5837,
+          "ln": 0.5168,
+          "gamma": 0.5346,
+          "err_tn": 0.0346,
+          "err_ln": -0.0322,
+          "err_gamma": -0.0144
+        },
+        {
+          "line_offset": -0.5,
+          "line": 19.1,
+          "empirical": 0.5098,
+          "tn": 0.5292,
+          "ln": 0.4572,
+          "gamma": 0.4781,
+          "err_tn": 0.0194,
+          "err_ln": -0.0526,
+          "err_gamma": -0.0317
+        },
+        {
+          "line_offset": 0.5,
+          "line": 20.1,
+          "empirical": 0.451,
+          "tn": 0.4743,
+          "ln": 0.4015,
+          "gamma": 0.424,
+          "err_tn": 0.0233,
+          "err_ln": -0.0495,
+          "err_gamma": -0.027
+        },
+        {
+          "line_offset": 1.5,
+          "line": 21.1,
+          "empirical": 0.4118,
+          "tn": 0.4198,
+          "ln": 0.3503,
+          "gamma": 0.3729,
+          "err_tn": 0.0081,
+          "err_ln": -0.0614,
+          "err_gamma": -0.0389
+        }
+      ]
+    },
+    {
+      "player": "Scottie Barnes",
+      "n_games": 62,
+      "mean": 18.61,
+      "std": 5.73,
+      "cv_pct": 30.8,
+      "emp_median": 17.5,
+      "emp_skew": 0.361,
+      "pred_median": {
+        "tn": 75.88,
+        "ln": 17.79,
+        "gamma": 18.03
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 0.952,
+        "gamma": 0.615
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 17.1,
+          "empirical": 0.5,
+          "tn": 0.6037,
+          "ln": 0.5513,
+          "gamma": 0.5659,
+          "err_tn": 0.1037,
+          "err_ln": 0.0513,
+          "err_gamma": 0.0659
+        },
+        {
+          "line_offset": -0.5,
+          "line": 18.1,
+          "empirical": 0.4032,
+          "tn": 0.5351,
+          "ln": 0.4761,
+          "gamma": 0.494,
+          "err_tn": 0.1319,
+          "err_ln": 0.0729,
+          "err_gamma": 0.0908
+        },
+        {
+          "line_offset": 0.5,
+          "line": 19.1,
+          "empirical": 0.371,
+          "tn": 0.4655,
+          "ln": 0.4057,
+          "gamma": 0.425,
+          "err_tn": 0.0945,
+          "err_ln": 0.0348,
+          "err_gamma": 0.054
+        },
+        {
+          "line_offset": 1.5,
+          "line": 20.1,
+          "empirical": 0.3387,
+          "tn": 0.3969,
+          "ln": 0.3416,
+          "gamma": 0.3604,
+          "err_tn": 0.0582,
+          "err_ln": 0.0029,
+          "err_gamma": 0.0217
+        }
+      ]
+    },
+    {
+      "player": "Immanuel Quickley",
+      "n_games": 61,
+      "mean": 17.28,
+      "std": 6.85,
+      "cv_pct": 39.6,
+      "emp_median": 17.0,
+      "emp_skew": 0.531,
+      "pred_median": {
+        "tn": 85.74,
+        "ln": 16.06,
+        "gamma": 16.39
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.251,
+        "gamma": 0.792
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 15.8,
+          "empirical": 0.5574,
+          "tn": 0.5901,
+          "ln": 0.5187,
+          "gamma": 0.5368,
+          "err_tn": 0.0328,
+          "err_ln": -0.0387,
+          "err_gamma": -0.0206
+        },
+        {
+          "line_offset": -0.5,
+          "line": 16.8,
+          "empirical": 0.541,
+          "tn": 0.5322,
+          "ln": 0.4546,
+          "gamma": 0.4764,
+          "err_tn": -0.0088,
+          "err_ln": -0.0864,
+          "err_gamma": -0.0645
+        },
+        {
+          "line_offset": 0.5,
+          "line": 17.8,
+          "empirical": 0.459,
+          "tn": 0.4736,
+          "ln": 0.3953,
+          "gamma": 0.419,
+          "err_tn": 0.0146,
+          "err_ln": -0.0638,
+          "err_gamma": -0.0401
+        },
+        {
+          "line_offset": 1.5,
+          "line": 18.8,
+          "empirical": 0.3443,
+          "tn": 0.4157,
+          "ln": 0.3413,
+          "gamma": 0.3652,
+          "err_tn": 0.0714,
+          "err_ln": -0.003,
+          "err_gamma": 0.0209
+        }
+      ]
+    },
+    {
+      "player": "Alperen Sengun",
+      "n_games": 55,
+      "mean": 20.69,
+      "std": 7.36,
+      "cv_pct": 35.6,
+      "emp_median": 19.0,
+      "emp_skew": 0.543,
+      "pred_median": {
+        "tn": 94.25,
+        "ln": 19.5,
+        "gamma": 19.83
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.111,
+        "gamma": 0.711
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 19.2,
+          "empirical": 0.4727,
+          "tn": 0.5822,
+          "ln": 0.5182,
+          "gamma": 0.5357,
+          "err_tn": 0.1095,
+          "err_ln": 0.0455,
+          "err_gamma": 0.0629
+        },
+        {
+          "line_offset": -0.5,
+          "line": 20.2,
+          "empirical": 0.4182,
+          "tn": 0.5284,
+          "ln": 0.4595,
+          "gamma": 0.4798,
+          "err_tn": 0.1102,
+          "err_ln": 0.0414,
+          "err_gamma": 0.0617
+        },
+        {
+          "line_offset": 0.5,
+          "line": 21.2,
+          "empirical": 0.4,
+          "tn": 0.4741,
+          "ln": 0.4045,
+          "gamma": 0.4262,
+          "err_tn": 0.0741,
+          "err_ln": 0.0045,
+          "err_gamma": 0.0262
+        },
+        {
+          "line_offset": 1.5,
+          "line": 22.2,
+          "empirical": 0.3636,
+          "tn": 0.4202,
+          "ln": 0.3537,
+          "gamma": 0.3755,
+          "err_tn": 0.0566,
+          "err_ln": -0.0099,
+          "err_gamma": 0.0119
+        }
+      ]
+    },
+    {
+      "player": "Evan Mobley",
+      "n_games": 47,
+      "mean": 18.38,
+      "std": 4.78,
+      "cv_pct": 26.0,
+      "emp_median": 18.0,
+      "emp_skew": 0.111,
+      "pred_median": {
+        "tn": 66.14,
+        "ln": 17.79,
+        "gamma": 17.97
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 0.797,
+        "gamma": 0.52
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 16.9,
+          "empirical": 0.617,
+          "tn": 0.6233,
+          "ln": 0.5813,
+          "gamma": 0.5932,
+          "err_tn": 0.0063,
+          "err_ln": -0.0357,
+          "err_gamma": -0.0238
+        },
+        {
+          "line_offset": -0.5,
+          "line": 17.9,
+          "empirical": 0.5532,
+          "tn": 0.5417,
+          "ln": 0.4921,
+          "gamma": 0.5075,
+          "err_tn": -0.0115,
+          "err_ln": -0.0611,
+          "err_gamma": -0.0457
+        },
+        {
+          "line_offset": 0.5,
+          "line": 18.9,
+          "empirical": 0.4255,
+          "tn": 0.4583,
+          "ln": 0.408,
+          "gamma": 0.4245,
+          "err_tn": 0.0328,
+          "err_ln": -0.0176,
+          "err_gamma": -0.001
+        },
+        {
+          "line_offset": 1.5,
+          "line": 19.9,
+          "empirical": 0.383,
+          "tn": 0.3767,
+          "ln": 0.3319,
+          "gamma": 0.3475,
+          "err_tn": -0.0062,
+          "err_ln": -0.0511,
+          "err_gamma": -0.0355
+        }
+      ]
+    },
+    {
+      "player": "Bam Adebayo",
+      "n_games": 52,
+      "mean": 19.19,
+      "std": 6.65,
+      "cv_pct": 34.6,
+      "emp_median": 19.5,
+      "emp_skew": -0.226,
+      "pred_median": {
+        "tn": 85.64,
+        "ln": 18.14,
+        "gamma": 18.44
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.08,
+        "gamma": 0.692
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 17.7,
+          "empirical": 0.5962,
+          "tn": 0.5904,
+          "ln": 0.5293,
+          "gamma": 0.5459,
+          "err_tn": -0.0057,
+          "err_ln": -0.0668,
+          "err_gamma": -0.0502
+        },
+        {
+          "line_offset": -0.5,
+          "line": 18.7,
+          "empirical": 0.5385,
+          "tn": 0.531,
+          "ln": 0.4642,
+          "gamma": 0.484,
+          "err_tn": -0.0074,
+          "err_ln": -0.0742,
+          "err_gamma": -0.0544
+        },
+        {
+          "line_offset": 0.5,
+          "line": 19.7,
+          "empirical": 0.5,
+          "tn": 0.4709,
+          "ln": 0.4034,
+          "gamma": 0.4246,
+          "err_tn": -0.0291,
+          "err_ln": -0.0966,
+          "err_gamma": -0.0754
+        },
+        {
+          "line_offset": 1.5,
+          "line": 20.7,
+          "empirical": 0.4423,
+          "tn": 0.4115,
+          "ln": 0.3476,
+          "gamma": 0.3688,
+          "err_tn": -0.0308,
+          "err_ln": -0.0947,
+          "err_gamma": -0.0735
+        }
+      ]
+    },
+    {
+      "player": "Julius Randle",
+      "n_games": 62,
+      "mean": 21.29,
+      "std": 7.43,
+      "cv_pct": 34.9,
+      "emp_median": 19.5,
+      "emp_skew": 0.364,
+      "pred_median": {
+        "tn": 95.63,
+        "ln": 20.1,
+        "gamma": 20.44
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.09,
+        "gamma": 0.698
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 19.8,
+          "empirical": 0.5,
+          "tn": 0.5812,
+          "ln": 0.5183,
+          "gamma": 0.5356,
+          "err_tn": 0.0812,
+          "err_ln": 0.0183,
+          "err_gamma": 0.0356
+        },
+        {
+          "line_offset": -0.5,
+          "line": 20.8,
+          "empirical": 0.4677,
+          "tn": 0.5279,
+          "ln": 0.4604,
+          "gamma": 0.4804,
+          "err_tn": 0.0602,
+          "err_ln": -0.0074,
+          "err_gamma": 0.0127
+        },
+        {
+          "line_offset": 0.5,
+          "line": 21.8,
+          "empirical": 0.4355,
+          "tn": 0.4742,
+          "ln": 0.4059,
+          "gamma": 0.4273,
+          "err_tn": 0.0387,
+          "err_ln": -0.0296,
+          "err_gamma": -0.0082
+        },
+        {
+          "line_offset": 1.5,
+          "line": 22.8,
+          "empirical": 0.4194,
+          "tn": 0.4209,
+          "ln": 0.3556,
+          "gamma": 0.377,
+          "err_tn": 0.0016,
+          "err_ln": -0.0638,
+          "err_gamma": -0.0423
+        }
+      ]
+    },
+    {
+      "player": "Derrick White",
+      "n_games": 61,
+      "mean": 17.84,
+      "std": 7.14,
+      "cv_pct": 40.1,
+      "emp_median": 18.0,
+      "emp_skew": 0.341,
+      "pred_median": {
+        "tn": 89.28,
+        "ln": 16.56,
+        "gamma": 16.9
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.266,
+        "gamma": 0.801
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 16.3,
+          "empirical": 0.541,
+          "tn": 0.5868,
+          "ln": 0.5139,
+          "gamma": 0.5324,
+          "err_tn": 0.0458,
+          "err_ln": -0.0271,
+          "err_gamma": -0.0086
+        },
+        {
+          "line_offset": -0.5,
+          "line": 17.3,
+          "empirical": 0.5082,
+          "tn": 0.5312,
+          "ln": 0.4526,
+          "gamma": 0.4746,
+          "err_tn": 0.023,
+          "err_ln": -0.0556,
+          "err_gamma": -0.0336
+        },
+        {
+          "line_offset": 0.5,
+          "line": 18.3,
+          "empirical": 0.4262,
+          "tn": 0.4751,
+          "ln": 0.3957,
+          "gamma": 0.4196,
+          "err_tn": 0.0489,
+          "err_ln": -0.0305,
+          "err_gamma": -0.0067
+        },
+        {
+          "line_offset": 1.5,
+          "line": 19.3,
+          "empirical": 0.3607,
+          "tn": 0.4195,
+          "ln": 0.3438,
+          "gamma": 0.3679,
+          "err_tn": 0.0588,
+          "err_ln": -0.0169,
+          "err_gamma": 0.0072
+        }
+      ]
+    },
+    {
+      "player": "Cam Thomas",
+      "n_games": 27,
+      "mean": 15.96,
+      "std": 8.96,
+      "cv_pct": 56.1,
+      "emp_median": 15.0,
+      "emp_skew": 1.09,
+      "pred_median": {
+        "tn": 105.56,
+        "ln": 13.92,
+        "gamma": 14.34
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.861,
+        "gamma": 1.123
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 14.5,
+          "empirical": 0.5185,
+          "tn": 0.5885,
+          "ln": 0.4709,
+          "gamma": 0.4933,
+          "err_tn": 0.07,
+          "err_ln": -0.0476,
+          "err_gamma": -0.0252
+        },
+        {
+          "line_offset": -0.5,
+          "line": 15.5,
+          "empirical": 0.4074,
+          "tn": 0.5425,
+          "ln": 0.4204,
+          "gamma": 0.4474,
+          "err_tn": 0.1351,
+          "err_ln": 0.013,
+          "err_gamma": 0.0399
+        },
+        {
+          "line_offset": 0.5,
+          "line": 16.5,
+          "empirical": 0.3704,
+          "tn": 0.4963,
+          "ln": 0.3743,
+          "gamma": 0.404,
+          "err_tn": 0.1259,
+          "err_ln": 0.0039,
+          "err_gamma": 0.0336
+        },
+        {
+          "line_offset": 1.5,
+          "line": 17.5,
+          "empirical": 0.2963,
+          "tn": 0.4504,
+          "ln": 0.3324,
+          "gamma": 0.3634,
+          "err_tn": 0.1541,
+          "err_ln": 0.0361,
+          "err_gamma": 0.0671
+        }
+      ]
+    },
+    {
+      "player": "Jalen Williams",
+      "n_games": 22,
+      "mean": 17.73,
+      "std": 5.0,
+      "cv_pct": 28.2,
+      "emp_median": 17.0,
+      "emp_skew": -0.278,
+      "pred_median": {
+        "tn": 67.7,
+        "ln": 17.06,
+        "gamma": 17.26
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 0.868,
+        "gamma": 0.564
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 16.2,
+          "empirical": 0.5909,
+          "tn": 0.6181,
+          "ln": 0.572,
+          "gamma": 0.5848,
+          "err_tn": 0.0272,
+          "err_ln": -0.0189,
+          "err_gamma": -0.0061
+        },
+        {
+          "line_offset": -0.5,
+          "line": 17.2,
+          "empirical": 0.4545,
+          "tn": 0.54,
+          "ln": 0.4861,
+          "gamma": 0.5027,
+          "err_tn": 0.0854,
+          "err_ln": 0.0316,
+          "err_gamma": 0.0481
+        },
+        {
+          "line_offset": 0.5,
+          "line": 18.2,
+          "empirical": 0.4091,
+          "tn": 0.4602,
+          "ln": 0.4056,
+          "gamma": 0.4235,
+          "err_tn": 0.0511,
+          "err_ln": -0.0035,
+          "err_gamma": 0.0144
+        },
+        {
+          "line_offset": 1.5,
+          "line": 19.2,
+          "empirical": 0.4091,
+          "tn": 0.3821,
+          "ln": 0.3329,
+          "gamma": 0.3499,
+          "err_tn": -0.027,
+          "err_ln": -0.0762,
+          "err_gamma": -0.0592
+        }
+      ]
+    },
+    {
+      "player": "Dillon Brooks",
+      "n_games": 48,
+      "mean": 21.25,
+      "std": 7.01,
+      "cv_pct": 33.0,
+      "emp_median": 22.0,
+      "emp_skew": 0.038,
+      "pred_median": {
+        "tn": 91.34,
+        "ln": 20.18,
+        "gamma": 20.49
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.025,
+        "gamma": 0.66
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 19.8,
+          "empirical": 0.6042,
+          "tn": 0.5854,
+          "ln": 0.5268,
+          "gamma": 0.5432,
+          "err_tn": -0.0187,
+          "err_ln": -0.0774,
+          "err_gamma": -0.061
+        },
+        {
+          "line_offset": -0.5,
+          "line": 20.8,
+          "empirical": 0.5833,
+          "tn": 0.5291,
+          "ln": 0.4655,
+          "gamma": 0.4846,
+          "err_tn": -0.0543,
+          "err_ln": -0.1178,
+          "err_gamma": -0.0987
+        },
+        {
+          "line_offset": 0.5,
+          "line": 21.8,
+          "empirical": 0.5417,
+          "tn": 0.4721,
+          "ln": 0.4079,
+          "gamma": 0.4283,
+          "err_tn": -0.0695,
+          "err_ln": -0.1338,
+          "err_gamma": -0.1134
+        },
+        {
+          "line_offset": 1.5,
+          "line": 22.8,
+          "empirical": 0.4375,
+          "tn": 0.4158,
+          "ln": 0.3546,
+          "gamma": 0.375,
+          "err_tn": -0.0217,
+          "err_ln": -0.0829,
+          "err_gamma": -0.0625
+        }
+      ]
+    },
+    {
+      "player": "Desmond Bane",
+      "n_games": 59,
+      "mean": 21.12,
+      "std": 8.18,
+      "cv_pct": 38.7,
+      "emp_median": 22.0,
+      "emp_skew": 0.217,
+      "pred_median": {
+        "tn": 102.89,
+        "ln": 19.69,
+        "gamma": 20.08
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.22,
+        "gamma": 0.774
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 19.6,
+          "empirical": 0.5593,
+          "tn": 0.5756,
+          "ln": 0.5041,
+          "gamma": 0.523,
+          "err_tn": 0.0163,
+          "err_ln": -0.0552,
+          "err_gamma": -0.0363
+        },
+        {
+          "line_offset": -0.5,
+          "line": 20.6,
+          "empirical": 0.5254,
+          "tn": 0.527,
+          "ln": 0.4511,
+          "gamma": 0.4728,
+          "err_tn": 0.0015,
+          "err_ln": -0.0743,
+          "err_gamma": -0.0526
+        },
+        {
+          "line_offset": 0.5,
+          "line": 21.6,
+          "empirical": 0.5085,
+          "tn": 0.478,
+          "ln": 0.4015,
+          "gamma": 0.4247,
+          "err_tn": -0.0305,
+          "err_ln": -0.107,
+          "err_gamma": -0.0838
+        },
+        {
+          "line_offset": 1.5,
+          "line": 22.6,
+          "empirical": 0.4237,
+          "tn": 0.4293,
+          "ln": 0.3555,
+          "gamma": 0.379,
+          "err_tn": 0.0056,
+          "err_ln": -0.0682,
+          "err_gamma": -0.0447
+        }
+      ]
+    },
+    {
+      "player": "Jaren Jackson Jr.",
+      "n_games": 46,
+      "mean": 19.35,
+      "std": 6.13,
+      "cv_pct": 31.7,
+      "emp_median": 18.5,
+      "emp_skew": 0.052,
+      "pred_median": {
+        "tn": 80.67,
+        "ln": 18.44,
+        "gamma": 18.71
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 0.983,
+        "gamma": 0.634
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 17.8,
+          "empirical": 0.5652,
+          "tn": 0.5971,
+          "ln": 0.5422,
+          "gamma": 0.5575,
+          "err_tn": 0.0319,
+          "err_ln": -0.023,
+          "err_gamma": -0.0077
+        },
+        {
+          "line_offset": -0.5,
+          "line": 18.8,
+          "empirical": 0.5,
+          "tn": 0.5329,
+          "ln": 0.4721,
+          "gamma": 0.4905,
+          "err_tn": 0.0329,
+          "err_ln": -0.0279,
+          "err_gamma": -0.0095
+        },
+        {
+          "line_offset": 0.5,
+          "line": 19.8,
+          "empirical": 0.4348,
+          "tn": 0.4679,
+          "ln": 0.4063,
+          "gamma": 0.426,
+          "err_tn": 0.0331,
+          "err_ln": -0.0285,
+          "err_gamma": -0.0088
+        },
+        {
+          "line_offset": 1.5,
+          "line": 20.8,
+          "empirical": 0.413,
+          "tn": 0.4037,
+          "ln": 0.346,
+          "gamma": 0.3655,
+          "err_tn": -0.0093,
+          "err_ln": -0.067,
+          "err_gamma": -0.0475
+        }
+      ]
+    },
+    {
+      "player": "Jabari Smith Jr.",
+      "n_games": 56,
+      "mean": 15.64,
+      "std": 5.61,
+      "cv_pct": 35.8,
+      "emp_median": 16.0,
+      "emp_skew": 0.425,
+      "pred_median": {
+        "tn": 71.71,
+        "ln": 14.73,
+        "gamma": 14.98
+      },
+      "pred_skew": {
+        "tn": 0.0,
+        "ln": 1.121,
+        "gamma": 0.717
+      },
+      "calibration": [
+        {
+          "line_offset": -1.5,
+          "line": 14.1,
+          "empirical": 0.6071,
+          "tn": 0.6071,
+          "ln": 0.5462,
+          "gamma": 0.5619,
+          "err_tn": -0.0001,
+          "err_ln": -0.0609,
+          "err_gamma": -0.0452
+        },
+        {
+          "line_offset": -0.5,
+          "line": 15.1,
+          "empirical": 0.5179,
+          "tn": 0.5369,
+          "ln": 0.468,
+          "gamma": 0.488,
+          "err_tn": 0.0191,
+          "err_ln": -0.0499,
+          "err_gamma": -0.0298
+        },
+        {
+          "line_offset": 0.5,
+          "line": 16.1,
+          "empirical": 0.3929,
+          "tn": 0.4657,
+          "ln": 0.3958,
+          "gamma": 0.4177,
+          "err_tn": 0.0728,
+          "err_ln": 0.0029,
+          "err_gamma": 0.0249
+        },
+        {
+          "line_offset": 1.5,
+          "line": 17.1,
+          "empirical": 0.2857,
+          "tn": 0.3956,
+          "ln": 0.331,
+          "gamma": 0.3526,
+          "err_tn": 0.1099,
+          "err_ln": 0.0453,
+          "err_gamma": 0.0669
+        }
+      ]
+    }
+  ],
+  "aggregate": {
+    "n_players": 20,
+    "skewness": {
+      "empirical_mean": 0.19,
+      "ln_imposed_mean": 1.136,
+      "gamma_imposed_mean": 0.723,
+      "tn_imposed": 0.0
+    },
+    "median_mae": {
+      "tn": 67.971,
+      "ln": 1.028,
+      "gamma": 0.895
+    },
+    "calibration_mae_by_offset": {
+      "-1.5": {
+        "tn": 0.0402,
+        "ln": 0.0443,
+        "gamma": 0.0349
+      },
+      "-0.5": {
+        "tn": 0.0532,
+        "ln": 0.0577,
+        "gamma": 0.0495
+      },
+      "0.5": {
+        "tn": 0.0578,
+        "ln": 0.0528,
+        "gamma": 0.0465
+      },
+      "1.5": {
+        "tn": 0.0452,
+        "ln": 0.0623,
+        "gamma": 0.0517
+      }
+    },
+    "overall_calibration_mae": {
+      "tn": 0.0491,
+      "ln": 0.0543,
+      "gamma": 0.0456
+    }
+  }
+}
