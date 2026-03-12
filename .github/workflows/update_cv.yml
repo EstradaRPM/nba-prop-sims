@@ -30,14 +30,16 @@ jobs:
         run: python scripts/compute_cv.py
 
       - name: Commit and push cv_data.json
-        shell: bash
+        shell: powershell
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add cv_data.json
-          if git diff --staged --quiet; then
-            echo "No changes to cv_data.json — skipping commit"
-          else
-            git commit -m "chore: update cv_data.json (nightly, $(date -u +%Y-%m-%d))"
+          git diff --staged --quiet
+          if ($LASTEXITCODE -ne 0) {
+            $date = (Get-Date -AsUTC -Format "yyyy-MM-dd")
+            git commit -m "chore: update cv_data.json (nightly, $date)"
             git push origin main
-          fi
+          } else {
+            Write-Output "No changes to cv_data.json — skipping commit"
+          }
