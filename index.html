@@ -398,6 +398,73 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
 
 // No blob download in sandbox — use clipboard + modal instead
 
+// ── ETR Projections Parser ───────────────────────────────────────────
+function parseETRProjections(text) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  if (lines.length < 2) return { error: "Need at least a header row and one data row." };
+
+  // Detect delimiter: prefer tabs (TSV copy/paste) over commas (CSV)
+  const firstLine = lines[0];
+  const isTSV = (firstLine.match(/\t/g) || []).length >= (firstLine.match(/,/g) || []).length;
+
+  const splitRow = isTSV
+    ? (line) => line.split('\t').map(s => s.trim())
+    : (line) => {
+        const result = []; let inQ = false, cur = '';
+        for (const ch of line) {
+          if (ch === '"') { inQ = !inQ; }
+          else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+          else { cur += ch; }
+        }
+        result.push(cur.trim());
+        return result;
+      };
+
+  const headers = splitRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim());
+  const col = (...names) => {
+    for (const name of names) {
+      const idx = headers.findIndex(h => h.includes(name));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+
+  const idxPlayer = col('player'); const idxPts    = col('point');
+  const idxReb    = col('rebound'); const idxAst    = col('assist');
+  const idxStl    = col('steal');  const idxBlk    = col('block');
+  const idxThrees = col('three');  const idxPRA    = col('pra');
+  const idxMin    = col('minute'); const idxTeam   = col('team');
+  const idxOpp    = col('opponent'); const idxPos  = col('position');
+
+  if (idxPlayer < 0 || idxPts < 0) return { error: "Could not find Player or Points columns. Check format." };
+
+  const players = [];
+  for (let i = 1; i < lines.length; i++) {
+    const row = splitRow(lines[i]);
+    const name = row[idxPlayer] || '';
+    if (!name || name.toLowerCase() === 'player') continue;
+    const pts = parseFloat(row[idxPts]);
+    if (isNaN(pts)) continue;
+    players.push({
+      name,
+      team:   idxTeam   >= 0 ? (row[idxTeam]   || '') : '',
+      opp:    idxOpp    >= 0 ? (row[idxOpp]    || '') : '',
+      pos:    idxPos    >= 0 ? (row[idxPos]    || '') : '',
+      pts,
+      reb:    idxReb    >= 0 ? parseFloat(row[idxReb])    || 0 : 0,
+      ast:    idxAst    >= 0 ? parseFloat(row[idxAst])    || 0 : 0,
+      stl:    idxStl    >= 0 ? parseFloat(row[idxStl])    || 0 : 0,
+      blk:    idxBlk    >= 0 ? parseFloat(row[idxBlk])    || 0 : 0,
+      threes: idxThrees >= 0 ? parseFloat(row[idxThrees]) || 0 : 0,
+      pra:    idxPRA    >= 0 ? parseFloat(row[idxPRA])    || 0 : 0,
+      min:    idxMin    >= 0 ? parseFloat(row[idxMin])    || 0 : 0,
+    });
+  }
+  if (players.length === 0) return { error: "No valid player rows found. Check that headers include Player and Points." };
+  players.sort((a, b) => a.name.localeCompare(b.name));
+  return { players };
+}
+
 // ── Main App ────────────────────────────────────────────────────────
 function NBASimulator() {
   const [playerName, setPlayerName] = useState("Player Name");
@@ -425,6 +492,11 @@ function NBASimulator() {
   const [cvWindow, setCvWindow] = useState("last20");
   const [praDirectCv, setPraDirectCv] = useState(null);
   const [cvLoadStatus, setCvLoadStatus] = useState(null); // "found" | "notfound" | null
+  const [projections, setProjections] = useState(null);   // parsed ETR slate
+  const [projOpen, setProjOpen] = useState(false);
+  const [projPasteText, setProjPasteText] = useState('');
+  const [projError, setProjError] = useState(null);
+  const [projUpdatedAt, setProjUpdatedAt] = useState(null);
 
   React.useEffect(() => {
     fetch('./cv_data.json')
@@ -515,6 +587,56 @@ function NBASimulator() {
     }
     setCvLoadStatus('found');
   }, [cvDatabase, cvWindow, playerName]);
+
+  const handleParseProjections = useCallback((textOverride) => {
+    const text = textOverride !== undefined ? textOverride : projPasteText;
+    if (!text?.trim()) { setProjError("Paste or upload projection data first."); return; }
+    const result = parseETRProjections(text);
+    if (result.error) { setProjError(result.error); return; }
+    setProjections(result.players);
+    setProjError(null);
+    setProjUpdatedAt(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+    setProjOpen(false);
+  }, [projPasteText]);
+
+  const handleProjFile = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      setProjPasteText(text);
+      handleParseProjections(text);
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // allow re-uploading same file
+  }, [handleParseProjections]);
+
+  const handleSelectProjection = useCallback((name) => {
+    const p = projections?.find(pl => pl.name === name);
+    if (!p) return;
+    setPlayerName(p.name);
+    setCvLoadStatus(null);
+    setPraDirectCv(null);
+    setStats(prev => {
+      const updated = { ...prev };
+      ['pts', 'reb', 'ast', 'stl', 'blk', 'threes'].forEach(key => {
+        const newMean = p[key];
+        const cur = prev[key];
+        if (cur.cvMode && cur.cvValue !== '') {
+          // Preserve CV mode: recalc std from existing CV × new mean
+          const cv = parseFloat(cur.cvValue);
+          const std = !isNaN(cv) && newMean > 0 ? Math.round(newMean * (cv / 100) * 10) / 10 : 0;
+          updated[key] = { ...cur, mean: String(newMean), stdDev: std };
+        } else if (!cur.stdOverride) {
+          updated[key] = { ...cur, mean: String(newMean), stdDev: estimateStdDev(key, newMean) };
+        } else {
+          updated[key] = { ...cur, mean: String(newMean) };
+        }
+      });
+      return updated;
+    });
+  }, [projections]);
 
   const handleClearPlayer = useCallback(() => {
     setPlayerName("Player Name");
@@ -663,6 +785,101 @@ function NBASimulator() {
           <p style={{ color: "#475569", fontSize: 13, margin: "6px 0 0" }}>
             Projections + lines + best available book odds → edge
           </p>
+        </div>
+
+        {/* ETR Projections */}
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: `1px solid ${projections ? "rgba(99,102,241,0.25)" : "rgba(148,163,184,0.08)"}`, borderRadius: 12, marginBottom: 12 }}>
+          {/* Header row — always visible, click to toggle */}
+          <div onClick={() => setProjOpen(o => !o)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", cursor: "pointer" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10,
+                color: projections ? "#a5b4fc" : "#64748b", letterSpacing: 1 }}>
+                ETR PROJECTIONS
+              </span>
+              {projections ? (
+                <span style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {projections.length} players · updated {projUpdatedAt}
+                </span>
+              ) : (
+                <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+                  paste or upload slate projections
+                </span>
+              )}
+            </div>
+            <span style={{ color: "#475569", fontSize: 9, fontFamily: "'JetBrains Mono', monospace" }}>
+              {projOpen ? "▲ CLOSE" : projections ? "▼ UPDATE" : "▼ LOAD"}
+            </span>
+          </div>
+
+          {/* Paste / upload panel */}
+          {projOpen && (
+            <div style={{ padding: "0 16px 14px" }}>
+              <textarea
+                placeholder={"Paste ETR projections here — works with both copy/paste from spreadsheet (TSV) and .csv file content\n\nRequired columns: Player, Points, Rebounds, Assists\nOptional: Steals, Blocks, Three Pointers Made, Minutes, Team, Opponent, Position"}
+                value={projPasteText}
+                onChange={e => { setProjPasteText(e.target.value); setProjError(null); }}
+                style={{
+                  width: "100%", height: 130, resize: "vertical",
+                  backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid rgba(148,163,184,0.15)",
+                  borderRadius: 6, padding: 10, color: "#94a3b8",
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10, lineHeight: 1.5,
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+              {projError && (
+                <div style={{ fontSize: 9, color: "#f87171", fontFamily: "'JetBrains Mono', monospace", marginTop: 4 }}>
+                  {projError}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button onClick={() => handleParseProjections()} style={{
+                  padding: "7px 18px", borderRadius: 6,
+                  border: "1px solid rgba(99,102,241,0.5)", background: "rgba(99,102,241,0.15)",
+                  color: "#a5b4fc", fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 700, fontSize: 10, letterSpacing: 1, cursor: "pointer",
+                }}>
+                  PARSE
+                </button>
+                <label style={{
+                  padding: "7px 14px", borderRadius: 6,
+                  border: "1px solid rgba(148,163,184,0.2)", background: "rgba(15,23,42,0.5)",
+                  color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 700, fontSize: 10, letterSpacing: 1, cursor: "pointer",
+                }}>
+                  UPLOAD .CSV
+                  <input type="file" accept=".csv,.tsv,.txt" onChange={handleProjFile} style={{ display: "none" }} />
+                </label>
+                <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+                  CSV or tab-separated · re-paste anytime to update
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Player selector — shown when projections loaded and panel closed */}
+          {projections && !projOpen && (
+            <div style={{ padding: "0 16px 12px" }}>
+              <select
+                value={playerName}
+                onChange={e => handleSelectProjection(e.target.value)}
+                style={{
+                  ...{backgroundColor: "rgba(15,23,42,0.8)", border: "1px solid rgba(99,102,241,0.3)",
+                  borderRadius: 6, padding: "8px 10px", color: "#e2e8f0",
+                  fontFamily: "'Outfit', sans-serif", fontSize: 14, fontWeight: 600,
+                  width: "100%", outline: "none", boxSizing: "border-box", cursor: "pointer",
+                  WebkitAppearance: "none", appearance: "none"},
+                }}
+              >
+                <option value="">— Select player from slate —</option>
+                {projections.map(p => (
+                  <option key={p.name} value={p.name}>
+                    {p.name}{p.pos ? ` (${p.pos}` : ''}{p.team ? `${p.pos ? ' · ' : ' ('}${p.team}` : ''}{p.opp ? ` vs ${p.opp}` : ''}{(p.pos || p.team) ? ')' : ''}{p.pts ? ` — ${p.pts} pts` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Player + Config */}
