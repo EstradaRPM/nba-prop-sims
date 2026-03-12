@@ -2,12 +2,12 @@ name: Nightly CV Update
 
 on:
   schedule:
-    - cron: '0 11 * * *'  # 6 AM ET (UTC-5) / 11:00 UTC
+    - cron: '0 11 * * *'  # 6 AM ET (EST) / 7 AM ET (EDT) — all games finalized
   workflow_dispatch:
 
 jobs:
   update-cv:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: write
 
