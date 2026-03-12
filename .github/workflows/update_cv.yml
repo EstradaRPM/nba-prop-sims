@@ -41,5 +41,5 @@ jobs:
             git commit -m "chore: update cv_data.json (nightly, $date)"
             git push origin main
           } else {
-            Write-Output "No changes to cv_data.json — skipping commit"
+            Write-Output "No changes to cv_data.json, skipping commit"
           }
