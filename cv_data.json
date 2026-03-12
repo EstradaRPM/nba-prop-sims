@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-11T21:42:16Z",
+  "generated_at": "2026-03-12T00:28:01Z",
   "season": "2025-26",
   "players": {
     "Precious Achiuwa": {
@@ -50,6 +50,12 @@
           "last10": 31.3,
           "last5": 35.0
         }
+      },
+      "cv_minutes": {
+        "season": 13.2,
+        "last20": 13.0,
+        "last10": 13.3,
+        "last5": 12.9
       },
       "mean_minutes_last20": 19.2
     },
@@ -102,6 +108,12 @@
           "last5": 17.8
         }
       },
+      "cv_minutes": {
+        "season": 21.5,
+        "last20": 21.5,
+        "last10": 15.4,
+        "last5": 14.7
+      },
       "mean_minutes_last20": 22.2
     },
     "Bam Adebayo": {
@@ -152,6 +164,12 @@
           "last10": 11.6,
           "last5": 7.6
         }
+      },
+      "cv_minutes": {
+        "season": 11.4,
+        "last20": 12.2,
+        "last10": 14.8,
+        "last5": 15.4
       },
       "mean_minutes_last20": 32.8
     },
@@ -204,6 +222,12 @@
           "last5": 42.8
         }
       },
+      "cv_minutes": {
+        "season": 17.2,
+        "last20": 17.2,
+        "last10": 16.7,
+        "last5": 7.3
+      },
       "mean_minutes_last20": 15.9
     },
     "Santi Aldama": {
@@ -254,6 +278,12 @@
           "last10": 19.7,
           "last5": 13.1
         }
+      },
+      "cv_minutes": {
+        "season": 12.8,
+        "last20": 12.8,
+        "last10": 13.2,
+        "last5": 13.3
       },
       "mean_minutes_last20": 26.7
     },
@@ -306,6 +336,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 21.0
     },
     "Nickeil Alexander-Walker": {
@@ -356,6 +392,12 @@
           "last10": 24.9,
           "last5": 8.8
         }
+      },
+      "cv_minutes": {
+        "season": 8.6,
+        "last20": 9.2,
+        "last10": 9.7,
+        "last5": 10.9
       },
       "mean_minutes_last20": 34.2
     },
@@ -408,6 +450,12 @@
           "last5": 20.9
         }
       },
+      "cv_minutes": {
+        "season": 12.4,
+        "last20": 12.1,
+        "last10": 14.4,
+        "last5": 11.6
+      },
       "mean_minutes_last20": 30.5
     },
     "Jarrett Allen": {
@@ -458,6 +506,12 @@
           "last10": 22.6,
           "last5": 30.4
         }
+      },
+      "cv_minutes": {
+        "season": 12.9,
+        "last20": 13.9,
+        "last10": 13.6,
+        "last5": 16.0
       },
       "mean_minutes_last20": 28.4
     },
@@ -510,6 +564,12 @@
           "last5": 15.1
         }
       },
+      "cv_minutes": {
+        "season": 14.8,
+        "last20": 13.7,
+        "last10": 15.5,
+        "last5": 16.9
+      },
       "mean_minutes_last20": 20.8
     },
     "Kyle Anderson": {
@@ -560,6 +620,12 @@
           "last10": 41.2,
           "last5": 32.3
         }
+      },
+      "cv_minutes": {
+        "season": 15.7,
+        "last20": 15.7,
+        "last10": 12.9,
+        "last5": 14.0
       },
       "mean_minutes_last20": 18.5
     },
@@ -612,6 +678,12 @@
           "last5": 18.1
         }
       },
+      "cv_minutes": {
+        "season": 13.2,
+        "last20": 10.9,
+        "last10": 12.7,
+        "last5": 11.8
+      },
       "mean_minutes_last20": 29.1
     },
     "Cole Anthony": {
@@ -662,6 +734,12 @@
           "last10": 28.9,
           "last5": 36.9
         }
+      },
+      "cv_minutes": {
+        "season": 20.3,
+        "last20": 20.3,
+        "last10": 19.2,
+        "last5": 14.9
       },
       "mean_minutes_last20": 18.4
     },
@@ -714,6 +792,12 @@
           "last5": 45.5
         }
       },
+      "cv_minutes": {
+        "season": 10.4,
+        "last20": 11.5,
+        "last10": 12.5,
+        "last5": 14.0
+      },
       "mean_minutes_last20": 33.5
     },
     "Deni Avdija": {
@@ -764,6 +848,12 @@
           "last10": 29.8,
           "last5": 38.0
         }
+      },
+      "cv_minutes": {
+        "season": 11.6,
+        "last20": 13.5,
+        "last10": 13.7,
+        "last5": 10.1
       },
       "mean_minutes_last20": 34.6
     },
@@ -816,6 +906,12 @@
           "last5": 46.2
         }
       },
+      "cv_minutes": {
+        "season": 13.0,
+        "last20": 13.3,
+        "last10": 12.3,
+        "last5": 17.5
+      },
       "mean_minutes_last20": 28.6
     },
     "Marvin Bagley III": {
@@ -866,6 +962,12 @@
           "last10": 26.6,
           "last5": 35.2
         }
+      },
+      "cv_minutes": {
+        "season": 18.2,
+        "last20": 13.6,
+        "last10": 13.8,
+        "last5": 8.2
       },
       "mean_minutes_last20": 19.8
     },
@@ -918,6 +1020,12 @@
           "last5": 25.4
         }
       },
+      "cv_minutes": {
+        "season": 21.5,
+        "last20": 12.9,
+        "last10": 6.7,
+        "last5": 5.1
+      },
       "mean_minutes_last20": 27.9
     },
     "LaMelo Ball": {
@@ -968,6 +1076,12 @@
           "last10": 28.1,
           "last5": 14.4
         }
+      },
+      "cv_minutes": {
+        "season": 13.5,
+        "last20": 13.5,
+        "last10": 16.0,
+        "last5": 18.9
       },
       "mean_minutes_last20": 28.4
     },
@@ -1020,6 +1134,12 @@
           "last5": 38.8
         }
       },
+      "cv_minutes": {
+        "season": 11.9,
+        "last20": 12.7,
+        "last10": 15.5,
+        "last5": 19.8
+      },
       "mean_minutes_last20": 23.1
     },
     "Paolo Banchero": {
@@ -1070,6 +1190,12 @@
           "last10": 26.2,
           "last5": 20.7
         }
+      },
+      "cv_minutes": {
+        "season": 8.9,
+        "last20": 9.8,
+        "last10": 9.3,
+        "last5": 10.4
       },
       "mean_minutes_last20": 35.5
     },
@@ -1122,6 +1248,12 @@
           "last5": 22.3
         }
       },
+      "cv_minutes": {
+        "season": 9.8,
+        "last20": 8.7,
+        "last10": 9.7,
+        "last5": 10.2
+      },
       "mean_minutes_last20": 35.3
     },
     "Dominick Barlow": {
@@ -1172,6 +1304,12 @@
           "last10": 43.1,
           "last5": 54.4
         }
+      },
+      "cv_minutes": {
+        "season": 14.3,
+        "last20": 13.2,
+        "last10": 16.2,
+        "last5": 15.3
       },
       "mean_minutes_last20": 24.3
     },
@@ -1224,6 +1362,12 @@
           "last5": 17.1
         }
       },
+      "cv_minutes": {
+        "season": 14.6,
+        "last20": 15.4,
+        "last10": 18.2,
+        "last5": 23.4
+      },
       "mean_minutes_last20": 26.4
     },
     "Scottie Barnes": {
@@ -1274,6 +1418,12 @@
           "last10": 28.5,
           "last5": 22.7
         }
+      },
+      "cv_minutes": {
+        "season": 8.9,
+        "last20": 7.5,
+        "last10": 7.9,
+        "last5": 8.9
       },
       "mean_minutes_last20": 33.8
     },
@@ -1326,6 +1476,12 @@
           "last5": 20.1
         }
       },
+      "cv_minutes": {
+        "season": 11.0,
+        "last20": 11.9,
+        "last10": 9.7,
+        "last5": 4.7
+      },
       "mean_minutes_last20": 29.6
     },
     "Charles Bassey": {
@@ -1376,6 +1532,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 15.0
     },
@@ -1428,6 +1590,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 10.3
     },
     "Nicolas Batum": {
@@ -1478,6 +1646,12 @@
           "last10": 35.2,
           "last5": 33.1
         }
+      },
+      "cv_minutes": {
+        "season": 13.0,
+        "last20": 13.1,
+        "last10": 13.4,
+        "last5": 11.2
       },
       "mean_minutes_last20": 19.3
     },
@@ -1530,6 +1704,12 @@
           "last5": 31.1
         }
       },
+      "cv_minutes": {
+        "season": 2.0,
+        "last20": 2.0,
+        "last10": 2.0,
+        "last5": 2.2
+      },
       "mean_minutes_last20": 20.2
     },
     "Saddiq Bey": {
@@ -1580,6 +1760,12 @@
           "last10": 32.0,
           "last5": 27.8
         }
+      },
+      "cv_minutes": {
+        "season": 12.6,
+        "last20": 9.3,
+        "last10": 10.2,
+        "last5": 9.7
       },
       "mean_minutes_last20": 32.4
     },
@@ -1632,6 +1818,12 @@
           "last5": 45.0
         }
       },
+      "cv_minutes": {
+        "season": 13.6,
+        "last20": 15.0,
+        "last10": 14.9,
+        "last5": 19.3
+      },
       "mean_minutes_last20": 16.6
     },
     "Anthony Black": {
@@ -1682,6 +1874,12 @@
           "last10": 27.8,
           "last5": 29.0
         }
+      },
+      "cv_minutes": {
+        "season": 14.4,
+        "last20": 13.7,
+        "last10": 14.9,
+        "last5": 16.7
       },
       "mean_minutes_last20": 32.9
     },
@@ -1734,6 +1932,12 @@
           "last5": 37.8
         }
       },
+      "cv_minutes": {
+        "season": 13.4,
+        "last20": 13.4,
+        "last10": 13.4,
+        "last5": 15.6
+      },
       "mean_minutes_last20": 21.7
     },
     "Adem Bona": {
@@ -1784,6 +1988,12 @@
           "last10": 31.1,
           "last5": 29.3
         }
+      },
+      "cv_minutes": {
+        "season": 13.3,
+        "last20": 12.7,
+        "last10": 11.4,
+        "last5": 12.6
       },
       "mean_minutes_last20": 16.1
     },
@@ -1836,6 +2046,12 @@
           "last5": 12.3
         }
       },
+      "cv_minutes": {
+        "season": 10.9,
+        "last20": 11.0,
+        "last10": 6.5,
+        "last5": 5.4
+      },
       "mean_minutes_last20": 33.4
     },
     "Chris Boucher": {
@@ -1886,6 +2102,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 14.2
     },
@@ -1938,6 +2160,12 @@
           "last5": 34.0
         }
       },
+      "cv_minutes": {
+        "season": 19.2,
+        "last20": 19.2,
+        "last10": 19.2,
+        "last5": 19.6
+      },
       "mean_minutes_last20": 13.2
     },
     "Malaki Branham": {
@@ -1988,6 +2216,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 10.0
     },
@@ -2040,6 +2274,12 @@
           "last5": 17.8
         }
       },
+      "cv_minutes": {
+        "season": 13.1,
+        "last20": 12.8,
+        "last10": 11.3,
+        "last5": 13.3
+      },
       "mean_minutes_last20": 30.9
     },
     "Mikal Bridges": {
@@ -2090,6 +2330,12 @@
           "last10": 32.4,
           "last5": 36.5
         }
+      },
+      "cv_minutes": {
+        "season": 12.1,
+        "last20": 14.8,
+        "last10": 13.6,
+        "last5": 17.7
       },
       "mean_minutes_last20": 31.6
     },
@@ -2142,6 +2388,12 @@
           "last5": 22.9
         }
       },
+      "cv_minutes": {
+        "season": 11.5,
+        "last20": 10.6,
+        "last10": 9.4,
+        "last5": 6.4
+      },
       "mean_minutes_last20": 31.0
     },
     "Dillon Brooks": {
@@ -2192,6 +2444,12 @@
           "last10": 30.8,
           "last5": 32.0
         }
+      },
+      "cv_minutes": {
+        "season": 12.6,
+        "last20": 13.6,
+        "last10": 14.2,
+        "last5": 15.0
       },
       "mean_minutes_last20": 31.3
     },
@@ -2244,6 +2502,12 @@
           "last5": 15.4
         }
       },
+      "cv_minutes": {
+        "season": 13.2,
+        "last20": 11.3,
+        "last10": 12.7,
+        "last5": 11.4
+      },
       "mean_minutes_last20": 25.2
     },
     "Jaylen Brown": {
@@ -2294,6 +2558,12 @@
           "last10": 13.3,
           "last5": 13.7
         }
+      },
+      "cv_minutes": {
+        "season": 10.1,
+        "last20": 10.0,
+        "last10": 9.1,
+        "last5": 9.9
       },
       "mean_minutes_last20": 33.8
     },
@@ -2346,6 +2616,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 11.5
     },
     "Jalen Brunson": {
@@ -2396,6 +2672,12 @@
           "last10": 16.6,
           "last5": 11.9
         }
+      },
+      "cv_minutes": {
+        "season": 8.5,
+        "last20": 10.5,
+        "last10": 9.0,
+        "last5": 7.7
       },
       "mean_minutes_last20": 35.1
     },
@@ -2448,6 +2730,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 11.0
     },
     "Thomas Bryant": {
@@ -2498,6 +2786,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 11.2
     },
@@ -2550,6 +2844,12 @@
           "last5": 18.0
         }
       },
+      "cv_minutes": {
+        "season": 9.0,
+        "last20": 9.1,
+        "last10": 9.4,
+        "last5": 10.0
+      },
       "mean_minutes_last20": 32.8
     },
     "Matas Buzelis": {
@@ -2600,6 +2900,12 @@
           "last10": 27.1,
           "last5": 21.6
         }
+      },
+      "cv_minutes": {
+        "season": 13.3,
+        "last20": 10.7,
+        "last10": 8.3,
+        "last5": 8.9
       },
       "mean_minutes_last20": 29.8
     },
@@ -2652,6 +2958,12 @@
           "last5": 30.5
         }
       },
+      "cv_minutes": {
+        "season": 13.4,
+        "last20": 12.3,
+        "last10": 12.6,
+        "last5": 11.6
+      },
       "mean_minutes_last20": 21.1
     },
     "Toumani Camara": {
@@ -2702,6 +3014,12 @@
           "last10": 19.3,
           "last5": 24.3
         }
+      },
+      "cv_minutes": {
+        "season": 11.6,
+        "last20": 13.2,
+        "last10": 13.1,
+        "last5": 13.3
       },
       "mean_minutes_last20": 33.0
     },
@@ -2754,6 +3072,12 @@
           "last5": 39.1
         }
       },
+      "cv_minutes": {
+        "season": 9.5,
+        "last20": 9.5,
+        "last10": 10.6,
+        "last5": 9.0
+      },
       "mean_minutes_last20": 11.9
     },
     "Dylan Cardwell": {
@@ -2804,6 +3128,12 @@
           "last10": 37.5,
           "last5": 41.1
         }
+      },
+      "cv_minutes": {
+        "season": 17.1,
+        "last20": 17.1,
+        "last10": 10.8,
+        "last5": 8.7
       },
       "mean_minutes_last20": 19.7
     },
@@ -2856,6 +3186,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 11.3
     },
     "Bub Carrington": {
@@ -2906,6 +3242,12 @@
           "last10": 23.2,
           "last5": 22.5
         }
+      },
+      "cv_minutes": {
+        "season": 13.4,
+        "last20": 15.0,
+        "last10": 15.4,
+        "last5": 18.5
       },
       "mean_minutes_last20": 26.1
     },
@@ -2958,6 +3300,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 16.0
     },
     "Jevon Carter": {
@@ -3008,6 +3356,12 @@
           "last10": 43.1,
           "last5": 43.1
         }
+      },
+      "cv_minutes": {
+        "season": 4.8,
+        "last20": 4.8,
+        "last10": 4.8,
+        "last5": 4.8
       },
       "mean_minutes_last20": 11.4
     },
@@ -3060,6 +3414,12 @@
           "last5": 25.5
         }
       },
+      "cv_minutes": {
+        "season": 10.5,
+        "last20": 13.8,
+        "last10": 16.0,
+        "last5": 18.1
+      },
       "mean_minutes_last20": 29.6
     },
     "Alex Caruso": {
@@ -3110,6 +3470,12 @@
           "last10": 30.7,
           "last5": 16.7
         }
+      },
+      "cv_minutes": {
+        "season": 17.7,
+        "last20": 13.9,
+        "last10": 13.4,
+        "last5": 6.5
       },
       "mean_minutes_last20": 19.0
     },
@@ -3162,6 +3528,12 @@
           "last5": 28.1
         }
       },
+      "cv_minutes": {
+        "season": 12.2,
+        "last20": 13.2,
+        "last10": 12.8,
+        "last5": 11.8
+      },
       "mean_minutes_last20": 30.8
     },
     "Julian Champagnie": {
@@ -3212,6 +3584,12 @@
           "last10": 43.9,
           "last5": 45.1
         }
+      },
+      "cv_minutes": {
+        "season": 13.0,
+        "last20": 12.5,
+        "last10": 12.0,
+        "last5": 12.4
       },
       "mean_minutes_last20": 27.9
     },
@@ -3264,6 +3642,12 @@
           "last5": 10.7
         }
       },
+      "cv_minutes": {
+        "season": 18.2,
+        "last20": 18.2,
+        "last10": 14.7,
+        "last5": 16.4
+      },
       "mean_minutes_last20": 18.5
     },
     "Cam Christie": {
@@ -3314,6 +3698,12 @@
           "last10": 50.9,
           "last5": 45.3
         }
+      },
+      "cv_minutes": {
+        "season": 10.0,
+        "last20": 10.0,
+        "last10": 10.0,
+        "last5": 10.1
       },
       "mean_minutes_last20": 11.0
     },
@@ -3366,6 +3756,12 @@
           "last5": 33.0
         }
       },
+      "cv_minutes": {
+        "season": 10.7,
+        "last20": 10.5,
+        "last10": 10.6,
+        "last5": 11.0
+      },
       "mean_minutes_last20": 30.4
     },
     "Moussa Cisse": {
@@ -3416,6 +3812,12 @@
           "last10": 51.0,
           "last5": 51.0
         }
+      },
+      "cv_minutes": {
+        "season": 6.9,
+        "last20": 6.9,
+        "last10": 6.9,
+        "last5": 6.9
       },
       "mean_minutes_last20": 12.2
     },
@@ -3468,6 +3870,12 @@
           "last5": 27.5
         }
       },
+      "cv_minutes": {
+        "season": 22.7,
+        "last20": 14.0,
+        "last10": 13.6,
+        "last5": 16.2
+      },
       "mean_minutes_last20": 20.8
     },
     "Jaylen Clark": {
@@ -3518,6 +3926,12 @@
           "last10": 41.6,
           "last5": 50.3
         }
+      },
+      "cv_minutes": {
+        "season": 16.4,
+        "last20": 16.6,
+        "last10": 17.9,
+        "last5": 17.3
       },
       "mean_minutes_last20": 14.2
     },
@@ -3570,6 +3984,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 17.0
     },
     "Jordan Clarkson": {
@@ -3620,6 +4040,12 @@
           "last10": 37.2,
           "last5": 35.6
         }
+      },
+      "cv_minutes": {
+        "season": 15.6,
+        "last20": 10.8,
+        "last10": 9.0,
+        "last5": 11.5
       },
       "mean_minutes_last20": 20.6
     },
@@ -3672,6 +4098,12 @@
           "last5": 35.3
         }
       },
+      "cv_minutes": {
+        "season": 13.6,
+        "last20": 10.9,
+        "last10": 10.7,
+        "last5": 9.5
+      },
       "mean_minutes_last20": 27.6
     },
     "Walter Clayton Jr.": {
@@ -3722,6 +4154,12 @@
           "last10": 24.2,
           "last5": 32.1
         }
+      },
+      "cv_minutes": {
+        "season": 15.6,
+        "last20": 16.2,
+        "last10": 16.1,
+        "last5": 10.1
       },
       "mean_minutes_last20": 17.6
     },
@@ -3774,6 +4212,12 @@
           "last5": 54.3
         }
       },
+      "cv_minutes": {
+        "season": 17.5,
+        "last20": 17.5,
+        "last10": 11.5,
+        "last5": 14.2
+      },
       "mean_minutes_last20": 18.6
     },
     "Donovan Clingan": {
@@ -3824,6 +4268,12 @@
           "last10": 27.0,
           "last5": 22.4
         }
+      },
+      "cv_minutes": {
+        "season": 11.9,
+        "last20": 9.8,
+        "last10": 9.9,
+        "last5": 10.2
       },
       "mean_minutes_last20": 27.1
     },
@@ -3876,6 +4326,12 @@
           "last5": 33.5
         }
       },
+      "cv_minutes": {
+        "season": 16.2,
+        "last20": 12.3,
+        "last10": 13.9,
+        "last5": 18.7
+      },
       "mean_minutes_last20": 28.2
     },
     "Amir Coffey": {
@@ -3926,6 +4382,12 @@
           "last10": 49.2,
           "last5": 55.5
         }
+      },
+      "cv_minutes": {
+        "season": 11.9,
+        "last20": 11.9,
+        "last10": 11.9,
+        "last5": 10.1
       },
       "mean_minutes_last20": 11.2
     },
@@ -3978,6 +4440,12 @@
           "last5": 31.7
         }
       },
+      "cv_minutes": {
+        "season": 13.6,
+        "last20": 15.9,
+        "last10": 10.5,
+        "last5": 14.8
+      },
       "mean_minutes_last20": 24.1
     },
     "John Collins": {
@@ -4028,6 +4496,12 @@
           "last10": 14.9,
           "last5": 12.3
         }
+      },
+      "cv_minutes": {
+        "season": 13.1,
+        "last20": 12.4,
+        "last10": 11.8,
+        "last5": 11.3
       },
       "mean_minutes_last20": 28.5
     },
@@ -4080,6 +4554,12 @@
           "last5": 8.8
         }
       },
+      "cv_minutes": {
+        "season": 9.6,
+        "last20": 9.6,
+        "last10": 9.6,
+        "last5": 8.6
+      },
       "mean_minutes_last20": 18.5
     },
     "Mike Conley": {
@@ -4130,6 +4610,12 @@
           "last10": 51.5,
           "last5": 35.8
         }
+      },
+      "cv_minutes": {
+        "season": 18.4,
+        "last20": 17.5,
+        "last10": 18.7,
+        "last5": 21.1
       },
       "mean_minutes_last20": 17.6
     },
@@ -4182,6 +4668,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 10.0
     },
     "Sharife Cooper": {
@@ -4232,6 +4724,12 @@
           "last10": 71.2,
           "last5": 72.7
         }
+      },
+      "cv_minutes": {
+        "season": 12.7,
+        "last20": 12.7,
+        "last10": 12.7,
+        "last5": 14.2
       },
       "mean_minutes_last20": 16.8
     },
@@ -4284,6 +4782,12 @@
           "last5": 31.1
         }
       },
+      "cv_minutes": {
+        "season": 10.9,
+        "last20": 10.6,
+        "last10": 6.0,
+        "last5": 7.8
+      },
       "mean_minutes_last20": 25.3
     },
     "Cedric Coward": {
@@ -4334,6 +4838,12 @@
           "last10": 27.2,
           "last5": 27.3
         }
+      },
+      "cv_minutes": {
+        "season": 9.9,
+        "last20": 9.1,
+        "last10": 11.3,
+        "last5": 10.0
       },
       "mean_minutes_last20": 25.4
     },
@@ -4386,6 +4896,12 @@
           "last5": 17.3
         }
       },
+      "cv_minutes": {
+        "season": 9.0,
+        "last20": 8.4,
+        "last10": 9.4,
+        "last5": 4.5
+      },
       "mean_minutes_last20": 36.1
     },
     "Stephen Curry": {
@@ -4436,6 +4952,12 @@
           "last10": 16.7,
           "last5": 14.5
         }
+      },
+      "cv_minutes": {
+        "season": 10.7,
+        "last20": 11.0,
+        "last10": 12.5,
+        "last5": 13.1
       },
       "mean_minutes_last20": 30.9
     },
@@ -4488,6 +5010,12 @@
           "last5": 7.9
         }
       },
+      "cv_minutes": {
+        "season": 11.3,
+        "last20": 8.9,
+        "last10": 10.3,
+        "last5": 12.1
+      },
       "mean_minutes_last20": 32.9
     },
     "Anthony Davis": {
@@ -4538,6 +5066,12 @@
           "last10": 26.1,
           "last5": 30.8
         }
+      },
+      "cv_minutes": {
+        "season": 12.0,
+        "last20": 12.0,
+        "last10": 12.8,
+        "last5": 2.3
       },
       "mean_minutes_last20": 33.2
     },
@@ -4590,6 +5124,12 @@
           "last5": 17.6
         }
       },
+      "cv_minutes": {
+        "season": 12.4,
+        "last20": 14.5,
+        "last10": 12.5,
+        "last5": 14.3
+      },
       "mean_minutes_last20": 32.6
     },
     "RayJ Dennis": {
@@ -4640,6 +5180,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 27.8
     },
@@ -4692,6 +5238,12 @@
           "last5": 43.6
         }
       },
+      "cv_minutes": {
+        "season": 12.0,
+        "last20": 10.3,
+        "last10": 8.6,
+        "last5": 11.1
+      },
       "mean_minutes_last20": 30.2
     },
     "Moussa Diabaté": {
@@ -4742,6 +5294,12 @@
           "last10": 34.3,
           "last5": 31.5
         }
+      },
+      "cv_minutes": {
+        "season": 18.7,
+        "last20": 17.7,
+        "last10": 14.2,
+        "last5": 11.9
       },
       "mean_minutes_last20": 26.0
     },
@@ -4794,6 +5352,12 @@
           "last5": 32.0
         }
       },
+      "cv_minutes": {
+        "season": 17.9,
+        "last20": 15.2,
+        "last10": 16.4,
+        "last5": 11.1
+      },
       "mean_minutes_last20": 15.1
     },
     "Ousmane Dieng": {
@@ -4844,6 +5408,12 @@
           "last10": 68.2,
           "last5": 51.9
         }
+      },
+      "cv_minutes": {
+        "season": 9.5,
+        "last20": 9.5,
+        "last10": 9.5,
+        "last5": 9.4
       },
       "mean_minutes_last20": 13.4
     },
@@ -4896,6 +5466,12 @@
           "last5": 5.8
         }
       },
+      "cv_minutes": {
+        "season": 7.6,
+        "last20": 7.6,
+        "last10": 7.6,
+        "last5": 7.5
+      },
       "mean_minutes_last20": 11.6
     },
     "Luka Dončić": {
@@ -4946,6 +5522,12 @@
           "last10": 17.7,
           "last5": 21.3
         }
+      },
+      "cv_minutes": {
+        "season": 9.2,
+        "last20": 11.0,
+        "last10": 11.7,
+        "last5": 8.6
       },
       "mean_minutes_last20": 35.1
     },
@@ -4998,6 +5580,12 @@
           "last5": 25.3
         }
       },
+      "cv_minutes": {
+        "season": 17.6,
+        "last20": 13.5,
+        "last10": 10.4,
+        "last5": 8.3
+      },
       "mean_minutes_last20": 28.8
     },
     "Ayo Dosunmu": {
@@ -5048,6 +5636,12 @@
           "last10": 28.3,
           "last5": 29.7
         }
+      },
+      "cv_minutes": {
+        "season": 13.4,
+        "last20": 12.8,
+        "last10": 13.7,
+        "last5": 17.4
       },
       "mean_minutes_last20": 25.8
     },
@@ -5100,6 +5694,12 @@
           "last5": 20.3
         }
       },
+      "cv_minutes": {
+        "season": 17.2,
+        "last20": 15.3,
+        "last10": 12.2,
+        "last5": 14.0
+      },
       "mean_minutes_last20": 18.8
     },
     "Kris Dunn": {
@@ -5150,6 +5750,12 @@
           "last10": 39.9,
           "last5": 52.6
         }
+      },
+      "cv_minutes": {
+        "season": 15.0,
+        "last20": 14.2,
+        "last10": 15.4,
+        "last5": 14.6
       },
       "mean_minutes_last20": 27.5
     },
@@ -5202,6 +5808,12 @@
           "last5": 54.6
         }
       },
+      "cv_minutes": {
+        "season": 15.2,
+        "last20": 14.4,
+        "last10": 14.4,
+        "last5": 12.5
+      },
       "mean_minutes_last20": 20.1
     },
     "Kevin Durant": {
@@ -5252,6 +5864,12 @@
           "last10": 14.9,
           "last5": 16.4
         }
+      },
+      "cv_minutes": {
+        "season": 10.9,
+        "last20": 9.1,
+        "last10": 11.0,
+        "last5": 9.8
       },
       "mean_minutes_last20": 36.0
     },
@@ -5304,6 +5922,12 @@
           "last5": 22.9
         }
       },
+      "cv_minutes": {
+        "season": 12.7,
+        "last20": 11.0,
+        "last10": 12.5,
+        "last5": 15.9
+      },
       "mean_minutes_last20": 28.2
     },
     "Egor Dëmin": {
@@ -5354,6 +5978,12 @@
           "last10": 51.9,
           "last5": 41.7
         }
+      },
+      "cv_minutes": {
+        "season": 14.3,
+        "last20": 12.0,
+        "last10": 8.0,
+        "last5": 10.2
       },
       "mean_minutes_last20": 25.8
     },
@@ -5406,6 +6036,12 @@
           "last5": 23.7
         }
       },
+      "cv_minutes": {
+        "season": 16.0,
+        "last20": 16.6,
+        "last10": 15.2,
+        "last5": 17.8
+      },
       "mean_minutes_last20": 24.4
     },
     "Zach Edey": {
@@ -5456,6 +6092,12 @@
           "last10": 32.0,
           "last5": 31.5
         }
+      },
+      "cv_minutes": {
+        "season": 10.3,
+        "last20": 10.3,
+        "last10": 10.3,
+        "last5": 12.0
       },
       "mean_minutes_last20": 26.4
     },
@@ -5508,6 +6150,12 @@
           "last5": 16.1
         }
       },
+      "cv_minutes": {
+        "season": 8.5,
+        "last20": 9.0,
+        "last10": 9.3,
+        "last5": 10.9
+      },
       "mean_minutes_last20": 35.7
     },
     "Anthony Edwards": {
@@ -5558,6 +6206,12 @@
           "last10": 26.1,
           "last5": 30.6
         }
+      },
+      "cv_minutes": {
+        "season": 10.1,
+        "last20": 7.0,
+        "last10": 7.9,
+        "last5": 9.7
       },
       "mean_minutes_last20": 36.0
     },
@@ -5610,6 +6264,12 @@
           "last5": 53.1
         }
       },
+      "cv_minutes": {
+        "season": 22.6,
+        "last20": 22.6,
+        "last10": 19.2,
+        "last5": 18.2
+      },
       "mean_minutes_last20": 15.9
     },
     "Keon Ellis": {
@@ -5660,6 +6320,12 @@
           "last10": 33.9,
           "last5": 36.1
         }
+      },
+      "cv_minutes": {
+        "season": 15.3,
+        "last20": 15.3,
+        "last10": 10.7,
+        "last5": 9.9
       },
       "mean_minutes_last20": 18.1
     },
@@ -5712,6 +6378,12 @@
           "last5": 13.7
         }
       },
+      "cv_minutes": {
+        "season": 16.2,
+        "last20": 11.9,
+        "last10": 11.9,
+        "last5": 11.5
+      },
       "mean_minutes_last20": 30.6
     },
     "Drew Eubanks": {
@@ -5762,6 +6434,12 @@
           "last10": 36.7,
           "last5": 24.7
         }
+      },
+      "cv_minutes": {
+        "season": 20.9,
+        "last20": 20.9,
+        "last10": 14.2,
+        "last5": 17.7
       },
       "mean_minutes_last20": 13.1
     },
@@ -5814,6 +6492,12 @@
           "last5": 26.2
         }
       },
+      "cv_minutes": {
+        "season": 14.2,
+        "last20": 15.0,
+        "last10": 12.8,
+        "last5": 11.8
+      },
       "mean_minutes_last20": 26.1
     },
     "Kyle Filipowski": {
@@ -5864,6 +6548,12 @@
           "last10": 32.2,
           "last5": 23.3
         }
+      },
+      "cv_minutes": {
+        "season": 15.2,
+        "last20": 15.7,
+        "last10": 14.3,
+        "last5": 12.1
       },
       "mean_minutes_last20": 21.7
     },
@@ -5916,6 +6606,12 @@
           "last5": 53.0
         }
       },
+      "cv_minutes": {
+        "season": 13.0,
+        "last20": 12.5,
+        "last10": 13.1,
+        "last5": 13.8
+      },
       "mean_minutes_last20": 16.6
     },
     "Cooper Flagg": {
@@ -5966,6 +6662,12 @@
           "last10": 21.2,
           "last5": 6.6
         }
+      },
+      "cv_minutes": {
+        "season": 11.2,
+        "last20": 12.9,
+        "last10": 15.4,
+        "last5": 11.8
       },
       "mean_minutes_last20": 33.4
     },
@@ -6018,6 +6720,12 @@
           "last5": 43.1
         }
       },
+      "cv_minutes": {
+        "season": 10.3,
+        "last20": 9.9,
+        "last10": 7.3,
+        "last5": 3.7
+      },
       "mean_minutes_last20": 18.6
     },
     "De'Aaron Fox": {
@@ -6068,6 +6776,12 @@
           "last10": 21.9,
           "last5": 26.3
         }
+      },
+      "cv_minutes": {
+        "season": 8.7,
+        "last20": 8.9,
+        "last10": 9.4,
+        "last5": 5.8
       },
       "mean_minutes_last20": 31.5
     },
@@ -6120,6 +6834,12 @@
           "last5": 13.9
         }
       },
+      "cv_minutes": {
+        "season": 17.8,
+        "last20": 17.8,
+        "last10": 17.8,
+        "last5": 20.7
+      },
       "mean_minutes_last20": 15.3
     },
     "Daniel Gafford": {
@@ -6170,6 +6890,12 @@
           "last10": 33.2,
           "last5": 28.9
         }
+      },
+      "cv_minutes": {
+        "season": 15.6,
+        "last20": 14.6,
+        "last10": 13.4,
+        "last5": 6.5
       },
       "mean_minutes_last20": 21.6
     },
@@ -6222,6 +6948,12 @@
           "last5": 18.4
         }
       },
+      "cv_minutes": {
+        "season": 12.1,
+        "last20": 12.9,
+        "last10": 15.1,
+        "last5": 16.6
+      },
       "mean_minutes_last20": 30.4
     },
     "Luka Garza": {
@@ -6272,6 +7004,12 @@
           "last10": 32.7,
           "last5": 21.0
         }
+      },
+      "cv_minutes": {
+        "season": 17.8,
+        "last20": 18.7,
+        "last10": 17.1,
+        "last5": 19.3
       },
       "mean_minutes_last20": 15.2
     },
@@ -6324,6 +7062,12 @@
           "last5": 13.3
         }
       },
+      "cv_minutes": {
+        "season": 11.0,
+        "last20": 10.4,
+        "last10": 9.9,
+        "last5": 5.3
+      },
       "mean_minutes_last20": 34.5
     },
     "Kyshawn George": {
@@ -6374,6 +7118,12 @@
           "last10": 22.0,
           "last5": 24.1
         }
+      },
+      "cv_minutes": {
+        "season": 14.5,
+        "last20": 17.4,
+        "last10": 18.4,
+        "last5": 19.9
       },
       "mean_minutes_last20": 30.3
     },
@@ -6426,6 +7176,12 @@
           "last5": 41.6
         }
       },
+      "cv_minutes": {
+        "season": 19.4,
+        "last20": 19.4,
+        "last10": 7.8,
+        "last5": 8.6
+      },
       "mean_minutes_last20": 29.5
     },
     "Josh Giddey": {
@@ -6476,6 +7232,12 @@
           "last10": 23.6,
           "last5": 28.4
         }
+      },
+      "cv_minutes": {
+        "season": 11.2,
+        "last20": 11.4,
+        "last10": 10.5,
+        "last5": 11.2
       },
       "mean_minutes_last20": 31.4
     },
@@ -6528,6 +7290,12 @@
           "last5": 16.8
         }
       },
+      "cv_minutes": {
+        "season": 12.4,
+        "last20": 8.1,
+        "last10": 8.7,
+        "last5": 6.5
+      },
       "mean_minutes_last20": 33.5
     },
     "Collin Gillespie": {
@@ -6578,6 +7346,12 @@
           "last10": 22.2,
           "last5": 25.9
         }
+      },
+      "cv_minutes": {
+        "season": 12.9,
+        "last20": 11.3,
+        "last10": 11.1,
+        "last5": 9.4
       },
       "mean_minutes_last20": 29.4
     },
@@ -6630,6 +7404,12 @@
           "last5": 22.1
         }
       },
+      "cv_minutes": {
+        "season": 10.9,
+        "last20": 12.4,
+        "last10": 12.6,
+        "last5": 16.2
+      },
       "mean_minutes_last20": 31.6
     },
     "Hugo González": {
@@ -6680,6 +7460,12 @@
           "last10": 41.8,
           "last5": 32.3
         }
+      },
+      "cv_minutes": {
+        "season": 18.1,
+        "last20": 14.8,
+        "last10": 16.2,
+        "last5": 19.5
       },
       "mean_minutes_last20": 14.6
     },
@@ -6732,6 +7518,12 @@
           "last5": 48.8
         }
       },
+      "cv_minutes": {
+        "season": 17.1,
+        "last20": 13.7,
+        "last10": 11.3,
+        "last5": 6.6
+      },
       "mean_minutes_last20": 22.1
     },
     "Aaron Gordon": {
@@ -6782,6 +7574,12 @@
           "last10": 25.8,
           "last5": 36.0
         }
+      },
+      "cv_minutes": {
+        "season": 14.5,
+        "last20": 14.5,
+        "last10": 15.2,
+        "last5": 17.0
       },
       "mean_minutes_last20": 30.1
     },
@@ -6834,6 +7632,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 12.0
     },
     "Jerami Grant": {
@@ -6884,6 +7688,12 @@
           "last10": 35.4,
           "last5": 41.1
         }
+      },
+      "cv_minutes": {
+        "season": 12.9,
+        "last20": 14.3,
+        "last10": 11.9,
+        "last5": 12.1
       },
       "mean_minutes_last20": 29.8
     },
@@ -6936,6 +7746,12 @@
           "last5": 48.3
         }
       },
+      "cv_minutes": {
+        "season": 12.4,
+        "last20": 11.0,
+        "last10": 11.9,
+        "last5": 8.7
+      },
       "mean_minutes_last20": 30.4
     },
     "Draymond Green": {
@@ -6986,6 +7802,12 @@
           "last10": 33.0,
           "last5": 26.4
         }
+      },
+      "cv_minutes": {
+        "season": 13.1,
+        "last20": 15.0,
+        "last10": 13.0,
+        "last5": 12.0
       },
       "mean_minutes_last20": 27.3
     },
@@ -7038,6 +7860,12 @@
           "last5": 39.5
         }
       },
+      "cv_minutes": {
+        "season": 17.9,
+        "last20": 17.9,
+        "last10": 17.9,
+        "last5": 17.9
+      },
       "mean_minutes_last20": 20.4
     },
     "Javonte Green": {
@@ -7088,6 +7916,12 @@
           "last10": 29.0,
           "last5": 15.9
         }
+      },
+      "cv_minutes": {
+        "season": 16.8,
+        "last20": 11.4,
+        "last10": 11.3,
+        "last5": 8.7
       },
       "mean_minutes_last20": 17.2
     },
@@ -7140,6 +7974,12 @@
           "last5": 76.9
         }
       },
+      "cv_minutes": {
+        "season": 15.0,
+        "last20": 15.3,
+        "last10": 16.7,
+        "last5": 15.9
+      },
       "mean_minutes_last20": 15.7
     },
     "Quentin Grimes": {
@@ -7190,6 +8030,12 @@
           "last10": 39.4,
           "last5": 31.0
         }
+      },
+      "cv_minutes": {
+        "season": 14.6,
+        "last20": 14.5,
+        "last10": 11.9,
+        "last5": 13.7
       },
       "mean_minutes_last20": 29.7
     },
@@ -7242,6 +8088,12 @@
           "last5": 59.2
         }
       },
+      "cv_minutes": {
+        "season": 14.5,
+        "last20": 14.2,
+        "last10": 15.7,
+        "last5": 17.9
+      },
       "mean_minutes_last20": 16.9
     },
     "Rui Hachimura": {
@@ -7292,6 +8144,12 @@
           "last10": 29.1,
           "last5": 40.6
         }
+      },
+      "cv_minutes": {
+        "season": 13.9,
+        "last20": 11.7,
+        "last10": 15.2,
+        "last5": 9.0
       },
       "mean_minutes_last20": 28.6
     },
@@ -7344,6 +8202,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 12.3
     },
     "Tim Hardaway Jr.": {
@@ -7394,6 +8258,12 @@
           "last10": 40.0,
           "last5": 39.9
         }
+      },
+      "cv_minutes": {
+        "season": 13.0,
+        "last20": 13.2,
+        "last10": 16.1,
+        "last5": 16.3
       },
       "mean_minutes_last20": 28.3
     },
@@ -7446,6 +8316,12 @@
           "last5": 13.6
         }
       },
+      "cv_minutes": {
+        "season": 11.4,
+        "last20": 11.1,
+        "last10": 10.9,
+        "last5": 10.4
+      },
       "mean_minutes_last20": 34.0
     },
     "Jaden Hardy": {
@@ -7496,6 +8372,12 @@
           "last10": 59.4,
           "last5": 39.1
         }
+      },
+      "cv_minutes": {
+        "season": 13.3,
+        "last20": 13.3,
+        "last10": 13.3,
+        "last5": 14.7
       },
       "mean_minutes_last20": 12.1
     },
@@ -7548,6 +8430,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 13.0
     },
     "Dylan Harper": {
@@ -7598,6 +8486,12 @@
           "last10": 27.4,
           "last5": 33.9
         }
+      },
+      "cv_minutes": {
+        "season": 13.5,
+        "last20": 12.1,
+        "last10": 12.4,
+        "last5": 13.3
       },
       "mean_minutes_last20": 22.4
     },
@@ -7650,6 +8544,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 11.5
     },
     "Gary Harris": {
@@ -7700,6 +8600,12 @@
           "last10": 63.7,
           "last5": 80.0
         }
+      },
+      "cv_minutes": {
+        "season": 12.1,
+        "last20": 12.1,
+        "last10": 8.2,
+        "last5": 5.1
       },
       "mean_minutes_last20": 14.1
     },
@@ -7752,6 +8658,12 @@
           "last5": 38.8
         }
       },
+      "cv_minutes": {
+        "season": 13.4,
+        "last20": 12.7,
+        "last10": 14.4,
+        "last5": 18.1
+      },
       "mean_minutes_last20": 29.4
     },
     "Josh Hart": {
@@ -7802,6 +8714,12 @@
           "last10": 19.0,
           "last5": 11.7
         }
+      },
+      "cv_minutes": {
+        "season": 15.3,
+        "last20": 14.3,
+        "last10": 14.0,
+        "last5": 16.8
       },
       "mean_minutes_last20": 29.4
     },
@@ -7854,6 +8772,12 @@
           "last5": 14.6
         }
       },
+      "cv_minutes": {
+        "season": 14.4,
+        "last20": 10.5,
+        "last10": 6.1,
+        "last5": 3.3
+      },
       "mean_minutes_last20": 25.8
     },
     "Sam Hauser": {
@@ -7904,6 +8828,12 @@
           "last10": 26.8,
           "last5": 26.2
         }
+      },
+      "cv_minutes": {
+        "season": 14.5,
+        "last20": 13.0,
+        "last10": 9.2,
+        "last5": 10.9
       },
       "mean_minutes_last20": 25.2
     },
@@ -7956,6 +8886,12 @@
           "last5": 105.2
         }
       },
+      "cv_minutes": {
+        "season": 14.2,
+        "last20": 14.2,
+        "last10": 13.2,
+        "last5": 16.7
+      },
       "mean_minutes_last20": 15.1
     },
     "Jaxson Hayes": {
@@ -8006,6 +8942,12 @@
           "last10": 28.8,
           "last5": 30.3
         }
+      },
+      "cv_minutes": {
+        "season": 13.6,
+        "last20": 13.4,
+        "last10": 16.3,
+        "last5": 17.9
       },
       "mean_minutes_last20": 16.5
     },
@@ -8058,6 +9000,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 12.7
     },
     "Scoot Henderson": {
@@ -8108,6 +9056,12 @@
           "last10": 38.9,
           "last5": 52.3
         }
+      },
+      "cv_minutes": {
+        "season": 10.8,
+        "last20": 10.8,
+        "last10": 11.3,
+        "last5": 13.1
       },
       "mean_minutes_last20": 21.8
     },
@@ -8160,6 +9114,12 @@
           "last5": 44.6
         }
       },
+      "cv_minutes": {
+        "season": 15.6,
+        "last20": 15.6,
+        "last10": 18.0,
+        "last5": 19.9
+      },
       "mean_minutes_last20": 16.1
     },
     "Tyler Herro": {
@@ -8210,6 +9170,12 @@
           "last10": 19.2,
           "last5": 23.7
         }
+      },
+      "cv_minutes": {
+        "season": 8.9,
+        "last20": 8.9,
+        "last10": 10.4,
+        "last5": 10.8
       },
       "mean_minutes_last20": 30.9
     },
@@ -8262,6 +9228,12 @@
           "last5": 51.2
         }
       },
+      "cv_minutes": {
+        "season": 14.9,
+        "last20": 13.7,
+        "last10": 13.0,
+        "last5": 8.3
+      },
       "mean_minutes_last20": 17.1
     },
     "Haywood Highsmith": {
@@ -8312,6 +9284,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 13.0
     },
@@ -8364,6 +9342,12 @@
           "last5": 93.1
         }
       },
+      "cv_minutes": {
+        "season": 17.0,
+        "last20": 17.0,
+        "last10": 17.0,
+        "last5": 14.6
+      },
       "mean_minutes_last20": 14.3
     },
     "Jrue Holiday": {
@@ -8414,6 +9398,12 @@
           "last10": 39.9,
           "last5": 44.5
         }
+      },
+      "cv_minutes": {
+        "season": 14.2,
+        "last20": 13.0,
+        "last10": 10.7,
+        "last5": 11.3
       },
       "mean_minutes_last20": 28.1
     },
@@ -8466,6 +9456,12 @@
           "last5": 34.0
         }
       },
+      "cv_minutes": {
+        "season": 15.7,
+        "last20": 15.7,
+        "last10": 14.6,
+        "last5": 7.3
+      },
       "mean_minutes_last20": 20.2
     },
     "DaRon Holmes II": {
@@ -8516,6 +9512,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 14.7
     },
@@ -8568,6 +9570,12 @@
           "last5": 19.8
         }
       },
+      "cv_minutes": {
+        "season": 11.9,
+        "last20": 9.5,
+        "last10": 11.2,
+        "last5": 10.5
+      },
       "mean_minutes_last20": 29.8
     },
     "Al Horford": {
@@ -8618,6 +9626,12 @@
           "last10": 28.3,
           "last5": 36.7
         }
+      },
+      "cv_minutes": {
+        "season": 14.4,
+        "last20": 15.5,
+        "last10": 8.6,
+        "last5": 6.8
       },
       "mean_minutes_last20": 19.9
     },
@@ -8670,6 +9684,12 @@
           "last5": 56.5
         }
       },
+      "cv_minutes": {
+        "season": 6.3,
+        "last20": 6.3,
+        "last10": 6.3,
+        "last5": 6.3
+      },
       "mean_minutes_last20": 13.2
     },
     "Kevin Huerter": {
@@ -8720,6 +9740,12 @@
           "last10": 20.1,
           "last5": 24.0
         }
+      },
+      "cv_minutes": {
+        "season": 14.0,
+        "last20": 15.9,
+        "last10": 17.0,
+        "last5": 10.1
       },
       "mean_minutes_last20": 23.4
     },
@@ -8772,6 +9798,12 @@
           "last5": 37.4
         }
       },
+      "cv_minutes": {
+        "season": 20.9,
+        "last20": 14.0,
+        "last10": 15.1,
+        "last5": 17.0
+      },
       "mean_minutes_last20": 20.9
     },
     "Ariel Hukporti": {
@@ -8822,6 +9854,12 @@
           "last10": 30.0,
           "last5": 30.0
         }
+      },
+      "cv_minutes": {
+        "season": 27.4,
+        "last20": 27.4,
+        "last10": 27.4,
+        "last5": 27.4
       },
       "mean_minutes_last20": 12.2
     },
@@ -8874,6 +9912,12 @@
           "last5": 47.7
         }
       },
+      "cv_minutes": {
+        "season": 12.4,
+        "last20": 10.1,
+        "last10": 13.1,
+        "last5": 9.0
+      },
       "mean_minutes_last20": 25.1
     },
     "Bones Hyland": {
@@ -8924,6 +9968,12 @@
           "last10": 54.2,
           "last5": 56.0
         }
+      },
+      "cv_minutes": {
+        "season": 13.3,
+        "last20": 12.5,
+        "last10": 10.8,
+        "last5": 12.6
       },
       "mean_minutes_last20": 14.1
     },
@@ -8976,6 +10026,12 @@
           "last5": 27.5
         }
       },
+      "cv_minutes": {
+        "season": 14.8,
+        "last20": 12.5,
+        "last10": 13.6,
+        "last5": 15.7
+      },
       "mean_minutes_last20": 19.5
     },
     "Brandon Ingram": {
@@ -9026,6 +10082,12 @@
           "last10": 32.0,
           "last5": 30.0
         }
+      },
+      "cv_minutes": {
+        "season": 8.7,
+        "last20": 8.1,
+        "last10": 7.9,
+        "last5": 9.1
       },
       "mean_minutes_last20": 34.0
     },
@@ -9078,6 +10140,12 @@
           "last5": 81.1
         }
       },
+      "cv_minutes": {
+        "season": 8.4,
+        "last20": 8.4,
+        "last10": 8.4,
+        "last5": 9.1
+      },
       "mean_minutes_last20": 11.1
     },
     "Jaden Ivey": {
@@ -9128,6 +10196,12 @@
           "last10": 24.4,
           "last5": 18.0
         }
+      },
+      "cv_minutes": {
+        "season": 14.3,
+        "last20": 13.5,
+        "last10": 9.8,
+        "last5": 10.2
       },
       "mean_minutes_last20": 16.4
     },
@@ -9180,6 +10254,12 @@
           "last5": 14.5
         }
       },
+      "cv_minutes": {
+        "season": 16.8,
+        "last20": 16.8,
+        "last10": 16.8,
+        "last5": 8.4
+      },
       "mean_minutes_last20": 20.2
     },
     "Isaiah Jackson": {
@@ -9230,6 +10310,12 @@
           "last10": 33.6,
           "last5": 28.6
         }
+      },
+      "cv_minutes": {
+        "season": 15.5,
+        "last20": 15.5,
+        "last10": 15.9,
+        "last5": 18.4
       },
       "mean_minutes_last20": 17.9
     },
@@ -9282,6 +10368,12 @@
           "last5": 24.3
         }
       },
+      "cv_minutes": {
+        "season": 14.7,
+        "last20": 14.7,
+        "last10": 7.7,
+        "last5": 6.0
+      },
       "mean_minutes_last20": 17.0
     },
     "Jaren Jackson Jr.": {
@@ -9332,6 +10424,12 @@
           "last10": 21.2,
           "last5": 16.4
         }
+      },
+      "cv_minutes": {
+        "season": 11.4,
+        "last20": 9.9,
+        "last10": 10.4,
+        "last5": 14.6
       },
       "mean_minutes_last20": 31.5
     },
@@ -9384,6 +10482,12 @@
           "last5": 65.5
         }
       },
+      "cv_minutes": {
+        "season": 18.5,
+        "last20": 18.5,
+        "last10": 18.5,
+        "last5": 17.4
+      },
       "mean_minutes_last20": 13.6
     },
     "Kasparas Jakučionis": {
@@ -9434,6 +10538,12 @@
           "last10": 39.1,
           "last5": 22.3
         }
+      },
+      "cv_minutes": {
+        "season": 15.1,
+        "last20": 15.1,
+        "last10": 15.5,
+        "last5": 17.0
       },
       "mean_minutes_last20": 16.1
     },
@@ -9486,6 +10596,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 10.0
     },
     "LeBron James": {
@@ -9536,6 +10652,12 @@
           "last10": 22.2,
           "last5": 23.3
         }
+      },
+      "cv_minutes": {
+        "season": 8.6,
+        "last20": 9.4,
+        "last10": 9.1,
+        "last5": 11.6
       },
       "mean_minutes_last20": 33.0
     },
@@ -9588,6 +10710,12 @@
           "last5": 56.9
         }
       },
+      "cv_minutes": {
+        "season": 15.8,
+        "last20": 14.0,
+        "last10": 9.4,
+        "last5": 10.7
+      },
       "mean_minutes_last20": 22.5
     },
     "Jaime Jaquez Jr.": {
@@ -9638,6 +10766,12 @@
           "last10": 18.8,
           "last5": 18.3
         }
+      },
+      "cv_minutes": {
+        "season": 12.6,
+        "last20": 12.1,
+        "last10": 12.6,
+        "last5": 8.1
       },
       "mean_minutes_last20": 28.5
     },
@@ -9690,6 +10824,12 @@
           "last5": 50.1
         }
       },
+      "cv_minutes": {
+        "season": 15.5,
+        "last20": 15.5,
+        "last10": 15.0,
+        "last5": 19.8
+      },
       "mean_minutes_last20": 17.3
     },
     "Ty Jerome": {
@@ -9740,6 +10880,12 @@
           "last10": 24.0,
           "last5": 18.6
         }
+      },
+      "cv_minutes": {
+        "season": 9.5,
+        "last20": 9.5,
+        "last10": 9.4,
+        "last5": 5.1
       },
       "mean_minutes_last20": 22.0
     },
@@ -9792,6 +10938,12 @@
           "last5": 44.4
         }
       },
+      "cv_minutes": {
+        "season": 13.7,
+        "last20": 11.6,
+        "last10": 8.7,
+        "last5": 10.7
+      },
       "mean_minutes_last20": 21.2
     },
     "Cameron Johnson": {
@@ -9842,6 +10994,12 @@
           "last10": 32.6,
           "last5": 34.2
         }
+      },
+      "cv_minutes": {
+        "season": 15.4,
+        "last20": 15.8,
+        "last10": 16.6,
+        "last5": 20.0
       },
       "mean_minutes_last20": 30.4
     },
@@ -9894,6 +11052,12 @@
           "last5": 18.1
         }
       },
+      "cv_minutes": {
+        "season": 8.3,
+        "last20": 8.3,
+        "last10": 8.6,
+        "last5": 10.5
+      },
       "mean_minutes_last20": 36.3
     },
     "Keldon Johnson": {
@@ -9944,6 +11108,12 @@
           "last10": 25.9,
           "last5": 22.5
         }
+      },
+      "cv_minutes": {
+        "season": 12.8,
+        "last20": 14.5,
+        "last10": 13.7,
+        "last5": 7.7
       },
       "mean_minutes_last20": 23.4
     },
@@ -9996,6 +11166,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 13.5
     },
     "Tre Johnson": {
@@ -10046,6 +11222,12 @@
           "last10": 36.3,
           "last5": 42.6
         }
+      },
+      "cv_minutes": {
+        "season": 14.0,
+        "last20": 16.2,
+        "last10": 9.6,
+        "last5": 6.7
       },
       "mean_minutes_last20": 23.8
     },
@@ -10098,6 +11280,12 @@
           "last5": 14.9
         }
       },
+      "cv_minutes": {
+        "season": 10.7,
+        "last20": 11.4,
+        "last10": 9.4,
+        "last5": 9.2
+      },
       "mean_minutes_last20": 34.5
     },
     "Herbert Jones": {
@@ -10148,6 +11336,12 @@
           "last10": 29.5,
           "last5": 28.2
         }
+      },
+      "cv_minutes": {
+        "season": 13.2,
+        "last20": 13.6,
+        "last10": 11.3,
+        "last5": 16.5
       },
       "mean_minutes_last20": 29.4
     },
@@ -10200,6 +11394,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 14.0
     },
     "Kam Jones": {
@@ -10250,6 +11450,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 14.0
     },
@@ -10302,6 +11508,12 @@
           "last5": 31.0
         }
       },
+      "cv_minutes": {
+        "season": 18.1,
+        "last20": 18.1,
+        "last10": 18.1,
+        "last5": 8.2
+      },
       "mean_minutes_last20": 23.2
     },
     "Tre Jones": {
@@ -10352,6 +11564,12 @@
           "last10": 33.3,
           "last5": 25.0
         }
+      },
+      "cv_minutes": {
+        "season": 12.7,
+        "last20": 12.2,
+        "last10": 15.7,
+        "last5": 9.7
       },
       "mean_minutes_last20": 26.8
     },
@@ -10404,6 +11622,12 @@
           "last5": 22.1
         }
       },
+      "cv_minutes": {
+        "season": 17.9,
+        "last20": 14.7,
+        "last10": 18.0,
+        "last5": 22.0
+      },
       "mean_minutes_last20": 15.6
     },
     "Derrick Jones Jr.": {
@@ -10454,6 +11678,12 @@
           "last10": 26.2,
           "last5": 10.0
         }
+      },
+      "cv_minutes": {
+        "season": 15.4,
+        "last20": 14.0,
+        "last10": 9.1,
+        "last5": 11.3
       },
       "mean_minutes_last20": 26.1
     },
@@ -10506,6 +11736,12 @@
           "last5": 35.0
         }
       },
+      "cv_minutes": {
+        "season": 29.0,
+        "last20": 29.0,
+        "last10": 29.0,
+        "last5": 29.0
+      },
       "mean_minutes_last20": 16.0
     },
     "Nikola Jović": {
@@ -10556,6 +11792,12 @@
           "last10": 49.6,
           "last5": 56.1
         }
+      },
+      "cv_minutes": {
+        "season": 18.4,
+        "last20": 17.3,
+        "last10": 9.2,
+        "last5": 8.6
       },
       "mean_minutes_last20": 19.2
     },
@@ -10608,6 +11850,12 @@
           "last5": 47.2
         }
       },
+      "cv_minutes": {
+        "season": 16.4,
+        "last20": 17.0,
+        "last10": 18.4,
+        "last5": 15.3
+      },
       "mean_minutes_last20": 23.1
     },
     "Miles Kelly": {
@@ -10658,6 +11906,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 11.0
     },
@@ -10710,6 +11964,12 @@
           "last5": 17.1
         }
       },
+      "cv_minutes": {
+        "season": 13.8,
+        "last20": 13.1,
+        "last10": 13.2,
+        "last5": 12.9
+      },
       "mean_minutes_last20": 21.6
     },
     "Walker Kessler": {
@@ -10760,6 +12020,12 @@
           "last10": 37.1,
           "last5": 37.1
         }
+      },
+      "cv_minutes": {
+        "season": 8.2,
+        "last20": 8.2,
+        "last10": 8.2,
+        "last5": 8.2
       },
       "mean_minutes_last20": 31.0
     },
@@ -10812,6 +12078,12 @@
           "last5": 18.0
         }
       },
+      "cv_minutes": {
+        "season": 14.3,
+        "last20": 14.7,
+        "last10": 13.9,
+        "last5": 16.4
+      },
       "mean_minutes_last20": 19.9
     },
     "Maxi Kleber": {
@@ -10862,6 +12134,12 @@
           "last10": 62.2,
           "last5": 67.8
         }
+      },
+      "cv_minutes": {
+        "season": 11.6,
+        "last20": 11.6,
+        "last10": 11.5,
+        "last5": 11.8
       },
       "mean_minutes_last20": 12.5
     },
@@ -10914,6 +12192,12 @@
           "last5": 45.1
         }
       },
+      "cv_minutes": {
+        "season": 16.3,
+        "last20": 16.3,
+        "last10": 11.8,
+        "last5": 10.9
+      },
       "mean_minutes_last20": 14.2
     },
     "Kon Knueppel": {
@@ -10964,6 +12248,12 @@
           "last10": 29.3,
           "last5": 19.3
         }
+      },
+      "cv_minutes": {
+        "season": 10.0,
+        "last20": 9.9,
+        "last10": 9.2,
+        "last5": 7.4
       },
       "mean_minutes_last20": 32.2
     },
@@ -11016,6 +12306,12 @@
           "last5": 28.5
         }
       },
+      "cv_minutes": {
+        "season": 12.5,
+        "last20": 12.5,
+        "last10": 12.9,
+        "last5": 9.9
+      },
       "mean_minutes_last20": 12.8
     },
     "Christian Koloko": {
@@ -11066,6 +12362,12 @@
           "last10": 51.0,
           "last5": 71.7
         }
+      },
+      "cv_minutes": {
+        "season": 14.4,
+        "last20": 14.4,
+        "last10": 14.4,
+        "last5": 14.2
       },
       "mean_minutes_last20": 14.8
     },
@@ -11118,6 +12420,12 @@
           "last5": 63.5
         }
       },
+      "cv_minutes": {
+        "season": 16.0,
+        "last20": 16.0,
+        "last10": 16.6,
+        "last5": 9.8
+      },
       "mean_minutes_last20": 14.9
     },
     "Luke Kornet": {
@@ -11168,6 +12476,12 @@
           "last10": 31.7,
           "last5": 34.1
         }
+      },
+      "cv_minutes": {
+        "season": 14.7,
+        "last20": 12.6,
+        "last10": 10.6,
+        "last5": 11.8
       },
       "mean_minutes_last20": 21.6
     },
@@ -11220,6 +12534,12 @@
           "last5": 48.3
         }
       },
+      "cv_minutes": {
+        "season": 16.9,
+        "last20": 14.0,
+        "last10": 13.9,
+        "last5": 12.5
+      },
       "mean_minutes_last20": 21.8
     },
     "Jonathan Kuminga": {
@@ -11270,6 +12590,12 @@
           "last10": 34.9,
           "last5": 33.5
         }
+      },
+      "cv_minutes": {
+        "season": 19.8,
+        "last20": 19.8,
+        "last10": 19.4,
+        "last5": 9.3
       },
       "mean_minutes_last20": 27.8
     },
@@ -11322,6 +12648,12 @@
           "last5": 10.9
         }
       },
+      "cv_minutes": {
+        "season": 15.3,
+        "last20": 14.6,
+        "last10": 11.3,
+        "last5": 11.3
+      },
       "mean_minutes_last20": 26.6
     },
     "Jake LaRavia": {
@@ -11372,6 +12704,12 @@
           "last10": 35.0,
           "last5": 29.7
         }
+      },
+      "cv_minutes": {
+        "season": 13.4,
+        "last20": 11.8,
+        "last10": 8.7,
+        "last5": 9.5
       },
       "mean_minutes_last20": 25.9
     },
@@ -11424,6 +12762,12 @@
           "last5": 31.9
         }
       },
+      "cv_minutes": {
+        "season": 11.1,
+        "last20": 11.8,
+        "last10": 11.2,
+        "last5": 12.0
+      },
       "mean_minutes_last20": 33.5
     },
     "Jock Landale": {
@@ -11474,6 +12818,12 @@
           "last10": 35.3,
           "last5": 43.4
         }
+      },
+      "cv_minutes": {
+        "season": 16.2,
+        "last20": 16.7,
+        "last10": 17.1,
+        "last5": 6.4
       },
       "mean_minutes_last20": 22.1
     },
@@ -11526,6 +12876,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 11.5
     },
     "Pelle Larsson": {
@@ -11576,6 +12932,12 @@
           "last10": 38.9,
           "last5": 32.8
         }
+      },
+      "cv_minutes": {
+        "season": 11.6,
+        "last20": 11.8,
+        "last10": 8.0,
+        "last5": 10.8
       },
       "mean_minutes_last20": 25.6
     },
@@ -11628,6 +12990,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 12.3
     },
     "Caris LeVert": {
@@ -11678,6 +13046,12 @@
           "last10": 34.5,
           "last5": 40.9
         }
+      },
+      "cv_minutes": {
+        "season": 13.1,
+        "last20": 11.2,
+        "last10": 11.4,
+        "last5": 10.4
       },
       "mean_minutes_last20": 18.9
     },
@@ -11730,6 +13104,12 @@
           "last5": 6.8
         }
       },
+      "cv_minutes": {
+        "season": 11.5,
+        "last20": 9.5,
+        "last10": 8.9,
+        "last5": 13.0
+      },
       "mean_minutes_last20": 31.1
     },
     "Dereck Lively II": {
@@ -11780,6 +13160,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 15.8
     },
@@ -11832,6 +13218,12 @@
           "last5": 68.5
         }
       },
+      "cv_minutes": {
+        "season": 9.2,
+        "last20": 9.2,
+        "last10": 9.2,
+        "last5": 9.1
+      },
       "mean_minutes_last20": 11.2
     },
     "Chris Livingston": {
@@ -11882,6 +13274,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 14.0
     },
@@ -11934,6 +13332,12 @@
           "last5": 41.1
         }
       },
+      "cv_minutes": {
+        "season": 15.7,
+        "last20": 15.7,
+        "last10": 16.1,
+        "last5": 15.4
+      },
       "mean_minutes_last20": 14.1
     },
     "Brook Lopez": {
@@ -11984,6 +13388,12 @@
           "last10": 52.8,
           "last5": 29.8
         }
+      },
+      "cv_minutes": {
+        "season": 17.9,
+        "last20": 18.1,
+        "last10": 17.0,
+        "last5": 7.0
       },
       "mean_minutes_last20": 18.2
     },
@@ -12036,6 +13446,12 @@
           "last5": 30.1
         }
       },
+      "cv_minutes": {
+        "season": 22.6,
+        "last20": 22.6,
+        "last10": 16.3,
+        "last5": 18.2
+      },
       "mean_minutes_last20": 21.7
     },
     "Kevin Love": {
@@ -12086,6 +13502,12 @@
           "last10": 36.4,
           "last5": 31.7
         }
+      },
+      "cv_minutes": {
+        "season": 13.1,
+        "last20": 13.2,
+        "last10": 14.0,
+        "last5": 14.7
       },
       "mean_minutes_last20": 15.8
     },
@@ -12138,6 +13560,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 10.0
     },
     "Sandro Mamukelashvili": {
@@ -12188,6 +13616,12 @@
           "last10": 28.8,
           "last5": 30.1
         }
+      },
+      "cv_minutes": {
+        "season": 16.2,
+        "last20": 10.6,
+        "last10": 10.4,
+        "last5": 11.3
       },
       "mean_minutes_last20": 22.4
     },
@@ -12240,6 +13674,12 @@
           "last5": 47.6
         }
       },
+      "cv_minutes": {
+        "season": 14.0,
+        "last20": 12.9,
+        "last10": 14.5,
+        "last5": 16.5
+      },
       "mean_minutes_last20": 25.6
     },
     "Tre Mann": {
@@ -12290,6 +13730,12 @@
           "last10": 46.8,
           "last5": 38.0
         }
+      },
+      "cv_minutes": {
+        "season": 18.0,
+        "last20": 18.0,
+        "last10": 15.0,
+        "last5": 13.3
       },
       "mean_minutes_last20": 19.1
     },
@@ -12342,6 +13788,12 @@
           "last5": 21.5
         }
       },
+      "cv_minutes": {
+        "season": 10.8,
+        "last20": 13.3,
+        "last10": 16.9,
+        "last5": 15.8
+      },
       "mean_minutes_last20": 35.2
     },
     "Naji Marshall": {
@@ -12392,6 +13844,12 @@
           "last10": 27.8,
           "last5": 32.7
         }
+      },
+      "cv_minutes": {
+        "season": 15.0,
+        "last20": 13.9,
+        "last10": 16.2,
+        "last5": 18.0
       },
       "mean_minutes_last20": 29.6
     },
@@ -12444,6 +13902,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 12.0
     },
     "Caleb Martin": {
@@ -12494,6 +13958,12 @@
           "last10": 33.6,
           "last5": 23.6
         }
+      },
+      "cv_minutes": {
+        "season": 18.9,
+        "last20": 18.9,
+        "last10": 18.9,
+        "last5": 20.2
       },
       "mean_minutes_last20": 13.2
     },
@@ -12546,6 +14016,12 @@
           "last5": 25.4
         }
       },
+      "cv_minutes": {
+        "season": 14.9,
+        "last20": 13.8,
+        "last10": 12.0,
+        "last5": 9.6
+      },
       "mean_minutes_last20": 19.4
     },
     "Bennedict Mathurin": {
@@ -12596,6 +14072,12 @@
           "last10": 27.9,
           "last5": 21.7
         }
+      },
+      "cv_minutes": {
+        "season": 13.8,
+        "last20": 12.4,
+        "last10": 11.6,
+        "last5": 13.8
       },
       "mean_minutes_last20": 31.6
     },
@@ -12648,6 +14130,12 @@
           "last5": 44.9
         }
       },
+      "cv_minutes": {
+        "season": 13.9,
+        "last20": 13.9,
+        "last10": 11.2,
+        "last5": 6.1
+      },
       "mean_minutes_last20": 12.9
     },
     "Tyrese Maxey": {
@@ -12698,6 +14186,12 @@
           "last10": 18.3,
           "last5": 20.4
         }
+      },
+      "cv_minutes": {
+        "season": 9.7,
+        "last20": 9.0,
+        "last10": 9.3,
+        "last5": 8.4
       },
       "mean_minutes_last20": 37.4
     },
@@ -12750,6 +14244,12 @@
           "last5": 29.5
         }
       },
+      "cv_minutes": {
+        "season": 15.2,
+        "last20": 15.2,
+        "last10": 12.8,
+        "last5": 9.6
+      },
       "mean_minutes_last20": 26.5
     },
     "Jared McCain": {
@@ -12800,6 +14300,12 @@
           "last10": 32.9,
           "last5": 26.5
         }
+      },
+      "cv_minutes": {
+        "season": 16.5,
+        "last20": 16.5,
+        "last10": 12.6,
+        "last5": 13.3
       },
       "mean_minutes_last20": 17.1
     },
@@ -12852,6 +14358,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 13.0
     },
     "CJ McCollum": {
@@ -12902,6 +14414,12 @@
           "last10": 20.9,
           "last5": 17.5
         }
+      },
+      "cv_minutes": {
+        "season": 11.5,
+        "last20": 9.3,
+        "last10": 10.8,
+        "last5": 8.8
       },
       "mean_minutes_last20": 28.8
     },
@@ -12954,6 +14472,12 @@
           "last5": 12.4
         }
       },
+      "cv_minutes": {
+        "season": 11.5,
+        "last20": 11.2,
+        "last10": 8.3,
+        "last5": 9.2
+      },
       "mean_minutes_last20": 16.1
     },
     "Jaden McDaniels": {
@@ -13004,6 +14528,12 @@
           "last10": 34.7,
           "last5": 40.5
         }
+      },
+      "cv_minutes": {
+        "season": 11.5,
+        "last20": 10.8,
+        "last10": 9.3,
+        "last5": 9.5
       },
       "mean_minutes_last20": 32.6
     },
@@ -13056,6 +14586,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 12.0
     },
     "Bryce McGowens": {
@@ -13106,6 +14642,12 @@
           "last10": 34.5,
           "last5": 34.7
         }
+      },
+      "cv_minutes": {
+        "season": 21.6,
+        "last20": 21.6,
+        "last10": 20.2,
+        "last5": 19.0
       },
       "mean_minutes_last20": 19.2
     },
@@ -13158,6 +14700,12 @@
           "last5": 72.7
         }
       },
+      "cv_minutes": {
+        "season": 14.0,
+        "last20": 14.0,
+        "last10": 14.0,
+        "last5": 8.3
+      },
       "mean_minutes_last20": 12.4
     },
     "De'Anthony Melton": {
@@ -13208,6 +14756,12 @@
           "last10": 44.2,
           "last5": 45.4
         }
+      },
+      "cv_minutes": {
+        "season": 15.0,
+        "last20": 10.7,
+        "last10": 7.3,
+        "last5": 10.7
       },
       "mean_minutes_last20": 23.1
     },
@@ -13260,6 +14814,12 @@
           "last5": 48.9
         }
       },
+      "cv_minutes": {
+        "season": 10.8,
+        "last20": 12.5,
+        "last10": 12.1,
+        "last5": 15.0
+      },
       "mean_minutes_last20": 25.7
     },
     "Khris Middleton": {
@@ -13310,6 +14870,12 @@
           "last10": 37.4,
           "last5": 29.2
         }
+      },
+      "cv_minutes": {
+        "season": 14.3,
+        "last20": 14.0,
+        "last10": 17.4,
+        "last5": 14.7
       },
       "mean_minutes_last20": 24.8
     },
@@ -13362,6 +14928,12 @@
           "last5": 17.9
         }
       },
+      "cv_minutes": {
+        "season": 13.2,
+        "last20": 14.7,
+        "last10": 16.2,
+        "last5": 11.2
+      },
       "mean_minutes_last20": 31.0
     },
     "Jordan Miller": {
@@ -13412,6 +14984,12 @@
           "last10": 34.7,
           "last5": 41.5
         }
+      },
+      "cv_minutes": {
+        "season": 19.4,
+        "last20": 19.4,
+        "last10": 15.5,
+        "last5": 12.7
       },
       "mean_minutes_last20": 20.9
     },
@@ -13464,6 +15042,12 @@
           "last5": 31.2
         }
       },
+      "cv_minutes": {
+        "season": 18.2,
+        "last20": 18.2,
+        "last10": 16.5,
+        "last5": 17.1
+      },
       "mean_minutes_last20": 18.9
     },
     "Yves Missi": {
@@ -13514,6 +15098,12 @@
           "last10": 35.9,
           "last5": 35.9
         }
+      },
+      "cv_minutes": {
+        "season": 14.9,
+        "last20": 14.6,
+        "last10": 14.7,
+        "last5": 17.0
       },
       "mean_minutes_last20": 18.6
     },
@@ -13566,6 +15156,12 @@
           "last5": 20.8
         }
       },
+      "cv_minutes": {
+        "season": 14.1,
+        "last20": 12.3,
+        "last10": 8.6,
+        "last5": 9.4
+      },
       "mean_minutes_last20": 25.6
     },
     "Davion Mitchell": {
@@ -13616,6 +15212,12 @@
           "last10": 33.8,
           "last5": 37.6
         }
+      },
+      "cv_minutes": {
+        "season": 12.0,
+        "last20": 11.2,
+        "last10": 7.2,
+        "last5": 6.6
       },
       "mean_minutes_last20": 27.4
     },
@@ -13668,6 +15270,12 @@
           "last5": 16.8
         }
       },
+      "cv_minutes": {
+        "season": 9.0,
+        "last20": 9.4,
+        "last10": 7.3,
+        "last5": 5.5
+      },
       "mean_minutes_last20": 33.2
     },
     "Evan Mobley": {
@@ -13718,6 +15326,12 @@
           "last10": 24.2,
           "last5": 14.6
         }
+      },
+      "cv_minutes": {
+        "season": 9.5,
+        "last20": 10.7,
+        "last10": 13.1,
+        "last5": 12.7
       },
       "mean_minutes_last20": 32.8
     },
@@ -13770,6 +15384,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 11.0
     },
     "Malik Monk": {
@@ -13820,6 +15440,12 @@
           "last10": 24.7,
           "last5": 31.1
         }
+      },
+      "cv_minutes": {
+        "season": 16.1,
+        "last20": 16.9,
+        "last10": 10.2,
+        "last5": 3.7
       },
       "mean_minutes_last20": 21.4
     },
@@ -13872,6 +15498,12 @@
           "last5": 9.2
         }
       },
+      "cv_minutes": {
+        "season": 15.6,
+        "last20": 11.8,
+        "last10": 11.1,
+        "last5": 10.4
+      },
       "mean_minutes_last20": 25.5
     },
     "Wendell Moore Jr.": {
@@ -13922,6 +15554,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 12.5
     },
@@ -13974,6 +15612,12 @@
           "last5": 17.8
         }
       },
+      "cv_minutes": {
+        "season": 12.4,
+        "last20": 12.4,
+        "last10": 12.0,
+        "last5": 9.1
+      },
       "mean_minutes_last20": 30.1
     },
     "Monté Morris": {
@@ -14024,6 +15668,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 15.0
     },
@@ -14076,6 +15726,12 @@
           "last5": 23.1
         }
       },
+      "cv_minutes": {
+        "season": 9.0,
+        "last20": 11.2,
+        "last10": 14.5,
+        "last5": 13.9
+      },
       "mean_minutes_last20": 35.0
     },
     "Dejounte Murray": {
@@ -14126,6 +15782,12 @@
           "last10": 17.6,
           "last5": 9.6
         }
+      },
+      "cv_minutes": {
+        "season": 11.1,
+        "last20": 11.1,
+        "last10": 11.1,
+        "last5": 12.2
       },
       "mean_minutes_last20": 25.8
     },
@@ -14178,6 +15840,12 @@
           "last5": 26.1
         }
       },
+      "cv_minutes": {
+        "season": 8.1,
+        "last20": 6.2,
+        "last10": 7.4,
+        "last5": 6.3
+      },
       "mean_minutes_last20": 36.1
     },
     "Keegan Murray": {
@@ -14228,6 +15896,12 @@
           "last10": 30.2,
           "last5": 35.4
         }
+      },
+      "cv_minutes": {
+        "season": 12.4,
+        "last20": 12.4,
+        "last10": 14.2,
+        "last5": 7.0
       },
       "mean_minutes_last20": 37.1
     },
@@ -14280,6 +15954,12 @@
           "last5": 29.5
         }
       },
+      "cv_minutes": {
+        "season": 14.6,
+        "last20": 8.1,
+        "last10": 8.6,
+        "last5": 10.2
+      },
       "mean_minutes_last20": 27.1
     },
     "Collin Murray-Boyles": {
@@ -14330,6 +16010,12 @@
           "last10": 33.2,
           "last5": 33.2
         }
+      },
+      "cv_minutes": {
+        "season": 17.5,
+        "last20": 17.5,
+        "last10": 18.1,
+        "last5": 10.2
       },
       "mean_minutes_last20": 19.3
     },
@@ -14382,6 +16068,12 @@
           "last5": 35.1
         }
       },
+      "cv_minutes": {
+        "season": 12.1,
+        "last20": 12.9,
+        "last10": 14.0,
+        "last5": 12.7
+      },
       "mean_minutes_last20": 24.1
     },
     "Pete Nance": {
@@ -14432,6 +16124,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 11.0
     },
@@ -14484,6 +16182,12 @@
           "last5": 32.5
         }
       },
+      "cv_minutes": {
+        "season": 16.5,
+        "last20": 16.5,
+        "last10": 18.6,
+        "last5": 18.0
+      },
       "mean_minutes_last20": 15.3
     },
     "Andrew Nembhard": {
@@ -14534,6 +16238,12 @@
           "last10": 25.4,
           "last5": 19.8
         }
+      },
+      "cv_minutes": {
+        "season": 12.2,
+        "last20": 11.6,
+        "last10": 14.6,
+        "last5": 9.1
       },
       "mean_minutes_last20": 31.4
     },
@@ -14586,6 +16296,12 @@
           "last5": 23.9
         }
       },
+      "cv_minutes": {
+        "season": 18.9,
+        "last20": 18.9,
+        "last10": 11.9,
+        "last5": 11.2
+      },
       "mean_minutes_last20": 19.6
     },
     "Aaron Nesmith": {
@@ -14636,6 +16352,12 @@
           "last10": 31.1,
           "last5": 44.2
         }
+      },
+      "cv_minutes": {
+        "season": 13.4,
+        "last20": 13.7,
+        "last10": 17.5,
+        "last5": 23.9
       },
       "mean_minutes_last20": 31.1
     },
@@ -14688,6 +16410,12 @@
           "last5": 82.8
         }
       },
+      "cv_minutes": {
+        "season": 8.1,
+        "last20": 8.1,
+        "last10": 8.1,
+        "last5": 7.5
+      },
       "mean_minutes_last20": 11.0
     },
     "Yanic Konan Niederhäuser": {
@@ -14738,6 +16466,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 10.0
     },
@@ -14790,6 +16524,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 13.5
     },
     "Jusuf Nurkić": {
@@ -14840,6 +16580,12 @@
           "last10": 17.2,
           "last5": 17.2
         }
+      },
+      "cv_minutes": {
+        "season": 19.9,
+        "last20": 15.5,
+        "last10": 11.5,
+        "last5": 12.1
       },
       "mean_minutes_last20": 25.3
     },
@@ -14892,6 +16638,12 @@
           "last5": 35.7
         }
       },
+      "cv_minutes": {
+        "season": 11.6,
+        "last20": 13.4,
+        "last10": 13.2,
+        "last5": 6.0
+      },
       "mean_minutes_last20": 29.0
     },
     "Josh Okogie": {
@@ -14942,6 +16694,12 @@
           "last10": 55.8,
           "last5": 58.4
         }
+      },
+      "cv_minutes": {
+        "season": 14.3,
+        "last20": 14.3,
+        "last10": 14.9,
+        "last5": 17.3
       },
       "mean_minutes_last20": 20.4
     },
@@ -14994,6 +16752,12 @@
           "last5": 30.2
         }
       },
+      "cv_minutes": {
+        "season": 11.5,
+        "last20": 10.0,
+        "last10": 9.1,
+        "last5": 9.8
+      },
       "mean_minutes_last20": 31.0
     },
     "Isaac Okoro": {
@@ -15044,6 +16808,12 @@
           "last10": 34.4,
           "last5": 40.8
         }
+      },
+      "cv_minutes": {
+        "season": 14.5,
+        "last20": 9.5,
+        "last10": 11.9,
+        "last5": 11.9
       },
       "mean_minutes_last20": 27.1
     },
@@ -15096,6 +16866,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 11.5
     },
     "Kelly Olynyk": {
@@ -15146,6 +16922,12 @@
           "last10": 34.3,
           "last5": 40.5
         }
+      },
+      "cv_minutes": {
+        "season": 12.7,
+        "last20": 12.7,
+        "last10": 12.7,
+        "last5": 14.7
       },
       "mean_minutes_last20": 12.1
     },
@@ -15198,6 +16980,12 @@
           "last5": 41.4
         }
       },
+      "cv_minutes": {
+        "season": 12.5,
+        "last20": 10.7,
+        "last10": 8.9,
+        "last5": 11.0
+      },
       "mean_minutes_last20": 34.1
     },
     "Chris Paul": {
@@ -15248,6 +17036,12 @@
           "last10": 35.2,
           "last5": 23.6
         }
+      },
+      "cv_minutes": {
+        "season": 15.9,
+        "last20": 15.9,
+        "last10": 15.9,
+        "last5": 19.4
       },
       "mean_minutes_last20": 13.7
     },
@@ -15300,6 +17094,12 @@
           "last5": 31.6
         }
       },
+      "cv_minutes": {
+        "season": 14.9,
+        "last20": 14.9,
+        "last10": 16.1,
+        "last5": 15.4
+      },
       "mean_minutes_last20": 11.9
     },
     "Micah Peavy": {
@@ -15350,6 +17150,12 @@
           "last10": 44.0,
           "last5": 34.7
         }
+      },
+      "cv_minutes": {
+        "season": 16.6,
+        "last20": 16.6,
+        "last10": 15.5,
+        "last5": 21.3
       },
       "mean_minutes_last20": 14.8
     },
@@ -15402,6 +17208,12 @@
           "last5": 47.7
         }
       },
+      "cv_minutes": {
+        "season": 16.4,
+        "last20": 16.4,
+        "last10": 16.4,
+        "last5": 7.7
+      },
       "mean_minutes_last20": 13.2
     },
     "Taelon Peter": {
@@ -15452,6 +17264,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 17.0
     },
@@ -15504,6 +17322,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 17.5
     },
     "Julian Phillips": {
@@ -15554,6 +17378,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 10.5
     },
@@ -15606,6 +17436,12 @@
           "last5": 21.1
         }
       },
+      "cv_minutes": {
+        "season": 20.9,
+        "last20": 20.9,
+        "last10": 20.9,
+        "last5": 12.6
+      },
       "mean_minutes_last20": 15.3
     },
     "Scotty Pippen Jr.": {
@@ -15656,6 +17492,12 @@
           "last10": 26.6,
           "last5": 25.0
         }
+      },
+      "cv_minutes": {
+        "season": 8.3,
+        "last20": 8.3,
+        "last10": 8.3,
+        "last5": 8.2
       },
       "mean_minutes_last20": 21.2
     },
@@ -15708,6 +17550,12 @@
           "last5": 52.3
         }
       },
+      "cv_minutes": {
+        "season": 23.8,
+        "last20": 23.8,
+        "last10": 23.8,
+        "last5": 14.3
+      },
       "mean_minutes_last20": 20.0
     },
     "Mason Plumlee": {
@@ -15758,6 +17606,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 10.0
     },
@@ -15810,6 +17664,12 @@
           "last5": 20.8
         }
       },
+      "cv_minutes": {
+        "season": 12.8,
+        "last20": 14.3,
+        "last10": 9.1,
+        "last5": 7.8
+      },
       "mean_minutes_last20": 27.5
     },
     "Jakob Poeltl": {
@@ -15860,6 +17720,12 @@
           "last10": 27.5,
           "last5": 30.2
         }
+      },
+      "cv_minutes": {
+        "season": 13.5,
+        "last20": 13.6,
+        "last10": 11.5,
+        "last5": 5.9
       },
       "mean_minutes_last20": 25.9
     },
@@ -15912,6 +17778,12 @@
           "last5": 44.6
         }
       },
+      "cv_minutes": {
+        "season": 12.1,
+        "last20": 12.1,
+        "last10": 8.5,
+        "last5": 7.5
+      },
       "mean_minutes_last20": 27.4
     },
     "Craig Porter Jr.": {
@@ -15962,6 +17834,12 @@
           "last10": 40.9,
           "last5": 45.4
         }
+      },
+      "cv_minutes": {
+        "season": 14.2,
+        "last20": 14.4,
+        "last10": 14.6,
+        "last5": 14.2
       },
       "mean_minutes_last20": 17.1
     },
@@ -16014,6 +17892,12 @@
           "last5": 37.1
         }
       },
+      "cv_minutes": {
+        "season": 11.9,
+        "last20": 12.6,
+        "last10": 11.4,
+        "last5": 13.7
+      },
       "mean_minutes_last20": 34.4
     },
     "Michael Porter Jr.": {
@@ -16064,6 +17948,12 @@
           "last10": 21.9,
           "last5": 27.2
         }
+      },
+      "cv_minutes": {
+        "season": 11.3,
+        "last20": 11.7,
+        "last10": 13.7,
+        "last5": 18.0
       },
       "mean_minutes_last20": 32.8
     },
@@ -16116,6 +18006,12 @@
           "last5": 20.8
         }
       },
+      "cv_minutes": {
+        "season": 15.1,
+        "last20": 11.9,
+        "last10": 13.6,
+        "last5": 15.3
+      },
       "mean_minutes_last20": 23.9
     },
     "Kristaps Porziņģis": {
@@ -16166,6 +18062,12 @@
           "last10": 28.0,
           "last5": 34.8
         }
+      },
+      "cv_minutes": {
+        "season": 13.1,
+        "last20": 13.1,
+        "last10": 15.6,
+        "last5": 6.7
       },
       "mean_minutes_last20": 24.3
     },
@@ -16218,6 +18120,12 @@
           "last5": 37.6
         }
       },
+      "cv_minutes": {
+        "season": 16.0,
+        "last20": 15.1,
+        "last10": 18.0,
+        "last5": 24.0
+      },
       "mean_minutes_last20": 17.4
     },
     "Drake Powell": {
@@ -16268,6 +18176,12 @@
           "last10": 41.6,
           "last5": 27.3
         }
+      },
+      "cv_minutes": {
+        "season": 11.2,
+        "last20": 11.9,
+        "last10": 12.5,
+        "last5": 12.8
       },
       "mean_minutes_last20": 19.6
     },
@@ -16320,6 +18234,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 12.0
     },
     "Norman Powell": {
@@ -16370,6 +18290,12 @@
           "last10": 17.6,
           "last5": 16.4
         }
+      },
+      "cv_minutes": {
+        "season": 10.4,
+        "last20": 11.1,
+        "last10": 11.3,
+        "last5": 14.9
       },
       "mean_minutes_last20": 29.6
     },
@@ -16422,6 +18348,12 @@
           "last5": 68.0
         }
       },
+      "cv_minutes": {
+        "season": 7.9,
+        "last20": 7.9,
+        "last10": 7.9,
+        "last5": 8.3
+      },
       "mean_minutes_last20": 20.3
     },
     "Payton Pritchard": {
@@ -16472,6 +18404,12 @@
           "last10": 39.8,
           "last5": 38.3
         }
+      },
+      "cv_minutes": {
+        "season": 9.9,
+        "last20": 11.3,
+        "last10": 11.1,
+        "last5": 12.0
       },
       "mean_minutes_last20": 32.6
     },
@@ -16524,6 +18462,12 @@
           "last5": 37.9
         }
       },
+      "cv_minutes": {
+        "season": 15.7,
+        "last20": 15.7,
+        "last10": 8.5,
+        "last5": 5.3
+      },
       "mean_minutes_last20": 11.5
     },
     "Olivier-Maxence Prosper": {
@@ -16574,6 +18518,12 @@
           "last10": 38.2,
           "last5": 40.5
         }
+      },
+      "cv_minutes": {
+        "season": 27.5,
+        "last20": 27.5,
+        "last10": 27.5,
+        "last5": 30.9
       },
       "mean_minutes_last20": 14.5
     },
@@ -16626,6 +18576,12 @@
           "last5": 10.1
         }
       },
+      "cv_minutes": {
+        "season": 14.9,
+        "last20": 12.8,
+        "last10": 15.6,
+        "last5": 15.3
+      },
       "mean_minutes_last20": 26.6
     },
     "Neemias Queta": {
@@ -16676,6 +18632,12 @@
           "last10": 45.6,
           "last5": 48.9
         }
+      },
+      "cv_minutes": {
+        "season": 12.3,
+        "last20": 12.6,
+        "last10": 13.5,
+        "last5": 14.4
       },
       "mean_minutes_last20": 25.6
     },
@@ -16728,6 +18690,12 @@
           "last5": 22.0
         }
       },
+      "cv_minutes": {
+        "season": 8.9,
+        "last20": 7.0,
+        "last10": 7.1,
+        "last5": 8.2
+      },
       "mean_minutes_last20": 32.8
     },
     "Julius Randle": {
@@ -16778,6 +18746,12 @@
           "last10": 31.3,
           "last5": 8.3
         }
+      },
+      "cv_minutes": {
+        "season": 10.8,
+        "last20": 11.1,
+        "last10": 10.4,
+        "last5": 14.9
       },
       "mean_minutes_last20": 33.2
     },
@@ -16830,6 +18804,12 @@
           "last5": 37.6
         }
       },
+      "cv_minutes": {
+        "season": 19.4,
+        "last20": 13.2,
+        "last10": 12.9,
+        "last5": 4.9
+      },
       "mean_minutes_last20": 24.1
     },
     "Austin Reaves": {
@@ -16880,6 +18860,12 @@
           "last10": 24.2,
           "last5": 22.7
         }
+      },
+      "cv_minutes": {
+        "season": 12.1,
+        "last20": 13.7,
+        "last10": 13.4,
+        "last5": 11.3
       },
       "mean_minutes_last20": 34.8
     },
@@ -16932,6 +18918,12 @@
           "last5": 26.1
         }
       },
+      "cv_minutes": {
+        "season": 12.1,
+        "last20": 12.1,
+        "last10": 12.1,
+        "last5": 13.2
+      },
       "mean_minutes_last20": 12.2
     },
     "Antonio Reeves": {
@@ -16982,6 +18974,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 10.0
     },
@@ -17034,6 +19032,12 @@
           "last5": 24.7
         }
       },
+      "cv_minutes": {
+        "season": 12.0,
+        "last20": 11.2,
+        "last10": 12.3,
+        "last5": 9.0
+      },
       "mean_minutes_last20": 25.9
     },
     "Will Richard": {
@@ -17084,6 +19088,12 @@
           "last10": 74.5,
           "last5": 109.0
         }
+      },
+      "cv_minutes": {
+        "season": 16.2,
+        "last20": 14.9,
+        "last10": 14.8,
+        "last5": 19.2
       },
       "mean_minutes_last20": 18.6
     },
@@ -17136,6 +19146,12 @@
           "last5": 34.8
         }
       },
+      "cv_minutes": {
+        "season": 6.7,
+        "last20": 6.7,
+        "last10": 6.7,
+        "last5": 6.4
+      },
       "mean_minutes_last20": 11.2
     },
     "Jase Richardson": {
@@ -17186,6 +19202,12 @@
           "last10": 68.1,
           "last5": 68.1
         }
+      },
+      "cv_minutes": {
+        "season": 14.4,
+        "last20": 14.4,
+        "last10": 14.4,
+        "last5": 14.4
       },
       "mean_minutes_last20": 13.0
     },
@@ -17238,6 +19260,12 @@
           "last5": 20.2
         }
       },
+      "cv_minutes": {
+        "season": 15.5,
+        "last20": 15.5,
+        "last10": 15.5,
+        "last5": 15.4
+      },
       "mean_minutes_last20": 12.7
     },
     "Zaccharie Risacher": {
@@ -17288,6 +19316,12 @@
           "last10": 30.1,
           "last5": 17.5
         }
+      },
+      "cv_minutes": {
+        "season": 14.0,
+        "last20": 13.2,
+        "last10": 12.0,
+        "last5": 11.7
       },
       "mean_minutes_last20": 23.1
     },
@@ -17340,6 +19374,12 @@
           "last5": 52.5
         }
       },
+      "cv_minutes": {
+        "season": 13.9,
+        "last20": 13.4,
+        "last10": 15.0,
+        "last5": 16.6
+      },
       "mean_minutes_last20": 26.8
     },
     "Mitchell Robinson": {
@@ -17390,6 +19430,12 @@
           "last10": 50.3,
           "last5": 62.6
         }
+      },
+      "cv_minutes": {
+        "season": 11.9,
+        "last20": 12.0,
+        "last10": 11.2,
+        "last5": 11.9
       },
       "mean_minutes_last20": 18.3
     },
@@ -17442,6 +19488,12 @@
           "last5": 20.9
         }
       },
+      "cv_minutes": {
+        "season": 14.3,
+        "last20": 14.3,
+        "last10": 14.3,
+        "last5": 14.3
+      },
       "mean_minutes_last20": 17.6
     },
     "Ryan Rollins": {
@@ -17492,6 +19544,12 @@
           "last10": 13.2,
           "last5": 13.8
         }
+      },
+      "cv_minutes": {
+        "season": 11.1,
+        "last20": 11.3,
+        "last10": 6.9,
+        "last5": 8.4
       },
       "mean_minutes_last20": 33.4
     },
@@ -17544,6 +19602,12 @@
           "last5": 90.3
         }
       },
+      "cv_minutes": {
+        "season": 11.6,
+        "last20": 11.6,
+        "last10": 11.6,
+        "last5": 11.6
+      },
       "mean_minutes_last20": 11.2
     },
     "D'Angelo Russell": {
@@ -17594,6 +19658,12 @@
           "last10": 34.3,
           "last5": 34.3
         }
+      },
+      "cv_minutes": {
+        "season": 17.0,
+        "last20": 17.0,
+        "last10": 15.9,
+        "last5": 21.0
       },
       "mean_minutes_last20": 19.1
     },
@@ -17646,6 +19716,12 @@
           "last5": 31.8
         }
       },
+      "cv_minutes": {
+        "season": 15.4,
+        "last20": 15.4,
+        "last10": 16.7,
+        "last5": 13.6
+      },
       "mean_minutes_last20": 31.7
     },
     "Tidjane Salaün": {
@@ -17696,6 +19772,12 @@
           "last10": 31.1,
           "last5": 40.2
         }
+      },
+      "cv_minutes": {
+        "season": 15.6,
+        "last20": 15.6,
+        "last10": 15.6,
+        "last5": 10.4
       },
       "mean_minutes_last20": 16.0
     },
@@ -17748,6 +19830,12 @@
           "last5": 17.3
         }
       },
+      "cv_minutes": {
+        "season": 18.0,
+        "last20": 16.0,
+        "last10": 12.7,
+        "last5": 11.7
+      },
       "mean_minutes_last20": 21.1
     },
     "Gui Santos": {
@@ -17798,6 +19886,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 11.0
     },
@@ -17850,6 +19944,12 @@
           "last5": 34.5
         }
       },
+      "cv_minutes": {
+        "season": 10.1,
+        "last20": 10.1,
+        "last10": 9.2,
+        "last5": 9.6
+      },
       "mean_minutes_last20": 17.9
     },
     "Alex Sarr": {
@@ -17900,6 +20000,12 @@
           "last10": 15.6,
           "last5": 9.8
         }
+      },
+      "cv_minutes": {
+        "season": 9.4,
+        "last20": 8.6,
+        "last10": 8.3,
+        "last5": 10.7
       },
       "mean_minutes_last20": 27.1
     },
@@ -17952,6 +20058,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 10.5
     },
     "Baylor Scheierman": {
@@ -18002,6 +20114,12 @@
           "last10": 37.4,
           "last5": 29.0
         }
+      },
+      "cv_minutes": {
+        "season": 13.2,
+        "last20": 13.2,
+        "last10": 12.9,
+        "last5": 11.2
       },
       "mean_minutes_last20": 12.7
     },
@@ -18054,6 +20172,12 @@
           "last5": 46.6
         }
       },
+      "cv_minutes": {
+        "season": 17.5,
+        "last20": 14.1,
+        "last10": 11.9,
+        "last5": 14.1
+      },
       "mean_minutes_last20": 24.3
     },
     "Alperen Sengun": {
@@ -18104,6 +20228,12 @@
           "last10": 27.3,
           "last5": 21.1
         }
+      },
+      "cv_minutes": {
+        "season": 13.2,
+        "last20": 11.4,
+        "last10": 12.7,
+        "last5": 17.7
       },
       "mean_minutes_last20": 32.5
     },
@@ -18156,6 +20286,12 @@
           "last5": 40.5
         }
       },
+      "cv_minutes": {
+        "season": 20.7,
+        "last20": 14.3,
+        "last10": 10.9,
+        "last5": 12.9
+      },
       "mean_minutes_last20": 22.1
     },
     "Collin Sexton": {
@@ -18206,6 +20342,12 @@
           "last10": 27.6,
           "last5": 39.9
         }
+      },
+      "cv_minutes": {
+        "season": 17.7,
+        "last20": 16.1,
+        "last10": 15.4,
+        "last5": 19.6
       },
       "mean_minutes_last20": 23.1
     },
@@ -18258,6 +20400,12 @@
           "last5": 20.1
         }
       },
+      "cv_minutes": {
+        "season": 18.0,
+        "last20": 13.1,
+        "last10": 10.5,
+        "last5": 12.6
+      },
       "mean_minutes_last20": 22.1
     },
     "Terrence Shannon Jr.": {
@@ -18308,6 +20456,12 @@
           "last10": 73.8,
           "last5": 86.6
         }
+      },
+      "cv_minutes": {
+        "season": 30.2,
+        "last20": 30.2,
+        "last10": 30.2,
+        "last5": 9.8
       },
       "mean_minutes_last20": 14.6
     },
@@ -18360,6 +20514,12 @@
           "last5": 32.8
         }
       },
+      "cv_minutes": {
+        "season": 14.1,
+        "last20": 9.5,
+        "last10": 10.7,
+        "last5": 12.2
+      },
       "mean_minutes_last20": 18.4
     },
     "Shaedon Sharpe": {
@@ -18410,6 +20570,12 @@
           "last10": 23.3,
           "last5": 32.0
         }
+      },
+      "cv_minutes": {
+        "season": 12.3,
+        "last20": 8.7,
+        "last10": 7.1,
+        "last5": 8.6
       },
       "mean_minutes_last20": 31.6
     },
@@ -18462,6 +20628,12 @@
           "last5": 40.9
         }
       },
+      "cv_minutes": {
+        "season": 13.6,
+        "last20": 9.8,
+        "last10": 11.9,
+        "last5": 13.7
+      },
       "mean_minutes_last20": 21.6
     },
     "Ben Sheppard": {
@@ -18512,6 +20684,12 @@
           "last10": 43.4,
           "last5": 42.3
         }
+      },
+      "cv_minutes": {
+        "season": 20.5,
+        "last20": 16.1,
+        "last10": 15.5,
+        "last5": 15.6
       },
       "mean_minutes_last20": 21.9
     },
@@ -18564,6 +20742,12 @@
           "last5": 14.3
         }
       },
+      "cv_minutes": {
+        "season": 16.3,
+        "last20": 13.4,
+        "last10": 12.4,
+        "last5": 6.4
+      },
       "mean_minutes_last20": 24.1
     },
     "Pascal Siakam": {
@@ -18614,6 +20798,12 @@
           "last10": 16.3,
           "last5": 12.5
         }
+      },
+      "cv_minutes": {
+        "season": 9.4,
+        "last20": 8.8,
+        "last10": 8.5,
+        "last5": 10.7
       },
       "mean_minutes_last20": 33.4
     },
@@ -18666,6 +20856,12 @@
           "last5": 36.5
         }
       },
+      "cv_minutes": {
+        "season": 12.8,
+        "last20": 13.3,
+        "last10": 13.1,
+        "last5": 17.2
+      },
       "mean_minutes_last20": 24.8
     },
     "KJ Simpson": {
@@ -18716,6 +20912,12 @@
           "last10": 31.4,
           "last5": 23.9
         }
+      },
+      "cv_minutes": {
+        "season": 18.1,
+        "last20": 18.1,
+        "last10": 18.1,
+        "last5": 20.5
       },
       "mean_minutes_last20": 14.9
     },
@@ -18768,6 +20970,12 @@
           "last5": 59.0
         }
       },
+      "cv_minutes": {
+        "season": 24.7,
+        "last20": 24.7,
+        "last10": 24.7,
+        "last5": 20.4
+      },
       "mean_minutes_last20": 16.0
     },
     "Javon Small": {
@@ -18818,6 +21026,12 @@
           "last10": 45.1,
           "last5": 32.3
         }
+      },
+      "cv_minutes": {
+        "season": 20.0,
+        "last20": 20.0,
+        "last10": 20.0,
+        "last5": 21.1
       },
       "mean_minutes_last20": 17.7
     },
@@ -18870,6 +21084,12 @@
           "last5": 29.0
         }
       },
+      "cv_minutes": {
+        "season": 11.6,
+        "last20": 11.1,
+        "last10": 12.5,
+        "last5": 4.3
+      },
       "mean_minutes_last20": 28.7
     },
     "Dru Smith": {
@@ -18920,6 +21140,12 @@
           "last10": 40.2,
           "last5": 33.4
         }
+      },
+      "cv_minutes": {
+        "season": 12.3,
+        "last20": 10.4,
+        "last10": 7.0,
+        "last5": 6.1
       },
       "mean_minutes_last20": 18.6
     },
@@ -18972,6 +21198,12 @@
           "last5": 32.8
         }
       },
+      "cv_minutes": {
+        "season": 17.9,
+        "last20": 18.2,
+        "last10": 21.5,
+        "last5": 13.7
+      },
       "mean_minutes_last20": 17.9
     },
     "Jabari Smith Jr.": {
@@ -19022,6 +21254,12 @@
           "last10": 31.5,
           "last5": 32.4
         }
+      },
+      "cv_minutes": {
+        "season": 11.7,
+        "last20": 10.1,
+        "last10": 10.9,
+        "last5": 14.7
       },
       "mean_minutes_last20": 34.9
     },
@@ -19074,6 +21312,12 @@
           "last5": 84.5
         }
       },
+      "cv_minutes": {
+        "season": 14.0,
+        "last20": 14.0,
+        "last10": 14.0,
+        "last5": 14.0
+      },
       "mean_minutes_last20": 16.4
     },
     "Jeremy Sochan": {
@@ -19124,6 +21368,12 @@
           "last10": 39.7,
           "last5": 45.2
         }
+      },
+      "cv_minutes": {
+        "season": 25.7,
+        "last20": 25.7,
+        "last10": 24.3,
+        "last5": 28.3
       },
       "mean_minutes_last20": 16.5
     },
@@ -19176,6 +21426,12 @@
           "last5": 17.0
         }
       },
+      "cv_minutes": {
+        "season": 18.3,
+        "last20": 9.7,
+        "last10": 10.1,
+        "last5": 8.0
+      },
       "mean_minutes_last20": 24.6
     },
     "Pat Spencer": {
@@ -19226,6 +21482,12 @@
           "last10": 48.8,
           "last5": 45.4
         }
+      },
+      "cv_minutes": {
+        "season": 18.1,
+        "last20": 18.1,
+        "last10": 18.1,
+        "last5": 19.7
       },
       "mean_minutes_last20": 13.8
     },
@@ -19278,6 +21540,12 @@
           "last5": 33.4
         }
       },
+      "cv_minutes": {
+        "season": 11.1,
+        "last20": 10.8,
+        "last10": 11.1,
+        "last5": 4.2
+      },
       "mean_minutes_last20": 22.6
     },
     "Julian Strawther": {
@@ -19328,6 +21596,12 @@
           "last10": 62.4,
           "last5": 51.4
         }
+      },
+      "cv_minutes": {
+        "season": 21.5,
+        "last20": 21.5,
+        "last10": 21.5,
+        "last5": 15.1
       },
       "mean_minutes_last20": 14.8
     },
@@ -19380,6 +21654,12 @@
           "last5": 12.6
         }
       },
+      "cv_minutes": {
+        "season": 16.7,
+        "last20": 12.3,
+        "last10": 13.2,
+        "last5": 10.2
+      },
       "mean_minutes_last20": 26.9
     },
     "Jayson Tatum": {
@@ -19430,6 +21710,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 27.0
     },
@@ -19482,6 +21768,12 @@
           "last5": 55.3
         }
       },
+      "cv_minutes": {
+        "season": 9.9,
+        "last20": 9.9,
+        "last10": 9.9,
+        "last5": 9.8
+      },
       "mean_minutes_last20": 11.8
     },
     "Cam Thomas": {
@@ -19532,6 +21824,12 @@
           "last10": 39.0,
           "last5": 26.3
         }
+      },
+      "cv_minutes": {
+        "season": 20.0,
+        "last20": 10.6,
+        "last10": 10.7,
+        "last5": 6.9
       },
       "mean_minutes_last20": 22.1
     },
@@ -19584,6 +21882,12 @@
           "last5": 19.4
         }
       },
+      "cv_minutes": {
+        "season": 10.9,
+        "last20": 12.7,
+        "last10": 14.6,
+        "last5": 12.6
+      },
       "mean_minutes_last20": 36.8
     },
     "Ausar Thompson": {
@@ -19634,6 +21938,12 @@
           "last10": 33.4,
           "last5": 26.2
         }
+      },
+      "cv_minutes": {
+        "season": 14.2,
+        "last20": 15.0,
+        "last10": 14.1,
+        "last5": 15.8
       },
       "mean_minutes_last20": 25.5
     },
@@ -19686,6 +21996,12 @@
           "last5": 38.5
         }
       },
+      "cv_minutes": {
+        "season": 14.2,
+        "last20": 13.0,
+        "last10": 14.2,
+        "last5": 15.0
+      },
       "mean_minutes_last20": 22.1
     },
     "Matisse Thybulle": {
@@ -19736,6 +22052,12 @@
           "last10": 44.5,
           "last5": 39.1
         }
+      },
+      "cv_minutes": {
+        "season": 12.8,
+        "last20": 12.8,
+        "last10": 12.6,
+        "last5": 12.0
       },
       "mean_minutes_last20": 12.8
     },
@@ -19788,6 +22110,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 15.0
     },
     "Nae'Qwan Tomlin": {
@@ -19838,6 +22166,12 @@
           "last10": 39.3,
           "last5": 36.1
         }
+      },
+      "cv_minutes": {
+        "season": 17.0,
+        "last20": 17.0,
+        "last10": 16.7,
+        "last5": 12.1
       },
       "mean_minutes_last20": 15.8
     },
@@ -19890,6 +22224,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 11.5
     },
     "Obi Toppin": {
@@ -19940,6 +22280,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 27.5
     },
@@ -19992,6 +22338,12 @@
           "last5": 13.0
         }
       },
+      "cv_minutes": {
+        "season": 9.7,
+        "last20": 9.9,
+        "last10": 9.9,
+        "last5": 11.6
+      },
       "mean_minutes_last20": 30.4
     },
     "Nolan Traore": {
@@ -20042,6 +22394,12 @@
           "last10": 37.1,
           "last5": 14.4
         }
+      },
+      "cv_minutes": {
+        "season": 16.9,
+        "last20": 16.9,
+        "last10": 16.9,
+        "last5": 3.5
       },
       "mean_minutes_last20": 20.7
     },
@@ -20094,6 +22452,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 11.0
     },
     "Gary Trent Jr.": {
@@ -20144,6 +22508,12 @@
           "last10": 41.9,
           "last5": 21.4
         }
+      },
+      "cv_minutes": {
+        "season": 14.4,
+        "last20": 14.7,
+        "last10": 12.7,
+        "last5": 10.7
       },
       "mean_minutes_last20": 25.6
     },
@@ -20196,6 +22566,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 12.3
     },
     "Myles Turner": {
@@ -20246,6 +22622,12 @@
           "last10": 37.1,
           "last5": 52.7
         }
+      },
+      "cv_minutes": {
+        "season": 12.3,
+        "last20": 13.8,
+        "last10": 12.6,
+        "last5": 15.7
       },
       "mean_minutes_last20": 26.6
     },
@@ -20298,6 +22680,12 @@
           "last5": 27.3
         }
       },
+      "cv_minutes": {
+        "season": 14.6,
+        "last20": 13.1,
+        "last10": 14.5,
+        "last5": 15.2
+      },
       "mean_minutes_last20": 27.1
     },
     "Jonas Valančiūnas": {
@@ -20348,6 +22736,12 @@
           "last10": 26.5,
           "last5": 25.8
         }
+      },
+      "cv_minutes": {
+        "season": 14.2,
+        "last20": 14.4,
+        "last10": 12.3,
+        "last5": 17.2
       },
       "mean_minutes_last20": 13.3
     },
@@ -20400,6 +22794,12 @@
           "last5": 34.4
         }
       },
+      "cv_minutes": {
+        "season": 15.9,
+        "last20": 12.7,
+        "last10": 13.9,
+        "last5": 13.3
+      },
       "mean_minutes_last20": 18.6
     },
     "Devin Vassell": {
@@ -20450,6 +22850,12 @@
           "last10": 35.6,
           "last5": 51.8
         }
+      },
+      "cv_minutes": {
+        "season": 11.5,
+        "last20": 13.4,
+        "last10": 14.6,
+        "last5": 14.7
       },
       "mean_minutes_last20": 29.6
     },
@@ -20502,6 +22908,12 @@
           "last5": 45.7
         }
       },
+      "cv_minutes": {
+        "season": 17.8,
+        "last20": 15.3,
+        "last10": 11.6,
+        "last5": 13.7
+      },
       "mean_minutes_last20": 19.1
     },
     "Tristan Vukcevic": {
@@ -20552,6 +22964,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 11.2
     },
@@ -20604,6 +23022,12 @@
           "last5": 55.2
         }
       },
+      "cv_minutes": {
+        "season": 11.1,
+        "last20": 13.6,
+        "last10": 16.8,
+        "last5": 7.1
+      },
       "mean_minutes_last20": 30.9
     },
     "Dean Wade": {
@@ -20654,6 +23078,12 @@
           "last10": 56.3,
           "last5": 65.9
         }
+      },
+      "cv_minutes": {
+        "season": 14.2,
+        "last20": 15.1,
+        "last10": 14.2,
+        "last5": 12.2
       },
       "mean_minutes_last20": 23.3
     },
@@ -20706,6 +23136,12 @@
           "last5": 13.5
         }
       },
+      "cv_minutes": {
+        "season": 11.6,
+        "last20": 12.9,
+        "last10": 12.5,
+        "last5": 14.1
+      },
       "mean_minutes_last20": 33.6
     },
     "Moritz Wagner": {
@@ -20756,6 +23192,12 @@
           "last10": 31.6,
           "last5": 17.6
         }
+      },
+      "cv_minutes": {
+        "season": 12.7,
+        "last20": 12.7,
+        "last10": 11.3,
+        "last5": 13.5
       },
       "mean_minutes_last20": 12.4
     },
@@ -20808,6 +23250,12 @@
           "last5": 78.0
         }
       },
+      "cv_minutes": {
+        "season": 18.9,
+        "last20": 18.9,
+        "last10": 16.9,
+        "last5": 17.4
+      },
       "mean_minutes_last20": 12.8
     },
     "Jarace Walker": {
@@ -20858,6 +23306,12 @@
           "last10": 25.7,
           "last5": 31.3
         }
+      },
+      "cv_minutes": {
+        "season": 14.9,
+        "last20": 15.6,
+        "last10": 12.0,
+        "last5": 8.5
       },
       "mean_minutes_last20": 24.0
     },
@@ -20910,6 +23364,12 @@
           "last5": 44.0
         }
       },
+      "cv_minutes": {
+        "season": 13.9,
+        "last20": 11.6,
+        "last10": 8.6,
+        "last5": 2.8
+      },
       "mean_minutes_last20": 27.6
     },
     "Keaton Wallace": {
@@ -20960,6 +23420,12 @@
           "last10": 37.1,
           "last5": 50.8
         }
+      },
+      "cv_minutes": {
+        "season": 12.8,
+        "last20": 12.8,
+        "last10": 10.7,
+        "last5": 11.2
       },
       "mean_minutes_last20": 13.2
     },
@@ -21012,6 +23478,12 @@
           "last5": 11.5
         }
       },
+      "cv_minutes": {
+        "season": 13.4,
+        "last20": 13.7,
+        "last10": 14.6,
+        "last5": 6.7
+      },
       "mean_minutes_last20": 17.4
     },
     "Ja'Kobe Walter": {
@@ -21062,6 +23534,12 @@
           "last10": 63.1,
           "last5": 84.7
         }
+      },
+      "cv_minutes": {
+        "season": 23.0,
+        "last20": 13.6,
+        "last10": 14.7,
+        "last5": 12.3
       },
       "mean_minutes_last20": 18.2
     },
@@ -21114,6 +23592,12 @@
           "last5": 28.6
         }
       },
+      "cv_minutes": {
+        "season": 19.3,
+        "last20": 19.4,
+        "last10": 21.2,
+        "last5": 17.0
+      },
       "mean_minutes_last20": 23.6
     },
     "P.J. Washington": {
@@ -21164,6 +23648,12 @@
           "last10": 21.2,
           "last5": 21.5
         }
+      },
+      "cv_minutes": {
+        "season": 12.7,
+        "last20": 11.5,
+        "last10": 11.5,
+        "last5": 6.7
       },
       "mean_minutes_last20": 31.1
     },
@@ -21216,6 +23706,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 12.0
     },
     "Trendon Watford": {
@@ -21266,6 +23762,12 @@
           "last10": 47.0,
           "last5": 44.3
         }
+      },
+      "cv_minutes": {
+        "season": 15.1,
+        "last20": 15.1,
+        "last10": 10.2,
+        "last5": 14.8
       },
       "mean_minutes_last20": 18.1
     },
@@ -21318,6 +23820,12 @@
           "last5": 36.4
         }
       },
+      "cv_minutes": {
+        "season": 19.3,
+        "last20": 19.3,
+        "last10": 19.3,
+        "last5": 19.8
+      },
       "mean_minutes_last20": 16.2
     },
     "Peyton Watson": {
@@ -21368,6 +23876,12 @@
           "last10": 30.1,
           "last5": 26.6
         }
+      },
+      "cv_minutes": {
+        "season": 23.0,
+        "last20": 18.0,
+        "last10": 8.1,
+        "last5": 5.9
       },
       "mean_minutes_last20": 30.2
     },
@@ -21420,6 +23934,12 @@
           "last5": 31.7
         }
       },
+      "cv_minutes": {
+        "season": 12.0,
+        "last20": 8.0,
+        "last10": 10.9,
+        "last5": 12.4
+      },
       "mean_minutes_last20": 25.9
     },
     "Victor Wembanyama": {
@@ -21470,6 +23990,12 @@
           "last10": 24.7,
           "last5": 26.8
         }
+      },
+      "cv_minutes": {
+        "season": 14.6,
+        "last20": 12.5,
+        "last10": 15.9,
+        "last5": 17.7
       },
       "mean_minutes_last20": 29.4
     },
@@ -21522,6 +24048,12 @@
           "last5": 40.8
         }
       },
+      "cv_minutes": {
+        "season": 19.0,
+        "last20": 19.0,
+        "last10": 21.8,
+        "last5": 14.6
+      },
       "mean_minutes_last20": 15.5
     },
     "Russell Westbrook": {
@@ -21572,6 +24104,12 @@
           "last10": 22.5,
           "last5": 20.8
         }
+      },
+      "cv_minutes": {
+        "season": 14.6,
+        "last20": 13.0,
+        "last10": 15.6,
+        "last5": 19.3
       },
       "mean_minutes_last20": 30.4
     },
@@ -21624,6 +24162,12 @@
           "last5": 24.8
         }
       },
+      "cv_minutes": {
+        "season": 7.4,
+        "last20": 5.7,
+        "last10": 3.5,
+        "last5": 3.2
+      },
       "mean_minutes_last20": 30.1
     },
     "Derrick White": {
@@ -21674,6 +24218,12 @@
           "last10": 24.6,
           "last5": 30.2
         }
+      },
+      "cv_minutes": {
+        "season": 9.9,
+        "last20": 10.0,
+        "last10": 9.9,
+        "last5": 12.7
       },
       "mean_minutes_last20": 34.6
     },
@@ -21726,6 +24276,12 @@
           "last5": 59.0
         }
       },
+      "cv_minutes": {
+        "season": 12.8,
+        "last20": 12.8,
+        "last10": 12.2,
+        "last5": 7.7
+      },
       "mean_minutes_last20": 17.2
     },
     "Aaron Wiggins": {
@@ -21776,6 +24332,12 @@
           "last10": 28.6,
           "last5": 31.1
         }
+      },
+      "cv_minutes": {
+        "season": 15.7,
+        "last20": 16.0,
+        "last10": 18.0,
+        "last5": 23.0
       },
       "mean_minutes_last20": 23.2
     },
@@ -21828,6 +24390,12 @@
           "last5": 29.6
         }
       },
+      "cv_minutes": {
+        "season": 11.3,
+        "last20": 12.7,
+        "last10": 14.6,
+        "last5": 10.0
+      },
       "mean_minutes_last20": 30.4
     },
     "Brandon Williams": {
@@ -21878,6 +24446,12 @@
           "last10": 20.6,
           "last5": 15.8
         }
+      },
+      "cv_minutes": {
+        "season": 16.2,
+        "last20": 14.0,
+        "last10": 17.8,
+        "last5": 18.3
       },
       "mean_minutes_last20": 23.1
     },
@@ -21930,6 +24504,12 @@
           "last5": 44.3
         }
       },
+      "cv_minutes": {
+        "season": 26.2,
+        "last20": 26.2,
+        "last10": 26.2,
+        "last5": 21.0
+      },
       "mean_minutes_last20": 15.0
     },
     "Grant Williams": {
@@ -21980,6 +24560,12 @@
           "last10": 43.6,
           "last5": 22.3
         }
+      },
+      "cv_minutes": {
+        "season": 16.5,
+        "last20": 16.5,
+        "last10": 11.2,
+        "last5": 8.9
       },
       "mean_minutes_last20": 17.8
     },
@@ -22032,6 +24618,12 @@
           "last5": 22.6
         }
       },
+      "cv_minutes": {
+        "season": 12.5,
+        "last20": 12.8,
+        "last10": 12.2,
+        "last5": 14.3
+      },
       "mean_minutes_last20": 29.9
     },
     "Jaylin Williams": {
@@ -22082,6 +24674,12 @@
           "last10": 24.2,
           "last5": 24.2
         }
+      },
+      "cv_minutes": {
+        "season": 14.7,
+        "last20": 13.8,
+        "last10": 9.8,
+        "last5": 4.9
       },
       "mean_minutes_last20": 17.9
     },
@@ -22134,6 +24732,12 @@
           "last5": 50.3
         }
       },
+      "cv_minutes": {
+        "season": 15.9,
+        "last20": 15.9,
+        "last10": 13.6,
+        "last5": 15.3
+      },
       "mean_minutes_last20": 15.4
     },
     "Mark Williams": {
@@ -22184,6 +24788,12 @@
           "last10": 32.4,
           "last5": 26.7
         }
+      },
+      "cv_minutes": {
+        "season": 12.8,
+        "last20": 11.2,
+        "last10": 11.3,
+        "last5": 16.0
       },
       "mean_minutes_last20": 23.7
     },
@@ -22236,6 +24846,12 @@
           "last5": 33.7
         }
       },
+      "cv_minutes": {
+        "season": 16.4,
+        "last20": 16.7,
+        "last10": 12.6,
+        "last5": 8.6
+      },
       "mean_minutes_last20": 19.2
     },
     "Ziaire Williams": {
@@ -22286,6 +24902,12 @@
           "last10": 39.5,
           "last5": 55.0
         }
+      },
+      "cv_minutes": {
+        "season": 17.2,
+        "last20": 15.1,
+        "last10": 15.3,
+        "last5": 13.9
       },
       "mean_minutes_last20": 22.8
     },
@@ -22338,6 +24960,12 @@
           "last5": 25.3
         }
       },
+      "cv_minutes": {
+        "season": 12.6,
+        "last20": 10.2,
+        "last10": 10.6,
+        "last5": 13.3
+      },
       "mean_minutes_last20": 17.5
     },
     "Vince Williams Jr.": {
@@ -22388,6 +25016,12 @@
           "last10": 35.1,
           "last5": 27.1
         }
+      },
+      "cv_minutes": {
+        "season": 16.5,
+        "last20": 11.9,
+        "last10": 9.4,
+        "last5": 6.5
       },
       "mean_minutes_last20": 21.9
     },
@@ -22440,6 +25074,12 @@
           "last5": 17.9
         }
       },
+      "cv_minutes": {
+        "season": 9.7,
+        "last20": 8.7,
+        "last10": 11.5,
+        "last5": 15.0
+      },
       "mean_minutes_last20": 31.4
     },
     "Jalen Wilson": {
@@ -22490,6 +25130,12 @@
           "last10": 65.3,
           "last5": 45.3
         }
+      },
+      "cv_minutes": {
+        "season": 17.8,
+        "last20": 17.8,
+        "last10": 12.7,
+        "last5": 15.7
       },
       "mean_minutes_last20": 15.5
     },
@@ -22542,6 +25188,12 @@
           "last5": null
         }
       },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
+      },
       "mean_minutes_last20": 15.7
     },
     "Danny Wolf": {
@@ -22592,6 +25244,12 @@
           "last10": 26.6,
           "last5": 13.5
         }
+      },
+      "cv_minutes": {
+        "season": 10.5,
+        "last20": 11.2,
+        "last10": 9.0,
+        "last5": 10.1
       },
       "mean_minutes_last20": 19.7
     },
@@ -22644,6 +25302,12 @@
           "last5": 60.5
         }
       },
+      "cv_minutes": {
+        "season": 9.2,
+        "last20": 9.2,
+        "last10": 9.2,
+        "last5": 6.4
+      },
       "mean_minutes_last20": 11.2
     },
     "Trae Young": {
@@ -22694,6 +25358,12 @@
           "last10": 30.9,
           "last5": 33.2
         }
+      },
+      "cv_minutes": {
+        "season": 8.7,
+        "last20": 8.7,
+        "last10": 8.7,
+        "last5": 9.6
       },
       "mean_minutes_last20": 31.5
     },
@@ -22746,6 +25416,12 @@
           "last5": 26.7
         }
       },
+      "cv_minutes": {
+        "season": 12.2,
+        "last20": 11.2,
+        "last10": 12.1,
+        "last5": 4.8
+      },
       "mean_minutes_last20": 33.0
     },
     "Tristan da Silva": {
@@ -22797,6 +25473,12 @@
           "last5": 35.2
         }
       },
+      "cv_minutes": {
+        "season": 14.9,
+        "last20": 15.5,
+        "last10": 16.1,
+        "last5": 15.6
+      },
       "mean_minutes_last20": 22.6
     },
     "Dario Šarić": {
@@ -22847,6 +25529,12 @@
           "last10": null,
           "last5": null
         }
+      },
+      "cv_minutes": {
+        "season": null,
+        "last20": null,
+        "last10": null,
+        "last5": null
       },
       "mean_minutes_last20": 10.0
     }
