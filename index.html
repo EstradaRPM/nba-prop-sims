@@ -1302,14 +1302,35 @@ function NBASimulator() {
               <div style={{ flex: 1, position: "relative" }}>
                 {stats[key].cvMode ? (
                   <>
-                    <input type="number" step="1" placeholder="CV%" value={stats[key].cvValue}
-                      onChange={(e) => updateStat(key, "cvValue", e.target.value)}
-                      style={{ ...inputStyle, width: "100%", borderColor: "rgba(168,85,247,0.5)" }} />
-                    <div onClick={() => toggleCvMode(key)} style={{
-                      position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
-                      color: "#a855f7", backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
-                      borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
-                    }} title={`CV ${stats[key].cvValue}% → SD ${stats[key].stdDev}`}>CV% ↺</div>
+                    {(() => {
+                      const isPoissonStat = POISSON_STATS.has(key);
+                      const enteredCV = parseFloat(stats[key].cvValue);
+                      const m = parseFloat(stats[key].mean);
+                      const thresh = isPoissonStat && m > 0 ? Math.round(100 / Math.sqrt(m)) : null;
+                      const negBinActive = thresh !== null && !isNaN(enteredCV) && enteredCV > thresh;
+                      const borderColor = isPoissonStat
+                        ? (negBinActive ? "rgba(168,85,247,0.7)" : "rgba(245,158,11,0.6)")
+                        : "rgba(168,85,247,0.5)";
+                      const badgeColor = isPoissonStat ? (negBinActive ? "#a855f7" : "#f59e0b") : "#a855f7";
+                      const badgeText = isPoissonStat ? (negBinActive ? "NB% ↺" : "CV%⚠ ↺") : "CV% ↺";
+                      const badgeTitle = isPoissonStat
+                        ? (negBinActive
+                            ? `NegBin active — CV ${stats[key].cvValue}% > Poisson threshold ${thresh}%`
+                            : `Poisson fallback — enter >${thresh}% to activate NegBin (Poisson CV = ${thresh}% at this mean)`)
+                        : `CV ${stats[key].cvValue}% → SD ${stats[key].stdDev}`;
+                      return (
+                        <>
+                          <input type="number" step="1" placeholder="CV%" value={stats[key].cvValue}
+                            onChange={(e) => updateStat(key, "cvValue", e.target.value)}
+                            style={{ ...inputStyle, width: "100%", borderColor }} />
+                          <div onClick={() => toggleCvMode(key)} style={{
+                            position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
+                            color: badgeColor, backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
+                            borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", cursor: "pointer",
+                          }} title={badgeTitle}>{badgeText}</div>
+                        </>
+                      );
+                    })()}
                   </>
                 ) : (
                   <>
