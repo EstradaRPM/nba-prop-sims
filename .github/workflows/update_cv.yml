@@ -2,7 +2,7 @@ name: Nightly CV Update
 
 on:
   schedule:
-    - cron: '0 22 * * *'  # 6 PM ET (EDT) / 10 PM ET (EST) — laptop likely on
+    - cron: '0 11 * * *'  # 6 AM ET (EST) / 7 AM ET (EDT) — all games finalized
   workflow_dispatch:
 
 jobs:
