@@ -30,6 +30,7 @@ jobs:
         run: python scripts/compute_cv.py
 
       - name: Commit and push cv_data.json
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
