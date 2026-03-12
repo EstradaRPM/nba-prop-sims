@@ -202,7 +202,16 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
       const rawData = rawDataMap[key];
       if (rawData) {
         const kde = simulateStatKDE(mean, rawData.rawScores, rawData.historicalMean, numSims);
-        if (kde !== null) { simResults[key] = kde; return; }
+        if (kde !== null) {
+          // Blend 20% log-normal to prevent KDE tail collapse on extreme alt lines.
+          // KDE bootstraps from observed scores and cannot project beyond the observed
+          // range + bandwidth; log-normal provides a probability floor at 2+ SD extremes.
+          const lnCount = Math.round(numSims * 0.20);
+          const lnSamples = simulateStatLogNormal(mean, stdDev, lnCount);
+          for (let i = 0; i < lnCount; i++) kde[numSims - lnCount + i] = lnSamples[i];
+          simResults[key] = kde;
+          return;
+        }
       }
       if (key === 'pts') {
         const cvPct = cvMode && cvValue ? parseFloat(cvValue) : STD_RATIOS['pts'] * 100;
