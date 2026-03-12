@@ -441,7 +441,7 @@ function bestAmericanOdds(prices) {
 async function fetchNbaGames(apiKey) {
   const now = new Date();
   const from = now.toISOString().slice(0, 10) + 'T00:00:00Z';
-  const to = new Date(now.getTime() + 30 * 60 * 60 * 1000).toISOString();
+  const to = new Date(now.getTime() + 30 * 60 * 60 * 1000).toISOString().slice(0, 19) + 'Z';
   const url = `${ODDS_API_BASE}/sports/basketball_nba/events?apiKey=${apiKey}&commenceTimeFrom=${from}&commenceTimeTo=${to}`;
   const r = await fetch(url);
   if (!r.ok) { const txt = await r.text().catch(() => ''); throw new Error(`Odds API ${r.status}: ${txt.slice(0, 120)}`); }
