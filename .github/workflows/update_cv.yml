@@ -11,6 +11,9 @@ jobs:
     permissions:
       contents: write
 
+    env:
+      PYTHONUTF8: "1"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
