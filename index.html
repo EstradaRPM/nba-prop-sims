@@ -64,6 +64,29 @@ function simulateStatPoisson(mean, n) {
   return results;
 }
 
+// ── Negative Binomial sampler (Gamma-Poisson mixture) ────────────────────────
+// NegBin(μ, r): mean = μ, variance = μ + μ²/r. Reduces to Poisson as r → ∞.
+// Used for stl/blk/threes when CV mode is active and player is overdispersed
+// (observed CV > 1/√mean). Captures the higher frequency of both zero-count
+// games and outlier-high games that Poisson underestimates for variable players.
+// Implementation: λ ~ Gamma(r, μ/r), count ~ Poisson(λ). Uses existing randGamma.
+function randNegBin(mu, r) {
+  const lambda = randGamma(r, mu / r);
+  return randPoisson(lambda);
+}
+
+function simulateStatNegBin(mean, cvPct, n) {
+  const mu = Math.max(0.01, parseFloat(mean) || 0);
+  const cv = (parseFloat(cvPct) || 0) / 100;
+  const poissonCV = 1 / Math.sqrt(mu);
+  // Fall back to Poisson if underdispersed or Poisson-equivalent
+  if (cv <= poissonCV) return simulateStatPoisson(mu, n);
+  const r = 1 / (cv * cv - 1 / mu);
+  const results = new Float64Array(n);
+  for (let i = 0; i < n; i++) results[i] = randNegBin(mu, r);
+  return results;
+}
+
 // ── Gamma distribution sampler (Marsaglia-Tsang 2000) ────────────────────────
 // Used for pts when empirical KDE data is unavailable.
 // Parameterization: shape α, scale β. Mean = α×β, Variance = α×β².
@@ -145,7 +168,10 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
   Object.keys(stats).forEach((key) => {
     const { mean, stdDev, cvMode, cvValue } = stats[key];
     if (POISSON_STATS.has(key)) {
-      simResults[key] = simulateStatPoisson(mean, numSims);
+      const cvPct = cvMode && cvValue ? parseFloat(cvValue) : null;
+      simResults[key] = (cvPct > 0)
+        ? simulateStatNegBin(mean, cvPct, numSims)
+        : simulateStatPoisson(mean, numSims);
     } else if (KDE_STATS.has(key)) {
       // Fallback chain for pts/reb/ast:
       // 1. KDE hybrid — empirical shape from historical scores, recentered to ETR mean
@@ -944,12 +970,15 @@ function NBASimulator() {
     const statProbs = {};
     STAT_CONFIG.forEach(({ key }) => {
       if (stats[key].propLine !== "") {
-        const distModel = POISSON_STATS.has(key) ? "Poisson"
+        const cvPctForLabel = POISSON_STATS.has(key) && stats[key].cvMode && stats[key].cvValue ? parseFloat(stats[key].cvValue) : null;
+        const poissonCVThreshold = POISSON_STATS.has(key) ? (1 / Math.sqrt(Math.max(0.01, parseFloat(stats[key].mean) || 0))) * 100 : null;
+        const usingNegBin = cvPctForLabel > 0 && poissonCVThreshold !== null && cvPctForLabel > poissonCVThreshold;
+        const distModel = POISSON_STATS.has(key) ? (usingNegBin ? "NegBin" : "Poisson")
           : key === 'pts' ? (ptsRawData ? "KDE" : "Gamma")
           : key === 'reb' ? (rebRawData ? "KDE" : "LogNormal")
           : key === 'ast' ? (astRawData ? "KDE" : "LogNormal")
           : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
-        const method = POISSON_STATS.has(key) ? "Poisson"
+        const method = POISSON_STATS.has(key) ? (usingNegBin ? `CV/${distModel}` : "Poisson")
           : stats[key].cvMode ? `CV/${distModel}` : stats[key].stdOverride ? `Manual/${distModel}` : `Auto/${distModel}`;
         statProbs[key] = {
           prob: calcProbability(simResults[key], stats[key].propLine),
