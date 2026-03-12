@@ -140,17 +140,40 @@ function simulateStatKDE(etrMean, rawScores, historicalMean, n) {
   if (m <= 0 || hm <= 0 || !rawScores || rawScores.length < 5) return null;
   const k = rawScores.length;
   const scale = m / hm;
-  // Silverman's rule: h = 1.06 × std(rawScores) × n^(-0.2)
-  let mean_ = 0;
-  for (let i = 0; i < k; i++) mean_ += rawScores[i];
-  mean_ /= k;
-  let variance = 0;
-  for (let i = 0; i < k; i++) variance += (rawScores[i] - mean_) ** 2;
-  const h = 1.06 * Math.sqrt(variance / (k - 1)) * Math.pow(k, -0.2);
+  const LAMBDA = 0.9; // recency decay — rawScores is oldest-first; index k-1 = most recent
+
+  // Build exponential-decay weights and CDF (oldest score = lowest weight)
+  const cdf = new Float64Array(k);
+  let wSum = 0;
+  for (let i = 0; i < k; i++) { cdf[i] = Math.pow(LAMBDA, k - 1 - i); wSum += cdf[i]; }
+  // Normalize to CDF
+  let cumul = 0;
+  for (let i = 0; i < k; i++) { cumul += cdf[i] / wSum; cdf[i] = cumul; }
+
+  // Weighted mean and variance for Silverman bandwidth
+  let wMean = 0;
+  for (let i = 0; i < k; i++) {
+    const wi = i === 0 ? cdf[0] : cdf[i] - cdf[i - 1];
+    wMean += wi * rawScores[i];
+  }
+  let wVar = 0;
+  for (let i = 0; i < k; i++) {
+    const wi = i === 0 ? cdf[0] : cdf[i] - cdf[i - 1];
+    wVar += wi * (rawScores[i] - wMean) ** 2;
+  }
+  // Effective sample size: k_eff = (Σw)² / Σ(w²) — accounts for weight concentration
+  let wSqSum = 0;
+  for (let i = 0; i < k; i++) wSqSum += Math.pow(LAMBDA, 2 * (k - 1 - i));
+  const kEff = (wSum * wSum) / wSqSum;
+  const h = 1.06 * Math.sqrt(wVar) * Math.pow(kEff, -0.2);
+
+  // Weighted bootstrap via CDF binary search
   const results = new Float64Array(n);
   for (let i = 0; i < n; i++) {
-    const xi = rawScores[Math.floor(Math.random() * k)];
-    results[i] = Math.max(0, (xi + h * randn()) * scale);
+    const u = Math.random();
+    let lo = 0, hi = k - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (cdf[mid] < u) lo = mid + 1; else hi = mid; }
+    results[i] = Math.max(0, (rawScores[lo] + h * randn()) * scale);
   }
   return results;
 }
@@ -242,6 +265,25 @@ function getAltLines(key, mean) {
     for (let l = 0.5; l <= top; l += 1) lines.push(parseFloat(l.toFixed(1)));
     return lines;
   }
+  // Combo props
+  if (key === 'pra' || key === 'pr' || key === 'pa') {
+    // Wide combos (typical range 20–60): 2.5pt intervals, ±5 rungs from rounded center
+    const center = Math.round(m / 2.5) * 2.5;
+    const lines = [];
+    for (let i = -5; i <= 5; i++) { const v = center + i * 2.5; if (v > 0) lines.push(v - 0.5); }
+    return lines;
+  }
+  if (key === 'ra') {
+    // Medium combo (typical range 6–20): 1pt intervals, mean ±4
+    const start = Math.max(0.5, Math.floor(m - 3) + 0.5);
+    const end   = Math.floor(m + 5) + 0.5;
+    const lines = [];
+    for (let l = start; l <= end; l += 1) lines.push(parseFloat(l.toFixed(1)));
+    return lines;
+  }
+  if (key === 'sb') {
+    return [0.5, 1.5, 2.5, 3.5, 4.5];
+  }
   // reb, ast: 1-unit intervals, mean ±4
   const start = Math.max(0.5, Math.floor(m - 3) + 0.5);
   const end   = Math.floor(m + 5) + 0.5;
@@ -279,6 +321,19 @@ function calcKelly(modelProb, americanOdds) {
   const q = 1 - p;
   const kelly = (b * p - q) / b;
   return kelly > 0 ? kelly : 0;
+}
+
+// Simultaneous independent-event Kelly: stake_i = κ_i × ∏(1 − κ_j, j≠i)
+// allBets: array of { key, side, kelly } for each active (best-edge, positive-Kelly) bet.
+// Returns { 'key_side': portfolioFactor } where portfolioFactor = ∏(1−κ_j, j≠i).
+function calcPortfolioFactors(allBets) {
+  if (allBets.length === 0) return {};
+  const totalProd = allBets.reduce((p, { kelly }) => p * (1 - kelly), 1.0);
+  const factors = {};
+  allBets.forEach(({ key, side, kelly }) => {
+    factors[`${key}_${side}`] = totalProd / (1 - kelly);
+  });
+  return factors;
 }
 
 function fmtOdds(o) {
@@ -370,13 +425,15 @@ function DistBar({ simValues, propLine }) {
 }
 
 // ── Edge Box ────────────────────────────────────────────────────────
-function EdgeBox({ modelProb, bookOdds, bankroll }) {
+function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null }) {
   const bookProb = americanToProb(bookOdds);
   if (!bookProb) return null;
   const edge = (modelProb - bookProb) * 100;
   const color = getEdgeColor(edge);
   const kelly = calcKelly(modelProb, bookOdds);
-  const qKelly = kelly ? kelly * 0.25 : 0;
+  const isolatedQK = kelly ? kelly * 0.25 : 0;
+  const isPortfolio = portfolioFactor !== null && portfolioFactor < 0.9999;
+  const portfolioQK = isPortfolio ? kelly * portfolioFactor * 0.25 : isolatedQK;
   const br = parseFloat(bankroll);
   const hasBankroll = !isNaN(br) && br > 0;
   return (
@@ -404,12 +461,17 @@ function EdgeBox({ modelProb, bookOdds, bankroll }) {
         <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(148,163,184,0.08)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
-              ¼K: {(qKelly * 100).toFixed(2)}%{hasBankroll ? ` → $${Math.round(br * qKelly)}` : ""}
+              {isPortfolio ? "P" : ""}¼K: {(portfolioQK * 100).toFixed(2)}%{hasBankroll ? ` → $${Math.round(br * portfolioQK)}` : ""}
             </span>
             <span style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
               FULL: {(kelly * 100).toFixed(1)}%
             </span>
           </div>
+          {isPortfolio && (
+            <div style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>
+              ISO¼K: {(isolatedQK * 100).toFixed(2)}%
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -417,7 +479,7 @@ function EdgeBox({ modelProb, bookOdds, bankroll }) {
 }
 
 // ── Result Row ──────────────────────────────────────────────────────
-function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll }) {
+function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null }) {
   if (!prob) return null;
   const overPct = (prob.over * 100).toFixed(1);
   const underPct = (prob.under * 100).toFixed(1);
@@ -472,7 +534,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               Fair: {probToAmerican(prob.over)}
             </div>
           </div>
-          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} bankroll={bankroll} /> : (
+          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} bankroll={bankroll} portfolioFactor={portfolioFactorOver} /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No over odds entered
             </div>
@@ -492,7 +554,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               Fair: {probToAmerican(prob.under)}
             </div>
           </div>
-          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} bankroll={bankroll} /> : (
+          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No under odds entered
             </div>
@@ -591,7 +653,7 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
 }
 
 // ── CSV Export ───────────────────────────────────────────────────────
-function buildCSV(playerName, numSims, statResults, comboResults, timestamp, bankroll) {
+function buildCSV(playerName, numSims, statResults, comboResults, timestamp, bankroll, portfolioFactors = {}) {
   const headers = [
     "Timestamp", "Date", "Player", "Stat", "Projection", "Std Dev", "SD Method", "CV %",
     "Prop Line", "Book Over Odds", "Book Under Odds",
@@ -626,15 +688,25 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
     const rating = bestEdgeVal >= 7 ? "STRONG" : bestEdgeVal >= 4 ? "SOLID" :
       bestEdgeVal >= 2 ? "MARGINAL" : "NO EDGE";
 
-    // Kelly for best side
+    // Portfolio-adjusted Kelly for best side
     let qKelly = "";
     let stake = "";
     if (bestSide === "OVER" && overOdds) {
       const k = calcKelly(overProb, parseFloat(overOdds));
-      if (k && k > 0) { qKelly = (k * 25).toFixed(2); stake = hasBr ? Math.round(br * k * 0.25) : ""; }
+      if (k && k > 0) {
+        const pf = portfolioFactors[`${stat}_over`] ?? null;
+        const adj = pf !== null ? k * pf : k;
+        qKelly = (adj * 25).toFixed(2);
+        stake = hasBr ? Math.round(br * adj * 0.25) : "";
+      }
     } else if (bestSide === "UNDER" && underOdds) {
       const k = calcKelly(underProb, parseFloat(underOdds));
-      if (k && k > 0) { qKelly = (k * 25).toFixed(2); stake = hasBr ? Math.round(br * k * 0.25) : ""; }
+      if (k && k > 0) {
+        const pf = portfolioFactors[`${stat}_under`] ?? null;
+        const adj = pf !== null ? k * pf : k;
+        qKelly = (adj * 25).toFixed(2);
+        stake = hasBr ? Math.round(br * adj * 0.25) : "";
+      }
     }
 
     rows.push([
@@ -1016,23 +1088,38 @@ function NBASimulator() {
           propLine: comboLines[key].line,
           overOdds: comboLines[key].overOdds,
           underOdds: comboLines[key].underOdds,
+          mean: comboVals.reduce((a, b) => a + b, 0) / numSims,
         };
       }
     });
 
-    // Auto-open ladder for every stat that has a prop line entered
+    // Simultaneous Kelly: collect best-side active bets across all stats and combos
+    const portfolioBets = [];
+    [...STAT_CONFIG.map(({ key }) => ({ key, r: statProbs[key] })),
+     ...COMBO_CONFIG.map(({ key }) => ({ key, r: comboProbs[key] }))
+    ].forEach(({ key, r }) => {
+      if (!r) return;
+      const overK  = r.overOdds  && r.overOdds  !== "" ? (calcKelly(r.prob.over,  parseFloat(r.overOdds))  || 0) : 0;
+      const underK = r.underOdds && r.underOdds !== "" ? (calcKelly(r.prob.under, parseFloat(r.underOdds)) || 0) : 0;
+      const bestK = Math.max(overK, underK);
+      if (bestK > 0) portfolioBets.push({ key, side: overK >= underK ? 'over' : 'under', kelly: bestK });
+    });
+    const portfolioFactors = calcPortfolioFactors(portfolioBets);
+
+    // Auto-open ladder for every stat/combo that has a prop line entered
     const newLadderOpen = {};
     STAT_CONFIG.forEach(({ key }) => { newLadderOpen[key] = stats[key].propLine !== ""; });
+    COMBO_CONFIG.forEach(({ key }) => { newLadderOpen[key] = comboLines[key].line !== ""; });
     setLadderOpen(newLadderOpen);
 
     setSimTime(Math.round(performance.now() - t0));
     setSimTimestamp(ts);
-    setResults({ stats: statProbs, combos: comboProbs });
+    setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
   }, [stats, comboLines, numSims]);
 
   const handleExport = useCallback(() => {
     if (!results) return;
-    const fullCsv = buildCSV(playerName, numSims, results.stats, results.combos, simTimestamp, bankroll);
+    const fullCsv = buildCSV(playerName, numSims, results.stats, results.combos, simTimestamp, bankroll, results.portfolioFactors ?? {});
     const csv = includeHeaders ? fullCsv : fullCsv.split("\n").slice(1).join("\n");
     setCsvData(csv);
     setCopied(false);
@@ -1563,7 +1650,10 @@ function NBASimulator() {
                   <ResultRow label={label} prob={results.stats[key].prob}
                     propLine={results.stats[key].propLine} simValues={results.stats[key].simValues}
                     overOdds={results.stats[key].overOdds} underOdds={results.stats[key].underOdds}
-                    bankroll={bankroll} />
+                    bankroll={bankroll}
+                    portfolioFactorOver={results.portfolioFactors?.[`${key}_over`] ?? null}
+                    portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
+                  />
                   <LadderTable
                     statKey={key}
                     mean={results.stats[key].mean}
@@ -1582,7 +1672,18 @@ function NBASimulator() {
                   <ResultRow label={label} prob={results.combos[key].prob}
                     propLine={results.combos[key].propLine} simValues={results.combos[key].simValues}
                     overOdds={results.combos[key].overOdds} underOdds={results.combos[key].underOdds}
-                    bankroll={bankroll} />
+                    bankroll={bankroll}
+                    portfolioFactorOver={results.portfolioFactors?.[`${key}_over`] ?? null}
+                    portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
+                  />
+                  <LadderTable
+                    statKey={key}
+                    mean={results.combos[key].mean}
+                    simValues={results.combos[key].simValues}
+                    primaryLine={results.combos[key].propLine}
+                    open={!!ladderOpen[key]}
+                    onToggle={() => setLadderOpen(prev => ({ ...prev, [key]: !prev[key] }))}
+                  />
                 </div>
               ) : null
             )}
