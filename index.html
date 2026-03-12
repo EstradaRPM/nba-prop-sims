@@ -109,6 +109,34 @@ function calcCombo(simResults, keys) {
   return combined;
 }
 
+// Returns half-integer prop lines for the alt line ladder.
+// Points: 5-unit intervals centred on mean. Others: 1-unit. STL/BLK: fixed 0.5–4.5.
+function getAltLines(key, mean) {
+  const m = parseFloat(mean) || 0;
+  if (m <= 0) return [];
+  if (key === 'pts') {
+    const center = Math.round(m / 5) * 5;
+    const lines = [];
+    for (let l = Math.max(5, center - 15); l <= center + 20; l += 5) lines.push(l - 0.5);
+    return lines;
+  }
+  if (key === 'stl' || key === 'blk') {
+    return [0.5, 1.5, 2.5, 3.5, 4.5];
+  }
+  if (key === 'threes') {
+    const top = Math.max(4.5, Math.ceil(m + 3) - 0.5);
+    const lines = [];
+    for (let l = 0.5; l <= top; l += 1) lines.push(parseFloat(l.toFixed(1)));
+    return lines;
+  }
+  // reb, ast: 1-unit intervals, mean ±4
+  const start = Math.max(0.5, Math.floor(m - 3) + 0.5);
+  const end   = Math.floor(m + 5) + 0.5;
+  const lines = [];
+  for (let l = start; l <= end; l += 1) lines.push(parseFloat(l.toFixed(1)));
+  return lines;
+}
+
 // ── Odds Utilities ──────────────────────────────────────────────────
 function probToAmerican(prob) {
   if (prob <= 0 || prob >= 1) return "—";
@@ -362,6 +390,93 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
   );
 }
 
+// ── Alt Line Ladder ──────────────────────────────────────────────────
+function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) {
+  if (!simValues || simValues.length === 0) return null;
+  const rungs = getAltLines(statKey, mean);
+  if (rungs.length === 0) return null;
+
+  const interval = statKey === 'pts' ? '5pt' : statKey === 'stl' || statKey === 'blk' ? '1pt' : '1pt';
+  const primaryLineNum = parseFloat(primaryLine);
+
+  return (
+    <div style={{ marginBottom: 8, marginTop: -4 }}>
+      {/* Toggle header */}
+      <div
+        onClick={onToggle}
+        style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "4px 10px",
+          cursor: "pointer", borderRadius: "0 0 6px 6px",
+          backgroundColor: "rgba(15,23,42,0.35)",
+          border: "1px solid rgba(148,163,184,0.08)", borderTop: "none",
+        }}
+      >
+        <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+          {open ? "▲" : "▼"} ALT LINES · {interval} intervals
+        </span>
+      </div>
+
+      {/* Ladder table */}
+      {open && (
+        <div style={{
+          backgroundColor: "rgba(15,23,42,0.25)",
+          border: "1px solid rgba(148,163,184,0.08)", borderTop: "none",
+          borderRadius: "0 0 8px 8px", overflow: "hidden",
+        }}>
+          {/* Column headers */}
+          <div style={{
+            display: "grid", gridTemplateColumns: "60px 1fr 80px 1fr 80px",
+            padding: "4px 10px", borderBottom: "1px solid rgba(148,163,184,0.08)",
+          }}>
+            {["LINE", "OVER %", "FAIR", "UNDER %", "FAIR"].map((h, i) => (
+              <div key={i} style={{ fontSize: 7, fontWeight: 700, color: "#475569", fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.8, textAlign: i === 0 ? "left" : "center" }}>
+                {h}
+              </div>
+            ))}
+          </div>
+
+          {/* Rung rows */}
+          {rungs.map((rung) => {
+            const p = calcProbability(simValues, rung);
+            if (!p) return null;
+            const isPrimary = !isNaN(primaryLineNum) && Math.abs(rung - primaryLineNum) < 0.01;
+            const overColor  = getProbColor(p.over);
+            const underColor = getProbColor(p.under);
+            return (
+              <div
+                key={rung}
+                style={{
+                  display: "grid", gridTemplateColumns: "60px 1fr 80px 1fr 80px",
+                  padding: "4px 10px", alignItems: "center",
+                  backgroundColor: isPrimary ? "rgba(99,102,241,0.10)" : "transparent",
+                  borderBottom: "1px solid rgba(148,163,184,0.04)",
+                  borderLeft: isPrimary ? "2px solid rgba(99,102,241,0.5)" : "2px solid transparent",
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: isPrimary ? 700 : 500, color: isPrimary ? "#a5b4fc" : "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {rung.toFixed(1)}
+                </div>
+                <div style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: overColor, fontFamily: "'JetBrains Mono', monospace" }}>
+                  {(p.over * 100).toFixed(1)}%
+                </div>
+                <div style={{ textAlign: "center", fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {probToAmerican(p.over)}
+                </div>
+                <div style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: underColor, fontFamily: "'JetBrains Mono', monospace" }}>
+                  {(p.under * 100).toFixed(1)}%
+                </div>
+                <div style={{ textAlign: "center", fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {probToAmerican(p.under)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CSV Export ───────────────────────────────────────────────────────
 function buildCSV(playerName, numSims, statResults, comboResults, timestamp, bankroll) {
   const headers = [
@@ -544,6 +659,7 @@ function NBASimulator() {
   const [projPasteText, setProjPasteText] = useState('');
   const [projError, setProjError] = useState(null);
   const [projUpdatedAt, setProjUpdatedAt] = useState(null);
+  const [ladderOpen, setLadderOpen] = useState({});
 
   React.useEffect(() => {
     fetch('./cv_data.json')
@@ -708,6 +824,7 @@ function NBASimulator() {
     setCsvData(null);
     setPraDirectCv(null);
     setCvLoadStatus(null);
+    setLadderOpen({});
   }, []);
 
   const handleSimulate = useCallback(() => {
@@ -760,6 +877,11 @@ function NBASimulator() {
         };
       }
     });
+
+    // Auto-open ladder for every stat that has a prop line entered
+    const newLadderOpen = {};
+    STAT_CONFIG.forEach(({ key }) => { newLadderOpen[key] = stats[key].propLine !== ""; });
+    setLadderOpen(newLadderOpen);
 
     setSimTime(Math.round(performance.now() - t0));
     setSimTimestamp(ts);
@@ -1279,6 +1401,14 @@ function NBASimulator() {
                     propLine={results.stats[key].propLine} simValues={results.stats[key].simValues}
                     overOdds={results.stats[key].overOdds} underOdds={results.stats[key].underOdds}
                     bankroll={bankroll} />
+                  <LadderTable
+                    statKey={key}
+                    mean={results.stats[key].mean}
+                    simValues={results.stats[key].simValues}
+                    primaryLine={results.stats[key].propLine}
+                    open={!!ladderOpen[key]}
+                    onToggle={() => setLadderOpen(prev => ({ ...prev, [key]: !prev[key] }))}
+                  />
                 </div>
               ) : null
             )}
