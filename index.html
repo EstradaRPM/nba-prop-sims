@@ -133,27 +133,34 @@ function simulateStatKDE(etrMean, rawScores, historicalMean, n) {
 }
 
 // Distribution routing: which model each stat uses.
-// pts uses KDE hybrid (empirical) or Gamma fallback — handled explicitly in runSimulation.
-// reb/ast/threes use log-normal. stl/blk use Poisson.
-const LOG_NORMAL_STATS = new Set(['reb', 'ast', 'threes']);
+// pts/reb/ast use KDE hybrid (empirical) when raw data available, with parametric fallbacks.
+// threes uses log-normal. stl/blk use Poisson.
+const LOG_NORMAL_STATS = new Set(['threes']);
 const POISSON_STATS    = new Set(['stl', 'blk']);
+const KDE_STATS        = new Set(['pts', 'reb', 'ast']);
 
-function runSimulation(stats, numSims, ptsRawData) {
+function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
+  const rawDataMap = { pts: ptsRawData, reb: rebRawData, ast: astRawData };
   const simResults = {};
   Object.keys(stats).forEach((key) => {
     const { mean, stdDev, cvMode, cvValue } = stats[key];
     if (POISSON_STATS.has(key)) {
       simResults[key] = simulateStatPoisson(mean, numSims);
-    } else if (key === 'pts') {
-      // Fallback chain:
+    } else if (KDE_STATS.has(key)) {
+      // Fallback chain for pts/reb/ast:
       // 1. KDE hybrid — empirical shape from historical scores, recentered to ETR mean
-      // 2. Gamma — best-calibrated parametric model (MAE 4.56% vs log-normal 5.43%)
-      if (ptsRawData) {
-        const kde = simulateStatKDE(mean, ptsRawData.rawScores, ptsRawData.historicalMean, numSims);
+      // 2. Gamma (pts) / log-normal (reb, ast) — parametric fallback
+      const rawData = rawDataMap[key];
+      if (rawData) {
+        const kde = simulateStatKDE(mean, rawData.rawScores, rawData.historicalMean, numSims);
         if (kde !== null) { simResults[key] = kde; return; }
       }
-      const cvPct = cvMode && cvValue ? parseFloat(cvValue) : STD_RATIOS['pts'] * 100;
-      simResults[key] = simulateStatGamma(mean, cvPct, numSims);
+      if (key === 'pts') {
+        const cvPct = cvMode && cvValue ? parseFloat(cvValue) : STD_RATIOS['pts'] * 100;
+        simResults[key] = simulateStatGamma(mean, cvPct, numSims);
+      } else {
+        simResults[key] = simulateStatLogNormal(mean, stdDev, numSims);
+      }
     } else if (LOG_NORMAL_STATS.has(key)) {
       simResults[key] = simulateStatLogNormal(mean, stdDev, numSims);
     } else {
@@ -734,6 +741,8 @@ function NBASimulator() {
   const [cvWindow, setCvWindow] = useState("last20");
   const [praDirectCv, setPraDirectCv] = useState(null);
   const [ptsRawData, setPtsRawData] = useState(null); // { rawScores: number[], historicalMean: number } | null
+  const [rebRawData, setRebRawData] = useState(null);
+  const [astRawData, setAstRawData] = useState(null);
   const [cvLoadStatus, setCvLoadStatus] = useState(null); // "found" | "found_partial" | "notfound" | null
   const [projections, setProjections] = useState(null);   // parsed ETR slate
   const [projOpen, setProjOpen] = useState(false);
@@ -834,14 +843,19 @@ function NBASimulator() {
     } else {
       setPraDirectCv(null);
     }
-    // pts_raw: load historical raw game scores for KDE hybrid sampler
-    const rawScores = playerData.pts_raw?.[win];
-    const histMean  = playerData.pts_mean_raw?.[win];
-    if (rawScores != null && histMean != null && rawScores.length >= 5) {
-      setPtsRawData({ rawScores, historicalMean: histMean });
-    } else {
-      setPtsRawData(null);
-    }
+    // pts/reb/ast raw: load historical game scores for KDE hybrid sampler
+    const loadRawData = (rawKey, meanKey, setter) => {
+      const scores = playerData[rawKey]?.[win];
+      const hMean  = playerData[meanKey]?.[win];
+      if (scores != null && hMean != null && scores.length >= 5) {
+        setter({ rawScores: scores, historicalMean: hMean });
+      } else {
+        setter(null);
+      }
+    };
+    loadRawData('pts_raw', 'pts_mean_raw', setPtsRawData);
+    loadRawData('reb_raw', 'reb_mean_raw', setRebRawData);
+    loadRawData('ast_raw', 'ast_mean_raw', setAstRawData);
     setCvLoadStatus(cvMin != null ? 'found' : 'found_partial');
   }, [cvDatabase, cvWindow, playerName]);
 
@@ -876,6 +890,8 @@ function NBASimulator() {
     setCvLoadStatus(null);
     setPraDirectCv(null);
     setPtsRawData(null);
+    setRebRawData(null);
+    setAstRawData(null);
     setStats(prev => {
       const updated = { ...prev };
       ['pts', 'reb', 'ast', 'stl', 'blk', 'threes'].forEach(key => {
@@ -914,6 +930,8 @@ function NBASimulator() {
     setCsvData(null);
     setPraDirectCv(null);
     setPtsRawData(null);
+    setRebRawData(null);
+    setAstRawData(null);
     setCvLoadStatus(null);
     setLadderOpen({});
   }, []);
@@ -921,13 +939,15 @@ function NBASimulator() {
   const handleSimulate = useCallback(() => {
     const t0 = performance.now();
     const ts = new Date().toISOString();
-    const simResults = runSimulation(stats, numSims, ptsRawData);
+    const simResults = runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData);
 
     const statProbs = {};
     STAT_CONFIG.forEach(({ key }) => {
       if (stats[key].propLine !== "") {
         const distModel = POISSON_STATS.has(key) ? "Poisson"
           : key === 'pts' ? (ptsRawData ? "KDE" : "Gamma")
+          : key === 'reb' ? (rebRawData ? "KDE" : "LogNormal")
+          : key === 'ast' ? (astRawData ? "KDE" : "LogNormal")
           : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
         const method = POISSON_STATS.has(key) ? "Poisson"
           : stats[key].cvMode ? `CV/${distModel}` : stats[key].stdOverride ? `Manual/${distModel}` : `Auto/${distModel}`;
