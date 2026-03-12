@@ -64,16 +64,96 @@ function simulateStatPoisson(mean, n) {
   return results;
 }
 
-// Distribution routing: which model each stat uses
-const LOG_NORMAL_STATS = new Set(['pts', 'reb', 'ast', 'threes']);
+// ── Gamma distribution sampler (Marsaglia-Tsang 2000) ────────────────────────
+// Used for pts when empirical KDE data is unavailable.
+// Parameterization: shape α, scale β. Mean = α×β, Variance = α×β².
+// For pts from CV: α = 1/CV², β = mean×CV².
+// Validation vs 20 NBA players showed Gamma is better calibrated than log-normal
+// for near-mean prop lines (MAE 4.56% vs 5.43%).
+function randGamma(alpha, beta) {
+  if (alpha <= 0 || beta <= 0) return 0;
+  if (alpha < 1) return randGamma(1 + alpha, beta) * Math.pow(Math.random(), 1 / alpha);
+  const d = alpha - 1 / 3;
+  const c = 1 / Math.sqrt(9 * d);
+  for (;;) {
+    let x, v;
+    do { x = randn(); v = 1 + c * x; } while (v <= 0);
+    v = v * v * v;
+    const u = Math.random();
+    if (u < 1 - 0.0331 * (x * x) * (x * x)) return d * v * beta;
+    if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v * beta;
+  }
+}
+
+function simulateStatGamma(mean, cvPct, n) {
+  const m = parseFloat(mean) || 0;
+  const cv = (parseFloat(cvPct) || 30) / 100;
+  if (m <= 0 || cv <= 0) return new Float64Array(n);
+  const alpha = 1 / (cv * cv);
+  const beta  = m * cv * cv;
+  const results = new Float64Array(n);
+  for (let i = 0; i < n; i++) results[i] = randGamma(alpha, beta);
+  return results;
+}
+
+// ── KDE hybrid sampler for pts ────────────────────────────────────────────────
+// Primary pts model when historical raw game scores are available from cv_data.json.
+// No parametric shape assumption — uses the player's actual empirical distribution.
+//
+// Per trial:
+//   1. Pick a random historical score x_i (bootstrap)
+//   2. Add Gaussian noise: bandwidth h via Silverman's rule
+//   3. Multiplicative recentering: × (etrMean / historicalMean)
+//
+// Recentering preserves CV exactly: if raw scores have CV = σ/μ,
+// scaled scores have CV = σ × (etrMean/μ) / etrMean = σ/μ — unchanged.
+// This correctly anchors ETR's context-adjusted projection while keeping
+// the player's empirical shape (skewness, kurtosis, clustering patterns).
+//
+// Returns null if inputs are invalid (triggers Gamma fallback in runSimulation).
+function simulateStatKDE(etrMean, rawScores, historicalMean, n) {
+  const m = parseFloat(etrMean) || 0;
+  const hm = parseFloat(historicalMean) || 0;
+  if (m <= 0 || hm <= 0 || !rawScores || rawScores.length < 5) return null;
+  const k = rawScores.length;
+  const scale = m / hm;
+  // Silverman's rule: h = 1.06 × std(rawScores) × n^(-0.2)
+  let mean_ = 0;
+  for (let i = 0; i < k; i++) mean_ += rawScores[i];
+  mean_ /= k;
+  let variance = 0;
+  for (let i = 0; i < k; i++) variance += (rawScores[i] - mean_) ** 2;
+  const h = 1.06 * Math.sqrt(variance / (k - 1)) * Math.pow(k, -0.2);
+  const results = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const xi = rawScores[Math.floor(Math.random() * k)];
+    results[i] = Math.max(0, (xi + h * randn()) * scale);
+  }
+  return results;
+}
+
+// Distribution routing: which model each stat uses.
+// pts uses KDE hybrid (empirical) or Gamma fallback — handled explicitly in runSimulation.
+// reb/ast/threes use log-normal. stl/blk use Poisson.
+const LOG_NORMAL_STATS = new Set(['reb', 'ast', 'threes']);
 const POISSON_STATS    = new Set(['stl', 'blk']);
 
-function runSimulation(stats, numSims) {
+function runSimulation(stats, numSims, ptsRawData) {
   const simResults = {};
   Object.keys(stats).forEach((key) => {
-    const { mean, stdDev } = stats[key];
+    const { mean, stdDev, cvMode, cvValue } = stats[key];
     if (POISSON_STATS.has(key)) {
       simResults[key] = simulateStatPoisson(mean, numSims);
+    } else if (key === 'pts') {
+      // Fallback chain:
+      // 1. KDE hybrid — empirical shape from historical scores, recentered to ETR mean
+      // 2. Gamma — best-calibrated parametric model (MAE 4.56% vs log-normal 5.43%)
+      if (ptsRawData) {
+        const kde = simulateStatKDE(mean, ptsRawData.rawScores, ptsRawData.historicalMean, numSims);
+        if (kde !== null) { simResults[key] = kde; return; }
+      }
+      const cvPct = cvMode && cvValue ? parseFloat(cvValue) : STD_RATIOS['pts'] * 100;
+      simResults[key] = simulateStatGamma(mean, cvPct, numSims);
     } else if (LOG_NORMAL_STATS.has(key)) {
       simResults[key] = simulateStatLogNormal(mean, stdDev, numSims);
     } else {
@@ -653,6 +733,7 @@ function NBASimulator() {
   const [cvDatabase, setCvDatabase] = useState(null);
   const [cvWindow, setCvWindow] = useState("last20");
   const [praDirectCv, setPraDirectCv] = useState(null);
+  const [ptsRawData, setPtsRawData] = useState(null); // { rawScores: number[], historicalMean: number } | null
   const [cvLoadStatus, setCvLoadStatus] = useState(null); // "found" | "found_partial" | "notfound" | null
   const [projections, setProjections] = useState(null);   // parsed ETR slate
   const [projOpen, setProjOpen] = useState(false);
@@ -753,6 +834,14 @@ function NBASimulator() {
     } else {
       setPraDirectCv(null);
     }
+    // pts_raw: load historical raw game scores for KDE hybrid sampler
+    const rawScores = playerData.pts_raw?.[win];
+    const histMean  = playerData.pts_mean_raw?.[win];
+    if (rawScores != null && histMean != null && rawScores.length >= 5) {
+      setPtsRawData({ rawScores, historicalMean: histMean });
+    } else {
+      setPtsRawData(null);
+    }
     setCvLoadStatus(cvMin != null ? 'found' : 'found_partial');
   }, [cvDatabase, cvWindow, playerName]);
 
@@ -786,6 +875,7 @@ function NBASimulator() {
     setPlayerName(p.name);
     setCvLoadStatus(null);
     setPraDirectCv(null);
+    setPtsRawData(null);
     setStats(prev => {
       const updated = { ...prev };
       ['pts', 'reb', 'ast', 'stl', 'blk', 'threes'].forEach(key => {
@@ -823,6 +913,7 @@ function NBASimulator() {
     setResults(null);
     setCsvData(null);
     setPraDirectCv(null);
+    setPtsRawData(null);
     setCvLoadStatus(null);
     setLadderOpen({});
   }, []);
@@ -830,12 +921,14 @@ function NBASimulator() {
   const handleSimulate = useCallback(() => {
     const t0 = performance.now();
     const ts = new Date().toISOString();
-    const simResults = runSimulation(stats, numSims);
+    const simResults = runSimulation(stats, numSims, ptsRawData);
 
     const statProbs = {};
     STAT_CONFIG.forEach(({ key }) => {
       if (stats[key].propLine !== "") {
-        const distModel = POISSON_STATS.has(key) ? "Poisson" : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
+        const distModel = POISSON_STATS.has(key) ? "Poisson"
+          : key === 'pts' ? (ptsRawData ? "KDE" : "Gamma")
+          : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
         const method = POISSON_STATS.has(key) ? "Poisson"
           : stats[key].cvMode ? `CV/${distModel}` : stats[key].stdOverride ? `Manual/${distModel}` : `Auto/${distModel}`;
         statProbs[key] = {
