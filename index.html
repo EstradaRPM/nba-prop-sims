@@ -383,9 +383,10 @@ const SUPPORTED_BOOKS = [
   { key: 'fanduel',      label: 'FanDuel' },
   { key: 'betmgm',       label: 'BetMGM' },
   { key: 'caesars',      label: 'Caesars' },
-  { key: 'pointsbet_us', label: 'PointsBet' },
   { key: 'betrivers',    label: 'BetRivers' },
   { key: 'espnbet',      label: 'ESPN Bet' },
+  { key: 'hardrock',     label: 'Hardrock' },
+  { key: 'fanatics',     label: 'Fanatics' },
 ];
 
 // Full team name → abbreviation (for game context badge)
@@ -1041,8 +1042,8 @@ function NBASimulator() {
   // Odds API state
   const [oddsApiKey, setOddsApiKey] = useState(() => localStorage.getItem('oddsApiKey') || '');
   const [selectedBooks, setSelectedBooks] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('selectedBooks') || '["draftkings","fanduel","betmgm","caesars"]'); }
-    catch { return ['draftkings','fanduel','betmgm','caesars']; }
+    try { return JSON.parse(localStorage.getItem('selectedBooks') || '["draftkings","fanduel","betmgm","caesars","betrivers","espnbet"]'); }
+    catch { return ['draftkings','fanduel','betmgm','caesars','betrivers','espnbet']; }
   });
   const [oddsData, setOddsData]           = useState(null);
   const [gameData, setGameData]           = useState(null);
@@ -1838,18 +1839,18 @@ function NBASimulator() {
                     <input type="number" step="1" placeholder="-110" value={stats[key].underOdds}
                       onChange={(e) => updateStat(key, "underOdds", e.target.value)}
                       style={{ ...inputStyle, flex: 1, borderColor: stats[key].underOdds ? "rgba(239,68,68,0.3)" : "rgba(148,163,184,0.2)" }} />
-                    {/* Multi-book toggle — only shown when odds data exists for this stat */}
-                    {statOdds && (
-                      <div onClick={() => setOpenBooksPanel(booksOpen ? null : key)}
-                        style={{ flexShrink: 0, fontSize: 7, fontWeight: 700, cursor: "pointer", padding: "2px 4px",
-                          borderRadius: 3, fontFamily: "'JetBrains Mono', monospace",
-                          color: booksOpen ? "#0b0f1a" : "#4ade80",
-                          backgroundColor: booksOpen ? "#4ade80" : "rgba(34,197,94,0.1)",
-                          border: "1px solid rgba(34,197,94,0.3)" }}
-                        title="Show all books">
-                        SHOP
-                      </div>
-                    )}
+                    {/* Multi-book toggle — always reserves space; hidden when no odds data exists */}
+                    <div onClick={statOdds ? () => setOpenBooksPanel(booksOpen ? null : key) : undefined}
+                      style={{ flexShrink: 0, fontSize: 7, fontWeight: 700, padding: "2px 4px",
+                        borderRadius: 3, fontFamily: "'JetBrains Mono', monospace",
+                        visibility: statOdds ? "visible" : "hidden",
+                        cursor: statOdds ? "pointer" : "default",
+                        color: booksOpen ? "#0b0f1a" : "#4ade80",
+                        backgroundColor: booksOpen ? "#4ade80" : "rgba(34,197,94,0.1)",
+                        border: "1px solid rgba(34,197,94,0.3)" }}
+                      title={statOdds ? "Show all books" : ""}>
+                      SHOP
+                    </div>
                   </div>
                   {/* Multi-book comparison panel */}
                   {booksOpen && statOdds && statOdds.allBooks && (
