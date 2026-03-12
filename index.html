@@ -491,7 +491,7 @@ function NBASimulator() {
   const [cvDatabase, setCvDatabase] = useState(null);
   const [cvWindow, setCvWindow] = useState("last20");
   const [praDirectCv, setPraDirectCv] = useState(null);
-  const [cvLoadStatus, setCvLoadStatus] = useState(null); // "found" | "notfound" | null
+  const [cvLoadStatus, setCvLoadStatus] = useState(null); // "found" | "found_partial" | "notfound" | null
   const [projections, setProjections] = useState(null);   // parsed ETR slate
   const [projOpen, setProjOpen] = useState(false);
   const [projPasteText, setProjPasteText] = useState('');
@@ -563,14 +563,17 @@ function NBASimulator() {
       return;
     }
     const win = cvWindow;
-    const cvMin = playerData.cv_minutes?.[win];
+    const cvMin = playerData.cv_minutes?.[win]; // null if data predates cv_minutes field
     setStats(prev => {
       const updated = { ...prev };
       STAT_CONFIG.forEach(({ key }) => {
         const cvPer36 = playerData.cv?.[key]?.[win];
-        if (cvPer36 == null || cvMin == null) return;
-        // Combine per-36 rate variance with minutes variance: CV_eff = √(CV_per36² + CV_min²)
-        const effectiveCV = Math.round(Math.sqrt(cvPer36 ** 2 + cvMin ** 2) * 10) / 10;
+        if (cvPer36 == null) return;
+        // Combine per-36 rate variance with minutes variance when available.
+        // If cv_minutes absent (stale data), use per-36 CV alone — still far better than hardcoded ratios.
+        const effectiveCV = (cvMin != null)
+          ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMin ** 2) * 10) / 10
+          : Math.round(cvPer36 * 10) / 10;
         const m = parseFloat(prev[key].mean);
         const std = m > 0 ? Math.round(m * (effectiveCV / 100) * 10) / 10 : 0;
         updated[key] = { ...prev[key], cvMode: true, cvValue: String(effectiveCV), stdDev: std, stdOverride: false };
@@ -579,13 +582,15 @@ function NBASimulator() {
     });
     // PRA: store effective CV for direct simulation (avoids independence assumption error)
     const cvPraPer36 = playerData.cv?.pra?.[win];
-    if (cvPraPer36 != null && cvMin != null) {
-      const effectivePraCV = Math.round(Math.sqrt(cvPraPer36 ** 2 + cvMin ** 2) * 10) / 10;
+    if (cvPraPer36 != null) {
+      const effectivePraCV = (cvMin != null)
+        ? Math.round(Math.sqrt(cvPraPer36 ** 2 + cvMin ** 2) * 10) / 10
+        : Math.round(cvPraPer36 * 10) / 10;
       setPraDirectCv(effectivePraCV);
     } else {
       setPraDirectCv(null);
     }
-    setCvLoadStatus('found');
+    setCvLoadStatus(cvMin != null ? 'found' : 'found_partial');
   }, [cvDatabase, cvWindow, playerName]);
 
   const handleParseProjections = useCallback((textOverride) => {
@@ -941,6 +946,11 @@ function NBASimulator() {
               {cvLoadStatus === "found" && (
                 <span style={{ fontSize: 10, color: "#22c55e", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
                   CV LOADED ✓{praDirectCv != null ? " + PRA direct" : ""}
+                </span>
+              )}
+              {cvLoadStatus === "found_partial" && (
+                <span style={{ fontSize: 10, color: "#facc15", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                  CV LOADED (per-36 only — re-run script for full)
                 </span>
               )}
               {cvLoadStatus === "notfound" && (
