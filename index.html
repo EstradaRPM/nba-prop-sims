@@ -31,11 +31,54 @@ function simulateStat(mean, stdDev, n) {
   return results;
 }
 
+// Log-normal: same mean/stdDev parameterization, but right-skewed and always non-negative.
+// Better fit for pts/reb/ast/threes — matches empirical right skew in NBA game logs
+// and substantially more accurate for alt lines beyond ~1.5 SD above the mean.
+function simulateStatLogNormal(mean, stdDev, n) {
+  const m = parseFloat(mean) || 0;
+  const s = parseFloat(stdDev) || 0;
+  if (m <= 0 || s <= 0) return new Float64Array(n);
+  const cv2 = (s / m) ** 2;
+  const sigmaL = Math.sqrt(Math.log(1 + cv2));
+  const muL = Math.log(m) - (sigmaL * sigmaL) / 2;
+  const results = new Float64Array(n);
+  for (let i = 0; i < n; i++) results[i] = Math.exp(muL + sigmaL * randn());
+  return results;
+}
+
+// Poisson: discrete rare-event model for stl/blk.
+// Correct distribution for integer count data — avoids the ~10-15pp probability
+// error that truncated normal produces on common 0.5-line props.
+function randPoisson(lambda) {
+  if (lambda <= 0) return 0;
+  const L = Math.exp(-lambda);
+  let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return k - 1;
+}
+
+function simulateStatPoisson(mean, n) {
+  const lambda = Math.max(0, parseFloat(mean) || 0);
+  const results = new Float64Array(n);
+  for (let i = 0; i < n; i++) results[i] = randPoisson(lambda);
+  return results;
+}
+
+// Distribution routing: which model each stat uses
+const LOG_NORMAL_STATS = new Set(['pts', 'reb', 'ast', 'threes']);
+const POISSON_STATS    = new Set(['stl', 'blk']);
+
 function runSimulation(stats, numSims) {
   const simResults = {};
   Object.keys(stats).forEach((key) => {
     const { mean, stdDev } = stats[key];
-    simResults[key] = simulateStat(parseFloat(mean) || 0, parseFloat(stdDev) || 0, numSims);
+    if (POISSON_STATS.has(key)) {
+      simResults[key] = simulateStatPoisson(mean, numSims);
+    } else if (LOG_NORMAL_STATS.has(key)) {
+      simResults[key] = simulateStatLogNormal(mean, stdDev, numSims);
+    } else {
+      simResults[key] = simulateStat(parseFloat(mean) || 0, parseFloat(stdDev) || 0, numSims);
+    }
   });
   return simResults;
 }
@@ -158,11 +201,15 @@ function DistBar({ simValues, propLine }) {
   if (!simValues || simValues.length === 0) return null;
   const line = parseFloat(propLine);
   if (isNaN(line)) return null;
-  const samp = Array.from(simValues).slice(0, 500);
-  const min = Math.min(...samp), max = Math.max(...samp);
+  const N = Math.min(simValues.length, 5000);
+  let min = Infinity, max = -Infinity;
+  for (let i = 0; i < N; i++) {
+    if (simValues[i] < min) min = simValues[i];
+    if (simValues[i] > max) max = simValues[i];
+  }
   const buckets = 40, counts = new Array(buckets).fill(0), range = max - min || 1;
-  for (let i = 0; i < Math.min(simValues.length, 5000); i++) {
-    const idx = Math.min(buckets - 1, Math.floor(((simValues[i] - min) / range) * buckets));
+  for (let i = 0; i < N; i++) {
+    const idx = Math.min(buckets - 1, Math.max(0, Math.floor(((simValues[i] - min) / range) * buckets)));
     counts[idx]++;
   }
   const maxC = Math.max(...counts);
@@ -671,7 +718,9 @@ function NBASimulator() {
     const statProbs = {};
     STAT_CONFIG.forEach(({ key }) => {
       if (stats[key].propLine !== "") {
-        const method = stats[key].cvMode ? "CV" : stats[key].stdOverride ? "Manual" : "Auto";
+        const distModel = POISSON_STATS.has(key) ? "Poisson" : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
+        const method = POISSON_STATS.has(key) ? "Poisson"
+          : stats[key].cvMode ? `CV/${distModel}` : stats[key].stdOverride ? `Manual/${distModel}` : `Auto/${distModel}`;
         statProbs[key] = {
           prob: calcProbability(simResults[key], stats[key].propLine),
           simValues: simResults[key],
@@ -698,7 +747,7 @@ function NBASimulator() {
                         + (parseFloat(stats.reb.mean) || 0)
                         + (parseFloat(stats.ast.mean) || 0);
           const stdPRA = meanPRA * (praDirectCv / 100);
-          comboVals = simulateStat(meanPRA, stdPRA, numSims);
+          comboVals = simulateStatLogNormal(meanPRA, stdPRA, numSims);
         } else {
           comboVals = calcCombo(simResults, parts);
         }
