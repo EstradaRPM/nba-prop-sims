@@ -52,11 +52,13 @@ Core simulation logic. No external dependencies.
 
 - **`randn()`** — Box-Muller transform for normally distributed random numbers
 - **`simulateStat(mean, stdDev, n)`** — Truncated-normal sampler (`Math.max(0, ...)`). Kept for legacy/fallback; not used for any primary stat path.
-- **`simulateStatLogNormal(mean, stdDev, n)`** — Log-normal sampler parameterized from mean and stdDev. Used for `pts`, `reb`, `ast`, `threes`. Right-skewed, always non-negative, no truncation needed. Matches empirical NBA scoring distributions and is significantly more accurate than truncated normal for alt lines >1.5 SD above the mean (e.g., OVER 29.5 for an 18-pt scorer: normal gives ~1.9%, log-normal gives ~3.7%, empirical Edgeworth estimate ~3.5%).
+- **`simulateStatLogNormal(mean, stdDev, n)`** — Log-normal sampler parameterized from mean and stdDev. Used for `reb`, `ast` parametric fallback. Right-skewed, always non-negative, no truncation needed.
 - **`randPoisson(lambda)`** — Knuth Poisson sampler (O(λ), safe for λ < 20). Returns discrete integer counts.
-- **`simulateStatPoisson(mean, n)`** — Fills a `Float64Array(n)` with Poisson samples. Used for `stl`, `blk`, `threes`. Discrete count model; avoids the large probability error continuous distributions produce on 0.5-line props (e.g., log-normal overstates OVER 0.5 by ~20pp for a 1.5 avg player). Poisson CV = 1/√mean matches empirically observed threes CV for high-volume shooters.
+- **`simulateStatPoisson(mean, n)`** — Fallback for `stl`, `blk`, `threes` when CV mode is off. Discrete count model; avoids the large probability error continuous distributions produce on 0.5-line props.
+- **`randNegBin(mu, r)`** — Single NegBin sample via Gamma-Poisson mixture: λ ~ Gamma(r, μ/r), count ~ Poisson(λ). Uses existing `randGamma`.
+- **`simulateStatNegBin(mean, cvPct, n)`** — Primary model for `stl`, `blk`, `threes` when CV mode is active. Computes dispersion r = 1/(CV² − 1/μ). Falls back to `simulateStatPoisson` if CV ≤ 1/√mean (underdispersed). Real-world CVs exceed Poisson theory: BLK +63pp, Threes +36pp, STL +20pp above Poisson CV.
 - **`LOG_NORMAL_STATS`** — `Set([])` (empty; pts/reb/ast routed via KDE_STATS)
-- **`POISSON_STATS`** — `Set(['stl', 'blk', 'threes'])`
+- **`POISSON_STATS`** — `Set(['stl', 'blk', 'threes'])` — routes to NegBin when CV mode active, else Poisson
 - **`runSimulation(stats, numSims)`** — Routes each stat key to the correct sampler via `LOG_NORMAL_STATS` / `POISSON_STATS`; returns a map of `{ key → Float64Array }`
 - **`calcProbability(simValues, propLine)`** — Returns `{ over, under, push }` fractions
 - **`calcCombo(simResults, keys)`** — Sums multiple stat arrays element-wise for combo props
@@ -68,9 +70,9 @@ Core simulation logic. No external dependencies.
 | PTS | Log-Normal | CLT makes normal a reasonable body fit, but log-normal is materially more accurate for high alt lines (>1.5 SD). Empirical skewness ~0.6 confirmed in peer-reviewed NBA scoring studies. |
 | REB | Log-Normal | Right-skewed count stat; log-normal matches the longer upside tail. |
 | AST | Log-Normal | Same as rebounds. |
-| 3PM | Poisson | Discrete integer count (0,1,2,3…/game). Log-normal continuous approximation overstates OVER 0.5 by ~20pp for low-avg players (1.5/game: log-normal ~97.7% vs Poisson correct ~77.7%). Poisson CV = 1/√mean matches empirical observed CVs (LaMelo ~3/gm: Poisson 57.7% vs observed 59.0%; Curry ~4/gm: Poisson 50.0% vs observed 47.1%). |
-| STL | Poisson | Rare discrete event (0,1,2,3/game). Truncated normal gives ~82% for OVER 0.5 vs Poisson's correct ~70%. |
-| BLK | Poisson | Same reasoning as steals. |
+| 3PM | Poisson / NegBin | Discrete integer count. Poisson used when no CV data; NegBin when CV mode active and player is overdispersed (CV > 1/√mean). Observed CV averages +36pp above Poisson theory. |
+| STL | Poisson / NegBin | Discrete count. Poisson default; NegBin when CV mode active. Observed CV averages +20pp above Poisson theory (91% Poisson vs 111% observed at mean 1.2). |
+| BLK | Poisson / NegBin | Most overdispersed stat. Poisson default; NegBin when CV mode active. Observed CV averages +63pp above Poisson theory (112% Poisson vs 182% observed at mean 0.8). |
 | PRA (direct) | Log-Normal | Uses empirical PRA CV from cv_data.json; log-normal for right-tail accuracy on alt PRA lines. |
 
 ### 2. Odds Utilities (`index.html:69–127`)
