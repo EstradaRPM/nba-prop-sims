@@ -37,7 +37,7 @@ jobs:
           git add cv_data.json
           git diff --staged --quiet
           if ($LASTEXITCODE -ne 0) {
-            $date = (Get-Date -AsUTC -Format "yyyy-MM-dd")
+            $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
             git commit -m "chore: update cv_data.json (nightly, $date)"
             git push origin main
           } else {
