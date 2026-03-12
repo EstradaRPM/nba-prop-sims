@@ -270,6 +270,20 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
     # Team from most recent qualifying game
     team = filtered[-1]["team"] if filtered else ""
 
+    # Raw pts values per window (non-normalized, situation-filtered game scores)
+    # Used by the JS simulator for empirical KDE hybrid sampling.
+    # Stored as raw game totals (not per-36) because props are graded on raw game stats.
+    pts_raw: dict[str, list[float] | None] = {}
+    pts_mean_raw: dict[str, float | None] = {}
+    for window_name, window_games in windows_filtered.items():
+        scores = [round(g["pts"], 1) for g in window_games]
+        if len(scores) >= 5:
+            pts_raw[window_name] = scores
+            pts_mean_raw[window_name] = round(sum(scores) / len(scores), 2)
+        else:
+            pts_raw[window_name] = None
+            pts_mean_raw[window_name] = None
+
     return {
         "nba_id": player_id,
         "team": team,
@@ -278,6 +292,8 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
         "cv": cv_result,
         "cv_minutes": cv_minutes,
         "mean_minutes_last20": mean_min_last20,
+        "pts_raw": pts_raw,
+        "pts_mean_raw": pts_mean_raw,
     }
 
 
@@ -393,6 +409,11 @@ def main() -> None:
         assert all(
             w in sample["cv_minutes"] for w in ["season", "last20", "last10", "last5"]
         ), "Schema error: missing window keys in cv_minutes"
+        assert "pts_raw" in sample, "Schema error: missing 'pts_raw' key"
+        assert "pts_mean_raw" in sample, "Schema error: missing 'pts_mean_raw' key"
+        assert all(
+            w in sample["pts_raw"] for w in ["season", "last20", "last10", "last5"]
+        ), "Schema error: missing window keys in pts_raw"
         print(f"Schema check PASSED (validated against '{sample_name}')")
 
 
