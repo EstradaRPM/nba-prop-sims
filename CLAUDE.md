@@ -54,9 +54,9 @@ Core simulation logic. No external dependencies.
 - **`simulateStat(mean, stdDev, n)`** — Truncated-normal sampler (`Math.max(0, ...)`). Kept for legacy/fallback; not used for any primary stat path.
 - **`simulateStatLogNormal(mean, stdDev, n)`** — Log-normal sampler parameterized from mean and stdDev. Used for `pts`, `reb`, `ast`, `threes`. Right-skewed, always non-negative, no truncation needed. Matches empirical NBA scoring distributions and is significantly more accurate than truncated normal for alt lines >1.5 SD above the mean (e.g., OVER 29.5 for an 18-pt scorer: normal gives ~1.9%, log-normal gives ~3.7%, empirical Edgeworth estimate ~3.5%).
 - **`randPoisson(lambda)`** — Knuth Poisson sampler (O(λ), safe for λ < 20). Returns discrete integer counts.
-- **`simulateStatPoisson(mean, n)`** — Fills a `Float64Array(n)` with Poisson samples. Used for `stl`, `blk`. Discrete rare-event model; avoids the ~10–15pp probability error truncated normal produces on common 0.5-line props for these stats.
-- **`LOG_NORMAL_STATS`** — `Set(['pts', 'reb', 'ast', 'threes'])`
-- **`POISSON_STATS`** — `Set(['stl', 'blk'])`
+- **`simulateStatPoisson(mean, n)`** — Fills a `Float64Array(n)` with Poisson samples. Used for `stl`, `blk`, `threes`. Discrete count model; avoids the large probability error continuous distributions produce on 0.5-line props (e.g., log-normal overstates OVER 0.5 by ~20pp for a 1.5 avg player). Poisson CV = 1/√mean matches empirically observed threes CV for high-volume shooters.
+- **`LOG_NORMAL_STATS`** — `Set([])` (empty; pts/reb/ast routed via KDE_STATS)
+- **`POISSON_STATS`** — `Set(['stl', 'blk', 'threes'])`
 - **`runSimulation(stats, numSims)`** — Routes each stat key to the correct sampler via `LOG_NORMAL_STATS` / `POISSON_STATS`; returns a map of `{ key → Float64Array }`
 - **`calcProbability(simValues, propLine)`** — Returns `{ over, under, push }` fractions
 - **`calcCombo(simResults, keys)`** — Sums multiple stat arrays element-wise for combo props
@@ -68,7 +68,7 @@ Core simulation logic. No external dependencies.
 | PTS | Log-Normal | CLT makes normal a reasonable body fit, but log-normal is materially more accurate for high alt lines (>1.5 SD). Empirical skewness ~0.6 confirmed in peer-reviewed NBA scoring studies. |
 | REB | Log-Normal | Right-skewed count stat; log-normal matches the longer upside tail. |
 | AST | Log-Normal | Same as rebounds. |
-| 3PM | Log-Normal | Right-skewed; shot-volume bounded. |
+| 3PM | Poisson | Discrete integer count (0,1,2,3…/game). Log-normal continuous approximation overstates OVER 0.5 by ~20pp for low-avg players (1.5/game: log-normal ~97.7% vs Poisson correct ~77.7%). Poisson CV = 1/√mean matches empirical observed CVs (LaMelo ~3/gm: Poisson 57.7% vs observed 59.0%; Curry ~4/gm: Poisson 50.0% vs observed 47.1%). |
 | STL | Poisson | Rare discrete event (0,1,2,3/game). Truncated normal gives ~82% for OVER 0.5 vs Poisson's correct ~70%. |
 | BLK | Poisson | Same reasoning as steals. |
 | PRA (direct) | Log-Normal | Uses empirical PRA CV from cv_data.json; log-normal for right-tail accuracy on alt PRA lines. |

@@ -134,9 +134,9 @@ function simulateStatKDE(etrMean, rawScores, historicalMean, n) {
 
 // Distribution routing: which model each stat uses.
 // pts/reb/ast use KDE hybrid (empirical) when raw data available, with parametric fallbacks.
-// threes uses log-normal. stl/blk use Poisson.
-const LOG_NORMAL_STATS = new Set(['threes']);
-const POISSON_STATS    = new Set(['stl', 'blk']);
+// threes/stl/blk use Poisson (discrete integer counts). pts/reb/ast use KDE hybrid with parametric fallbacks.
+const LOG_NORMAL_STATS = new Set([]);
+const POISSON_STATS    = new Set(['stl', 'blk', 'threes']);
 const KDE_STATS        = new Set(['pts', 'reb', 'ast']);
 
 function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
