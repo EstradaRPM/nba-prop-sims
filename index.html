@@ -851,6 +851,229 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
   );
 }
 
+// ── Batch Results Table ──────────────────────────────────────────────
+function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinEdge,
+  statFilter, setStatFilter, positiveOnly, setPositiveOnly,
+  bankroll, onExport, csvData, csvCopied, onCopyCsv }) {
+  const { useMemo } = React;
+
+  const filtered = useMemo(() => {
+    return results
+      .filter(r =>
+        (!positiveOnly || r.edge > 0) &&
+        r.edge >= minEdge &&
+        statFilter.has(r.stat)
+      )
+      .sort((a, b) => {
+        const mult = sortDir === 'desc' ? -1 : 1;
+        const av = a[sortCol] ?? (typeof a[sortCol] === 'string' ? '' : -Infinity);
+        const bv = b[sortCol] ?? (typeof b[sortCol] === 'string' ? '' : -Infinity);
+        if (typeof av === 'string') return mult * av.localeCompare(bv);
+        return mult * (av - bv);
+      });
+  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir]);
+
+  const cols = [
+    { key: 'player',    label: 'PLAYER',   style: { minWidth: 100, textAlign: 'left'   } },
+    { key: 'team',      label: 'TM',       style: { width: 30,    textAlign: 'center' } },
+    { key: 'statLabel', label: 'STAT',     style: { width: 32,    textAlign: 'center' } },
+    { key: 'propLine',  label: 'LINE',     style: { width: 38,    textAlign: 'right'  } },
+    { key: 'side',      label: 'SIDE',     style: { width: 40,    textAlign: 'center' } },
+    { key: 'bookOdds',  label: 'ODDS',     style: { width: 42,    textAlign: 'right'  } },
+    { key: 'modelProb', label: 'MODEL%',   style: { width: 52,    textAlign: 'right'  } },
+    { key: 'edge',      label: 'EDGE%',    style: { width: 52,    textAlign: 'right'  } },
+    { key: 'edgeLabel', label: 'RATING',   style: { width: 60,    textAlign: 'center' } },
+    { key: 'kellyPct',  label: '¼K%',      style: { width: 42,    textAlign: 'right'  } },
+    { key: 'gameTotal', label: 'O/U',      style: { width: 40,    textAlign: 'right'  } },
+    { key: 'spread',    label: 'SPRD',     style: { width: 44,    textAlign: 'right'  } },
+  ];
+
+  const hdrStyle = {
+    fontSize: 8, fontWeight: 700, color: '#64748b',
+    fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.8,
+    padding: '5px 4px', cursor: 'pointer', userSelect: 'none',
+    borderBottom: '1px solid rgba(148,163,184,0.12)',
+    position: 'sticky', top: 0,
+    backgroundColor: 'rgba(11,15,26,0.97)',
+    whiteSpace: 'nowrap',
+  };
+  const cellStyle = {
+    fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+    padding: '4px 4px', borderBottom: '1px solid rgba(148,163,184,0.04)',
+    whiteSpace: 'nowrap', overflow: 'hidden',
+  };
+
+  const strongCount   = results.filter(r => r.edge >= 7).length;
+  const solidCount    = results.filter(r => r.edge >= 4 && r.edge < 7).length;
+  const marginalCount = results.filter(r => r.edge >= 2 && r.edge < 4).length;
+
+  const allStats = ['pts','reb','ast','stl','blk','threes'];
+  const statLabels = { pts:'PTS', reb:'REB', ast:'AST', stl:'STL', blk:'BLK', threes:'3PM' };
+
+  return (
+    <div>
+      {/* Filter row */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
+            MIN EDGE
+          </span>
+          <input type="range" min={-10} max={10} step={0.5} value={minEdge}
+            onChange={e => setMinEdge(parseFloat(e.target.value))}
+            style={{ width: 80, accentColor: '#6366f1' }} />
+          <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: "'JetBrains Mono', monospace", minWidth: 32 }}>
+            {minEdge >= 0 ? '+' : ''}{minEdge.toFixed(1)}%
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {allStats.map(s => (
+            <button key={s} onClick={() => {
+              setStatFilter(prev => {
+                const next = new Set(prev);
+                if (next.has(s)) next.delete(s); else next.add(s);
+                return next;
+              });
+            }} style={{
+              padding: '2px 7px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+              fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+              border: statFilter.has(s) ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(148,163,184,0.15)',
+              background: statFilter.has(s) ? 'rgba(99,102,241,0.15)' : 'rgba(15,23,42,0.4)',
+              color: statFilter.has(s) ? '#a5b4fc' : '#475569',
+            }}>{statLabels[s]}</button>
+          ))}
+        </div>
+        <button onClick={() => setPositiveOnly(p => !p)} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: positiveOnly ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(148,163,184,0.15)',
+          background: positiveOnly ? 'rgba(34,197,94,0.1)' : 'rgba(15,23,42,0.4)',
+          color: positiveOnly ? '#4ade80' : '#475569',
+        }}>+EV ONLY</button>
+      </div>
+
+      {/* Summary + export row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
+            {filtered.length} rows
+          </span>
+          {strongCount > 0 && <span style={{ fontSize: 9, color: '#22c55e', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+            {strongCount} STRONG
+          </span>}
+          {solidCount > 0 && <span style={{ fontSize: 9, color: '#4ade80', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+            {solidCount} SOLID
+          </span>}
+          {marginalCount > 0 && <span style={{ fontSize: 9, color: '#86efac', fontFamily: "'JetBrains Mono', monospace" }}>
+            {marginalCount} MARGINAL
+          </span>}
+        </div>
+        <button onClick={onExport}
+          style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(148,163,184,0.2)',
+            background: 'rgba(15,23,42,0.5)', color: '#94a3b8',
+            fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
+            cursor: 'pointer' }}>
+          EXPORT CSV
+        </button>
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto', borderRadius: 6, border: '1px solid rgba(148,163,184,0.08)' }}>
+        <div style={{ minWidth: 580 }}>
+          {/* Header */}
+          <div style={{ display: 'flex' }}>
+            {cols.map(c => (
+              <div key={c.key} style={{ ...hdrStyle, ...c.style }} onClick={() => onSort(c.key)}>
+                {c.label}{sortCol === c.key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
+              </div>
+            ))}
+          </div>
+          {/* Body */}
+          <div style={{ maxHeight: 520, overflowY: 'auto' }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', fontSize: 10,
+                color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
+                No results match current filters
+              </div>
+            ) : filtered.map((r, i) => {
+              const edgeColor = getEdgeColor(r.edge);
+              const rowBg = r.edge >= 7 ? 'rgba(34,197,94,0.07)'
+                : r.edge >= 4 ? 'rgba(34,197,94,0.03)' : 'transparent';
+              return (
+                <div key={i} style={{ display: 'flex', backgroundColor: rowBg }}>
+                  <div style={{ ...cellStyle, ...cols[0].style, color: '#e2e8f0',
+                    overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {r.player}
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[1].style, color: '#64748b' }}>{r.team}</div>
+                  <div style={{ ...cellStyle, ...cols[2].style, color: '#94a3b8' }}>{r.statLabel}</div>
+                  <div style={{ ...cellStyle, ...cols[3].style, color: '#94a3b8' }}>{r.propLine}</div>
+                  <div style={{ ...cellStyle, ...cols[4].style,
+                    color: r.side === 'OVER' ? '#4ade80' : '#f87171',
+                    fontWeight: 700, fontSize: 9 }}>
+                    {r.side}
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[5].style, color: '#94a3b8' }}>
+                    {fmtOdds(r.bookOdds)}
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[6].style, color: getProbColor(r.modelProb) }}>
+                    {(r.modelProb * 100).toFixed(1)}%
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[7].style, color: edgeColor, fontWeight: 700 }}>
+                    {r.edge >= 0 ? '+' : ''}{r.edge.toFixed(1)}%
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[8].style }}>
+                    <span style={{ fontSize: 8, color: edgeColor, fontWeight: 700,
+                      backgroundColor: `${edgeColor}18`, border: `1px solid ${edgeColor}30`,
+                      padding: '1px 4px', borderRadius: 3 }}>
+                      {r.edgeLabel}
+                    </span>
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[9].style, color: '#64748b' }}>
+                    {r.kellyPct > 0 ? r.kellyPct.toFixed(2) + '%' : '—'}
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[10].style, color: '#64748b' }}>
+                    {r.gameTotal ?? '—'}
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[11].style, color: '#64748b' }}>
+                    {r.spread != null ? (r.spread > 0 ? '+' : '') + r.spread : '—'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* CSV export section */}
+      {csvData && (
+        <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 6,
+          backgroundColor: 'rgba(15,23,42,0.6)', border: '1px solid rgba(148,163,184,0.10)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+              BATCH CSV
+            </span>
+            <button onClick={onCopyCsv} style={{ padding: '3px 10px', borderRadius: 4,
+              border: csvCopied ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(99,102,241,0.4)',
+              background: csvCopied ? 'rgba(34,197,94,0.12)' : 'rgba(99,102,241,0.12)',
+              color: csvCopied ? '#22c55e' : '#a5b4fc',
+              fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
+              cursor: 'pointer' }}>
+              {csvCopied ? 'COPIED ✓' : 'COPY ALL'}
+            </button>
+          </div>
+          <textarea readOnly value={csvData}
+            onFocus={e => e.target.select()}
+            style={{ width: '100%', height: 80, resize: 'vertical',
+              backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(148,163,184,0.1)',
+              borderRadius: 4, padding: 8, color: '#94a3b8',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 9, outline: 'none',
+              boxSizing: 'border-box' }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CSV Export ───────────────────────────────────────────────────────
 function buildCSV(playerName, numSims, statResults, comboResults, timestamp, bankroll, portfolioFactors = {}) {
   const headers = [
@@ -944,6 +1167,26 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
 
 // No blob download in sandbox — use clipboard + modal instead
 
+// ── Batch CSV Export ─────────────────────────────────────────────────
+function buildBatchCSV(batchResults, timestamp) {
+  const headers = [
+    'Timestamp','Date','Player','Team','Stat','Line','Side',
+    'Book Odds','Model%','Book%','Edge%','Edge Rating','¼Kelly%',
+    'Game Total','Spread'
+  ];
+  const dateStr = new Date().toLocaleDateString('en-US');
+  const escape = v => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g,'""')}"` : s; };
+  const rows = batchResults.map(r => [
+    timestamp, dateStr, r.player, r.team ?? '', r.statLabel, r.propLine,
+    r.side, fmtOdds(r.bookOdds),
+    (r.modelProb * 100).toFixed(1), (r.bookProb * 100).toFixed(1),
+    r.edge.toFixed(1), r.edgeLabel,
+    r.kellyPct > 0 ? r.kellyPct.toFixed(2) : '',
+    r.gameTotal ?? '', r.spread != null ? r.spread : ''
+  ]);
+  return [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))].join('\n');
+}
+
 // ── ETR Projections Parser ───────────────────────────────────────────
 function parseETRProjections(text) {
   const lines = text.trim().split('\n').filter(l => l.trim());
@@ -1011,6 +1254,44 @@ function parseETRProjections(text) {
   return { players };
 }
 
+// ── Batch Sim: Build Stats Object Per Player ─────────────────────────
+// Pure function — no state access. Builds the stats object runSimulation() expects,
+// from a projection row + oddsData entry + cvDatabase entry.
+// CV replicates handleLoadCv's sqrt(cvPer36² + cvMin²) effective CV formula.
+// KDE raw data is intentionally omitted — batch uses parametric fallback for speed.
+function buildPlayerStatsForSim(projection, playerOdds, cvData) {
+  const CV_WINDOW = 'last20';
+  const stats = {};
+  STAT_CONFIG.forEach(({ key }) => {
+    const mean = parseFloat(projection[key]) || 0;
+    const oddsEntry = playerOdds?.[key];
+    let cvMode = false, cvValue = '';
+    if (cvData?.cv?.[key]?.[CV_WINDOW] != null && mean > 0) {
+      const cvPer36 = cvData.cv[key][CV_WINDOW];
+      const cvMin   = cvData.cv_minutes?.[CV_WINDOW] ?? null;
+      const effective = cvMin != null
+        ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMin ** 2) * 10) / 10
+        : Math.round(cvPer36 * 10) / 10;
+      cvMode = true;
+      cvValue = String(effective);
+    }
+    const stdDev = cvMode
+      ? Math.round(mean * (parseFloat(cvValue) / 100) * 10) / 10
+      : estimateStdDev(key, mean);
+    stats[key] = {
+      mean:        String(mean),
+      stdDev,
+      propLine:    oddsEntry?.line != null ? String(oddsEntry.line) : '',
+      overOdds:    oddsEntry?.overOdds  != null ? String(Math.round(oddsEntry.overOdds))  : '',
+      underOdds:   oddsEntry?.underOdds != null ? String(Math.round(oddsEntry.underOdds)) : '',
+      cvMode,
+      cvValue,
+      stdOverride: false,
+    };
+  });
+  return stats;
+}
+
 // ── Main App ────────────────────────────────────────────────────────
 function NBASimulator() {
   const [playerName, setPlayerName] = useState("Player Name");
@@ -1047,6 +1328,19 @@ function NBASimulator() {
   const [projError, setProjError] = useState(null);
   const [projUpdatedAt, setProjUpdatedAt] = useState(null);
   const [ladderOpen, setLadderOpen] = useState({});
+
+  // Batch EV Hunt state
+  const [batchResults,      setBatchResults]      = useState(null);
+  const [batchRunning,      setBatchRunning]       = useState(false);
+  const [batchProgress,     setBatchProgress]      = useState(null); // { current, total }
+  const [batchSortCol,      setBatchSortCol]       = useState('edge');
+  const [batchSortDir,      setBatchSortDir]       = useState('desc');
+  const [batchMinEdge,      setBatchMinEdge]       = useState(0);
+  const [batchStatFilter,   setBatchStatFilter]    = useState(new Set(['pts','reb','ast','stl','blk','threes']));
+  const [batchPositiveOnly, setBatchPositiveOnly]  = useState(true);
+  const [batchCsvData,      setBatchCsvData]       = useState(null);
+  const [batchCsvCopied,    setBatchCsvCopied]     = useState(false);
+  const [batchOpen,         setBatchOpen]          = useState(false);
 
   // Odds API state
   const [oddsApiKey, setOddsApiKey] = useState(() => localStorage.getItem('oddsApiKey') || '');
@@ -1371,6 +1665,89 @@ function NBASimulator() {
     setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
   }, [stats, comboLines, numSims]);
 
+  // ── Batch EV Hunt ───────────────────────────────────────────────────
+  // Loops all ETR projections that have odds, runs 10k sims each (parametric only —
+  // no KDE raw data in batch), and accumulates a flat ranked edge list.
+  // Zero additional API calls — all data is already in state.
+  const runBatchSimulation = useCallback(async () => {
+    if (!projections || !oddsData) return;
+    setBatchRunning(true);
+    setBatchResults(null);
+    setBatchCsvData(null);
+
+    // Filter to players with at least one stat that has an odds line
+    const eligible = projections.filter(p => {
+      const normName = normalizeOddsName(p.name);
+      const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
+      if (!playerOdds) return false;
+      return STAT_CONFIG.some(({ key }) => playerOdds[key]?.line != null);
+    });
+
+    setBatchProgress({ current: 0, total: eligible.length });
+    const allRows = [];
+    const BATCH_SIMS = 10000;
+
+    for (let i = 0; i < eligible.length; i++) {
+      const p = eligible[i];
+      const normName = normalizeOddsName(p.name);
+      // NFD-normalize for cvDatabase lookup (case-preserved, same as handleLoadCv line 1144)
+      const cvKey = p.name.trim().normalize('NFD');
+      const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
+      const cvData = cvDatabase?.[cvKey];
+      const gameCtx = gameData?.[p.team] || null;
+
+      // Build stats object — reuses the exact same CV formula as handleLoadCv
+      const statsForSim = buildPlayerStatsForSim(p, playerOdds, cvData);
+
+      // runSimulation with null raw data → safe parametric fallback (confirmed ~line 202-215)
+      const simResults = runSimulation(statsForSim, BATCH_SIMS, null, null, null);
+
+      STAT_CONFIG.forEach(({ key, label }) => {
+        const s = statsForSim[key];
+        if (!s || s.propLine === '') return; // no line for this stat
+
+        const prob = calcProbability(simResults[key], s.propLine);
+
+        ['over', 'under'].forEach(side => {
+          const rawOdds = side === 'over' ? s.overOdds : s.underOdds;
+          const bookOdds = parseFloat(rawOdds);
+          if (isNaN(bookOdds)) return;
+          const modelProb = prob[side];
+          const bookProb  = americanToProb(bookOdds);
+          if (!bookProb) return;
+          const edge      = (modelProb - bookProb) * 100;
+          const kelly     = calcKelly(modelProb, bookOdds) || 0;
+          allRows.push({
+            player:    p.name,
+            team:      p.team || '',
+            stat:      key,
+            statLabel: label,
+            propLine:  parseFloat(s.propLine),
+            side:      side.toUpperCase(),
+            bookOdds,
+            bookProb,
+            modelProb,
+            edge,
+            edgeLabel: getEdgeLabel(edge),
+            kellyPct:  kelly * 25, // ¼ Kelly displayed
+            gameTotal: gameCtx?.total ?? null,
+            spread:    gameCtx?.spread ?? null,
+          });
+        });
+      });
+
+      setBatchProgress({ current: i + 1, total: eligible.length });
+      // Yield to browser — allows progress counter to re-render between players
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // Default sort: best edge first
+    allRows.sort((a, b) => b.edge - a.edge);
+    setBatchResults(allRows);
+    setBatchProgress(null);
+    setBatchRunning(false);
+  }, [projections, oddsData, cvDatabase, gameData]);
+
   const handleExport = useCallback(() => {
     if (!results) return;
     const fullCsv = buildCSV(playerName, numSims, results.stats, results.combos, simTimestamp, bankroll, results.portfolioFactors ?? {});
@@ -1546,6 +1923,89 @@ function NBASimulator() {
                   );
                 })}
               </select>
+            </div>
+          )}
+        </div>
+
+        {/* Batch EV Hunt */}
+        <div style={{ backgroundColor: 'rgba(15,23,42,0.4)', border: `1px solid ${batchResults ? 'rgba(99,102,241,0.3)' : 'rgba(148,163,184,0.08)'}`, borderRadius: 12, marginBottom: 12 }}>
+          <div onClick={() => setBatchOpen(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', cursor: 'pointer', userSelect: 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10,
+                color: batchResults ? '#a5b4fc' : '#64748b', letterSpacing: 1 }}>
+                BATCH EV HUNT
+              </span>
+              {batchResults && !batchRunning && (
+                <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
+                  · {batchResults.filter(r => r.edge >= 2).length} plays with edge
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {projections && oddsData && !batchRunning && (
+                <button onClick={e => { e.stopPropagation(); setBatchOpen(true); runBatchSimulation(); }}
+                  style={{ padding: '4px 12px', borderRadius: 5, border: 'none',
+                    background: '#6366f1', color: '#fff',
+                    fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
+                    cursor: 'pointer', letterSpacing: 0.8 }}>
+                  RUN BATCH
+                </button>
+              )}
+              {batchRunning && batchProgress && (
+                <span style={{ fontSize: 9, color: '#facc15', fontFamily: "'JetBrains Mono', monospace" }}>
+                  {batchProgress.current} / {batchProgress.total}
+                </span>
+              )}
+              <span style={{ fontSize: 9, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
+                {batchOpen ? '▲' : '▼'}
+              </span>
+            </div>
+          </div>
+          {batchOpen && (
+            <div style={{ padding: '0 16px 16px' }}>
+              {(!projections || !oddsData) && (
+                <div style={{ fontSize: 10, color: '#64748b', fontFamily: "'JetBrains Mono', monospace", padding: '4px 0 8px' }}>
+                  Load ETR projections and fetch live lines first.
+                </div>
+              )}
+              {batchRunning && batchProgress && (
+                <div style={{ fontSize: 10, color: '#facc15', fontFamily: "'JetBrains Mono', monospace", marginBottom: 10 }}>
+                  Simulating {batchProgress.current} / {batchProgress.total} players...
+                  <div style={{ marginTop: 6, height: 3, borderRadius: 2, backgroundColor: 'rgba(148,163,184,0.1)' }}>
+                    <div style={{ height: '100%', borderRadius: 2, backgroundColor: '#6366f1',
+                      width: `${(batchProgress.current / batchProgress.total) * 100}%`,
+                      transition: 'width 0.1s' }} />
+                  </div>
+                </div>
+              )}
+              {batchResults && !batchRunning && (
+                <BatchResultsTable
+                  results={batchResults}
+                  sortCol={batchSortCol}
+                  sortDir={batchSortDir}
+                  onSort={col => {
+                    if (col === batchSortCol) setBatchSortDir(d => d === 'desc' ? 'asc' : 'desc');
+                    else { setBatchSortCol(col); setBatchSortDir('desc'); }
+                  }}
+                  minEdge={batchMinEdge}
+                  setMinEdge={setBatchMinEdge}
+                  statFilter={batchStatFilter}
+                  setStatFilter={setBatchStatFilter}
+                  positiveOnly={batchPositiveOnly}
+                  setPositiveOnly={setBatchPositiveOnly}
+                  bankroll={bankroll}
+                  onExport={() => setBatchCsvData(buildBatchCSV(batchResults, new Date().toISOString()))}
+                  csvData={batchCsvData}
+                  csvCopied={batchCsvCopied}
+                  onCopyCsv={() => {
+                    navigator.clipboard.writeText(batchCsvData).then(() => {
+                      setBatchCsvCopied(true);
+                      setTimeout(() => setBatchCsvCopied(false), 2000);
+                    });
+                  }}
+                />
+              )}
             </div>
           )}
         </div>
