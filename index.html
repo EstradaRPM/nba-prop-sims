@@ -119,22 +119,30 @@ function simulateStatGamma(mean, cvPct, n) {
   return results;
 }
 
-// ── KDE hybrid sampler for pts ────────────────────────────────────────────────
-// Primary pts model when historical raw game scores are available from cv_data.json.
+// ── KDE hybrid sampler for pts/reb/ast ───────────────────────────────────────
+// Primary model when historical raw game scores are available from cv_data.json.
 // No parametric shape assumption — uses the player's actual empirical distribution.
 //
 // Per trial:
-//   1. Pick a random historical score x_i (bootstrap)
-//   2. Add Gaussian noise: bandwidth h via Silverman's rule
-//   3. Multiplicative recentering: × (etrMean / historicalMean)
+//   1. Pick a random historical score x_i (bootstrap, recency-weighted)
+//   2. Add Gaussian noise: bandwidth h (see below)
+//   3. Multiplicative recentering: × (etrMean / wMean)
 //
-// Recentering preserves CV exactly: if raw scores have CV = σ/μ,
-// scaled scores have CV = σ × (etrMean/μ) / etrMean = σ/μ — unchanged.
-// This correctly anchors ETR's context-adjusted projection while keeping
-// the player's empirical shape (skewness, kurtosis, clustering patterns).
+// Bandwidth calibration (targetStd):
+//   Raw game totals (e.g. rebounds as integers 3,4,5...) have lower variance than
+//   what the per-36 CV implies, because per-36 normalization amplifies game-to-game
+//   rate differences via the minutes denominator. Silverman's rule on raw scores
+//   would produce a bandwidth far too small, making the distribution unrealistically
+//   peaked (e.g. 88% over 3.5 and 30% over 4.5 for a 4.3-mean player).
 //
-// Returns null if inputs are invalid (triggers Gamma fallback in runSimulation).
-function simulateStatKDE(etrMean, rawScores, historicalMean, n) {
+//   Output variance formula: Var(output) = scale² × (wVar + h²)
+//   → h_calibrated = sqrt(max(0, targetStd²/scale² − wVar))
+//
+//   h = max(h_calibrated, h_silverman) so we never smooth less than Silverman.
+//   If bootstrap variance already exceeds targetStd (rare), falls back to Silverman.
+//
+// Returns null if inputs are invalid (triggers parametric fallback in runSimulation).
+function simulateStatKDE(etrMean, rawScores, historicalMean, n, targetStd) {
   const m = parseFloat(etrMean) || 0;
   const hm = parseFloat(historicalMean) || 0;
   if (m <= 0 || hm <= 0 || !rawScores || rawScores.length < 5) return null;
@@ -149,7 +157,7 @@ function simulateStatKDE(etrMean, rawScores, historicalMean, n) {
   let cumul = 0;
   for (let i = 0; i < k; i++) { cumul += cdf[i] / wSum; cdf[i] = cumul; }
 
-  // Weighted mean and variance for Silverman bandwidth.
+  // Weighted mean and variance.
   // scale uses wMean (recency-weighted) as the denominator — not the unweighted historicalMean —
   // because the bootstrap samples according to the same recency weights. Using the unweighted
   // mean would inflate the effective output mean whenever recent games diverge from the season
@@ -169,7 +177,20 @@ function simulateStatKDE(etrMean, rawScores, historicalMean, n) {
   let wSqSum = 0;
   for (let i = 0; i < k; i++) wSqSum += Math.pow(LAMBDA, 2 * (k - 1 - i));
   const kEff = (wSum * wSum) / wSqSum;
-  const h = 1.06 * Math.sqrt(wVar) * Math.pow(kEff, -0.2);
+  const hSilverman = 1.06 * Math.sqrt(wVar) * Math.pow(kEff, -0.2);
+
+  // Calibrate h to match targetStd (effective CV std dev) when provided.
+  // Var(output) = scale²×(wVar + h²) → h_cal = sqrt(targetVar/scale² − wVar)
+  let h = hSilverman;
+  if (targetStd > 0) {
+    const bootstrapVar = wVar * scale * scale; // variance from pure bootstrap (no noise)
+    const targetVar    = targetStd * targetStd;
+    if (targetVar > bootstrapVar) {
+      const hCal = Math.sqrt(targetVar / (scale * scale) - wVar);
+      h = Math.max(hCal, hSilverman);
+    }
+    // If bootstrapVar >= targetVar we cannot reduce h below 0; keep Silverman.
+  }
 
   // Weighted bootstrap via CDF binary search
   const results = new Float64Array(n);
@@ -209,7 +230,7 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
       // 2. Gamma (pts) / log-normal (reb, ast) — parametric fallback
       const rawData = rawDataMap[key];
       if (rawData) {
-        const kde = simulateStatKDE(mean, rawData.rawScores, rawData.historicalMean, numSims);
+        const kde = simulateStatKDE(mean, rawData.rawScores, rawData.historicalMean, numSims, effectiveStd);
         if (kde !== null) {
           // Blend 20% log-normal to prevent KDE tail collapse on extreme alt lines.
           // KDE bootstraps from observed scores and cannot project beyond the observed
