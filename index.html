@@ -282,7 +282,11 @@ function getAltLines(key, mean) {
     return lines;
   }
   if (key === 'stl' || key === 'blk') {
-    return [0.5, 1.5, 2.5, 3.5, 4.5];
+    // Dynamic: start at 0.5, extend to at least 4.5 or higher for elite players
+    const end = Math.max(4.5, Math.floor(m + 2.5) + 0.5);
+    const lines = [];
+    for (let l = 0.5; l <= end; l += 1) lines.push(parseFloat(l.toFixed(1)));
+    return lines;
   }
   if (key === 'threes') {
     const top = Math.max(4.5, Math.ceil(m + 3) - 0.5);
@@ -307,7 +311,11 @@ function getAltLines(key, mean) {
     return lines;
   }
   if (key === 'sb') {
-    return [0.5, 1.5, 2.5, 3.5, 4.5];
+    // SB = STL+BLK, so wider range; extend to at least 5.5 or higher
+    const end = Math.max(5.5, Math.floor(m + 2.5) + 0.5);
+    const lines = [];
+    for (let l = 0.5; l <= end; l += 1) lines.push(parseFloat(l.toFixed(1)));
+    return lines;
   }
   // reb, ast: 1-unit intervals, mean ±4
   const start = Math.max(0.5, Math.floor(m - 3) + 0.5);
@@ -666,6 +674,9 @@ function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null }) {
   const portfolioQK = isPortfolio ? kelly * portfolioFactor * 0.25 : isolatedQK;
   const br = parseFloat(bankroll);
   const hasBankroll = !isNaN(br) && br > 0;
+  // True EV per dollar wagered: (modelProb × decimalOdds − 1) × 100
+  const decimal = americanToDecimal(bookOdds);
+  const ev = decimal != null ? (modelProb * decimal - 1) * 100 : null;
   return (
     <div style={{
       marginTop: 6, padding: "6px 8px",
@@ -686,6 +697,11 @@ function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null }) {
           {edge >= 0 ? "+" : ""}{edge.toFixed(1)}%
         </span>
         <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>EDGE</span>
+        {ev != null && (
+          <span style={{ fontSize: 10, color: ev >= 0 ? "#64748b" : "#ef444488", fontFamily: "'JetBrains Mono', monospace", marginLeft: 4 }}>
+            · EV {ev >= 0 ? "+" : ""}{ev.toFixed(1)}%
+          </span>
+        )}
       </div>
       {kelly > 0 && (
         <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(148,163,184,0.08)" }}>
@@ -709,7 +725,17 @@ function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null }) {
 }
 
 // ── Result Row ──────────────────────────────────────────────────────
-function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null }) {
+const DIST_MODEL_STYLE = {
+  KDE:       { color: "#22d3ee", bg: "rgba(34,211,238,0.08)", border: "rgba(34,211,238,0.25)" },
+  Gamma:     { color: "#f59e0b", bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.25)"  },
+  LogNormal: { color: "#60a5fa", bg: "rgba(96,165,250,0.08)",  border: "rgba(96,165,250,0.25)"  },
+  NegBin:    { color: "#a78bfa", bg: "rgba(167,139,250,0.08)", border: "rgba(167,139,250,0.25)" },
+  Poisson:   { color: "#fb923c", bg: "rgba(251,146,60,0.08)",  border: "rgba(251,146,60,0.25)"  },
+  Direct:    { color: "#34d399", bg: "rgba(52,211,153,0.08)",  border: "rgba(52,211,153,0.25)"  },
+  Summed:    { color: "#94a3b8", bg: "rgba(148,163,184,0.06)", border: "rgba(148,163,184,0.18)" },
+};
+
+function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null, distModel = null }) {
   if (!prob) return null;
   const overPct = (prob.over * 100).toFixed(1);
   const underPct = (prob.under * 100).toFixed(1);
@@ -721,6 +747,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
   const underEdge = hasUnder ? (prob.under - americanToProb(parseFloat(underOdds))) * 100 : null;
   const bestEdge = Math.max(overEdge ?? -999, underEdge ?? -999);
   const bestSide = (overEdge ?? -999) >= (underEdge ?? -999) ? "OVER" : "UNDER";
+  const modelStyle = distModel ? (DIST_MODEL_STYLE[distModel] ?? DIST_MODEL_STYLE.LogNormal) : null;
 
   return (
     <div style={{
@@ -734,6 +761,16 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
             {label}
           </span>
           <span style={{ fontSize: 12, color: "#64748b" }}>LINE {propLine}</span>
+          {modelStyle && (
+            <span style={{
+              fontSize: 8, fontWeight: 700, letterSpacing: 0.8, fontFamily: "'JetBrains Mono', monospace",
+              color: modelStyle.color, backgroundColor: modelStyle.bg,
+              border: `1px solid ${modelStyle.border}`,
+              borderRadius: 3, padding: "1px 5px",
+            }}>
+              {distModel}
+            </span>
+          )}
         </div>
         {bestEdge >= 2 && (
           <div style={{
@@ -1656,6 +1693,7 @@ function NBASimulator() {
           std: stats[key].stdDev,
           stdMethod: method,
           cvValue: stats[key].cvMode ? stats[key].cvValue : "",
+          distModel,
         };
       }
     });
@@ -1684,6 +1722,7 @@ function NBASimulator() {
           overOdds: comboLines[key].overOdds,
           underOdds: comboLines[key].underOdds,
           mean: comboVals.reduce((a, b) => a + b, 0) / numSims,
+          distModel: directCv != null ? 'Direct' : 'Summed',
         };
       }
     });
@@ -2651,6 +2690,7 @@ function NBASimulator() {
                     bankroll={bankroll}
                     portfolioFactorOver={results.portfolioFactors?.[`${key}_over`] ?? null}
                     portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
+                    distModel={results.stats[key].distModel}
                   />
                   <LadderTable
                     statKey={key}
@@ -2673,6 +2713,7 @@ function NBASimulator() {
                     bankroll={bankroll}
                     portfolioFactorOver={results.portfolioFactors?.[`${key}_over`] ?? null}
                     portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
+                    distModel={results.combos[key].distModel}
                   />
                   <LadderTable
                     statKey={key}
