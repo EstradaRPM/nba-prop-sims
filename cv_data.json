@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-13T11:58:39Z",
+  "generated_at": "2026-03-13T15:48:42Z",
   "season": "2025-26",
   "players": {
     "Precious Achiuwa": {
@@ -67,6 +67,12 @@
           "last20": 40.8,
           "last10": 32.9,
           "last5": 31.6
+        },
+        "sb": {
+          "season": 87.2,
+          "last20": 85.8,
+          "last10": 97.7,
+          "last5": 57.8
         }
       },
       "cv_minutes": {
@@ -376,6 +382,12 @@
           "last20": 30.9,
           "last10": 19.8,
           "last5": 27.9
+        },
+        "sb": {
+          "season": 90.8,
+          "last20": 90.8,
+          "last10": 93.9,
+          "last5": 105.5
         }
       },
       "cv_minutes": {
@@ -658,6 +670,12 @@
           "last20": 21.6,
           "last10": 15.6,
           "last5": 15.7
+        },
+        "sb": {
+          "season": 86.0,
+          "last20": 92.9,
+          "last10": 95.3,
+          "last5": 80.7
         }
       },
       "cv_minutes": {
@@ -1045,6 +1063,12 @@
           "last20": 58.7,
           "last10": 41.6,
           "last5": 49.6
+        },
+        "sb": {
+          "season": 114.4,
+          "last20": 114.4,
+          "last10": 109.7,
+          "last5": 92.1
         }
       },
       "cv_minutes": {
@@ -1327,6 +1351,12 @@
           "last20": 34.0,
           "last10": 37.7,
           "last5": 20.8
+        },
+        "sb": {
+          "season": 89.0,
+          "last20": 93.4,
+          "last10": 115.8,
+          "last5": 112.4
         }
       },
       "cv_minutes": {
@@ -1657,6 +1687,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -1768,6 +1804,12 @@
           "last20": 46.3,
           "last10": 53.1,
           "last5": 42.8
+        },
+        "sb": {
+          "season": 73.2,
+          "last20": 53.7,
+          "last10": 54.8,
+          "last5": 53.8
         }
       },
       "cv_minutes": {
@@ -2176,6 +2218,12 @@
           "last20": 31.7,
           "last10": 27.5,
           "last5": 21.4
+        },
+        "sb": {
+          "season": 73.9,
+          "last20": 86.4,
+          "last10": 87.6,
+          "last5": 82.7
         }
       },
       "cv_minutes": {
@@ -2515,6 +2563,12 @@
           "last20": 40.4,
           "last10": 31.7,
           "last5": 38.9
+        },
+        "sb": {
+          "season": 79.1,
+          "last20": 83.1,
+          "last10": 64.0,
+          "last5": 44.4
         }
       },
       "cv_minutes": {
@@ -2881,6 +2935,12 @@
           "last20": 38.6,
           "last10": 28.0,
           "last5": 28.6
+        },
+        "sb": {
+          "season": 109.9,
+          "last20": 117.5,
+          "last10": 109.0,
+          "last5": 102.9
         }
       },
       "cv_minutes": {
@@ -3205,6 +3265,12 @@
           "last20": 55.3,
           "last10": 66.5,
           "last5": 74.0
+        },
+        "sb": {
+          "season": 92.4,
+          "last20": 92.4,
+          "last10": 59.3,
+          "last5": 10.7
         }
       },
       "cv_minutes": {
@@ -3463,6 +3529,12 @@
           "last20": 33.7,
           "last10": 37.6,
           "last5": 36.1
+        },
+        "sb": {
+          "season": 72.3,
+          "last20": 81.3,
+          "last10": 75.4,
+          "last5": 74.2
         }
       },
       "cv_minutes": {
@@ -3781,6 +3853,12 @@
           "last20": 38.7,
           "last10": 45.5,
           "last5": 61.5
+        },
+        "sb": {
+          "season": 70.3,
+          "last20": 70.3,
+          "last10": 99.3,
+          "last5": 102.6
         }
       },
       "cv_minutes": {
@@ -4069,6 +4147,12 @@
           "last20": 49.6,
           "last10": 45.1,
           "last5": 59.7
+        },
+        "sb": {
+          "season": 59.1,
+          "last20": 70.0,
+          "last10": 68.2,
+          "last5": 57.6
         }
       },
       "cv_minutes": {
@@ -4444,6 +4528,12 @@
           "last20": 31.5,
           "last10": 45.8,
           "last5": 46.2
+        },
+        "sb": {
+          "season": 82.2,
+          "last20": 69.6,
+          "last10": 76.3,
+          "last5": 96.4
         }
       },
       "cv_minutes": {
@@ -4810,6 +4900,12 @@
           "last20": 39.7,
           "last10": 32.4,
           "last5": 29.1
+        },
+        "sb": {
+          "season": 66.7,
+          "last20": 81.4,
+          "last10": 77.0,
+          "last5": 48.1
         }
       },
       "cv_minutes": {
@@ -5173,6 +5269,12 @@
           "last20": 33.7,
           "last10": 27.1,
           "last5": 22.6
+        },
+        "sb": {
+          "season": 121.8,
+          "last20": 87.5,
+          "last10": 136.5,
+          "last5": 156.9
         }
       },
       "cv_minutes": {
@@ -5509,6 +5611,12 @@
           "last20": 58.1,
           "last10": 51.0,
           "last5": 60.0
+        },
+        "sb": {
+          "season": 92.4,
+          "last20": 80.9,
+          "last10": 62.3,
+          "last5": 60.2
         }
       },
       "cv_minutes": {
@@ -5821,6 +5929,12 @@
           "last20": 25.5,
           "last10": 24.1,
           "last5": 26.7
+        },
+        "sb": {
+          "season": 93.7,
+          "last20": 111.6,
+          "last10": 108.2,
+          "last5": 95.2
         }
       },
       "cv_minutes": {
@@ -6205,6 +6319,12 @@
           "last20": 32.6,
           "last10": 37.8,
           "last5": 48.4
+        },
+        "sb": {
+          "season": 56.4,
+          "last20": 51.8,
+          "last10": 44.2,
+          "last5": 40.1
         }
       },
       "cv_minutes": {
@@ -6502,6 +6622,12 @@
           "last20": 23.8,
           "last10": 18.7,
           "last5": 24.3
+        },
+        "sb": {
+          "season": 100.0,
+          "last20": 117.8,
+          "last10": 138.1,
+          "last5": 143.0
         }
       },
       "cv_minutes": {
@@ -6874,6 +7000,12 @@
           "last20": 41.6,
           "last10": 35.7,
           "last5": 39.7
+        },
+        "sb": {
+          "season": 91.3,
+          "last20": 81.6,
+          "last10": 91.4,
+          "last5": 98.6
         }
       },
       "cv_minutes": {
@@ -7282,6 +7414,12 @@
           "last20": 45.6,
           "last10": 40.7,
           "last5": 60.6
+        },
+        "sb": {
+          "season": 66.9,
+          "last20": 64.2,
+          "last10": 80.4,
+          "last5": 43.4
         }
       },
       "cv_minutes": {
@@ -7615,6 +7753,12 @@
           "last20": 48.2,
           "last10": 44.7,
           "last5": 45.1
+        },
+        "sb": {
+          "season": 115.8,
+          "last20": 145.4,
+          "last10": 168.6,
+          "last5": 171.9
         }
       },
       "cv_minutes": {
@@ -7990,6 +8134,12 @@
           "last20": 37.7,
           "last10": 37.1,
           "last5": 32.2
+        },
+        "sb": {
+          "season": 63.9,
+          "last20": 66.0,
+          "last10": 62.8,
+          "last5": 62.7
         }
       },
       "cv_minutes": {
@@ -8404,6 +8554,12 @@
           "last20": 25.9,
           "last10": 20.3,
           "last5": 14.2
+        },
+        "sb": {
+          "season": 99.4,
+          "last20": 78.2,
+          "last10": 53.9,
+          "last5": 7.9
         }
       },
       "cv_minutes": {
@@ -8743,6 +8899,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -8850,6 +9012,12 @@
           "last5": null
         },
         "ra": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
+        },
+        "sb": {
           "season": null,
           "last20": null,
           "last10": null,
@@ -8965,6 +9133,12 @@
           "last20": 45.5,
           "last10": 48.5,
           "last5": 41.5
+        },
+        "sb": {
+          "season": 98.8,
+          "last20": 109.3,
+          "last10": 107.1,
+          "last5": 137.4
         }
       },
       "cv_minutes": {
@@ -9274,6 +9448,12 @@
           "last20": 33.2,
           "last10": 33.2,
           "last5": 15.7
+        },
+        "sb": {
+          "season": 109.5,
+          "last20": 109.5,
+          "last10": 109.5,
+          "last5": 136.9
         }
       },
       "cv_minutes": {
@@ -9466,6 +9646,12 @@
           "last20": 41.3,
           "last10": 41.8,
           "last5": 62.5
+        },
+        "sb": {
+          "season": 114.5,
+          "last20": 113.8,
+          "last10": 119.6,
+          "last5": 62.3
         }
       },
       "cv_minutes": {
@@ -9844,6 +10030,12 @@
           "last20": 37.0,
           "last10": 44.5,
           "last5": 59.7
+        },
+        "sb": {
+          "season": 61.8,
+          "last20": 67.6,
+          "last10": 92.1,
+          "last5": 143.0
         }
       },
       "cv_minutes": {
@@ -10168,6 +10360,12 @@
           "last20": 32.8,
           "last10": 35.2,
           "last5": 35.9
+        },
+        "sb": {
+          "season": 59.9,
+          "last20": 61.7,
+          "last10": 46.7,
+          "last5": 66.3
         }
       },
       "cv_minutes": {
@@ -10534,6 +10732,12 @@
           "last20": 53.0,
           "last10": 53.0,
           "last5": 61.9
+        },
+        "sb": {
+          "season": 193.2,
+          "last20": 193.2,
+          "last10": 193.2,
+          "last5": 160.8
         }
       },
       "cv_minutes": {
@@ -10762,6 +10966,12 @@
           "last20": 45.6,
           "last10": 42.3,
           "last5": 38.8
+        },
+        "sb": {
+          "season": 69.3,
+          "last20": 70.4,
+          "last10": 78.6,
+          "last5": 93.8
         }
       },
       "cv_minutes": {
@@ -11065,6 +11275,12 @@
           "last20": 30.4,
           "last10": 19.8,
           "last5": 21.0
+        },
+        "sb": {
+          "season": 91.3,
+          "last20": 102.2,
+          "last10": 86.2,
+          "last5": 73.8
         }
       },
       "cv_minutes": {
@@ -11431,6 +11647,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -11542,6 +11764,12 @@
           "last20": 62.1,
           "last10": 62.1,
           "last5": 25.5
+        },
+        "sb": {
+          "season": 201.9,
+          "last20": 201.9,
+          "last10": 201.9,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -11761,6 +11989,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -11872,6 +12106,12 @@
           "last20": 48.5,
           "last10": 39.0,
           "last5": 5.3
+        },
+        "sb": {
+          "season": 89.6,
+          "last20": 92.1,
+          "last10": 121.5,
+          "last5": 113.7
         }
       },
       "cv_minutes": {
@@ -12178,6 +12418,12 @@
           "last20": 43.6,
           "last10": 40.1,
           "last5": 50.7
+        },
+        "sb": {
+          "season": 77.7,
+          "last20": 82.1,
+          "last10": 71.2,
+          "last5": 67.1
         }
       },
       "cv_minutes": {
@@ -12589,6 +12835,12 @@
           "last20": 35.9,
           "last10": 33.5,
           "last5": 37.6
+        },
+        "sb": {
+          "season": 93.9,
+          "last20": 115.8,
+          "last10": 102.1,
+          "last5": 152.3
         }
       },
       "cv_minutes": {
@@ -12985,6 +13237,12 @@
           "last20": 45.7,
           "last10": 41.0,
           "last5": 50.5
+        },
+        "sb": {
+          "season": 92.9,
+          "last20": 90.9,
+          "last10": 71.4,
+          "last5": 88.0
         }
       },
       "cv_minutes": {
@@ -13357,6 +13615,12 @@
           "last20": 38.9,
           "last10": 41.8,
           "last5": 23.5
+        },
+        "sb": {
+          "season": 99.2,
+          "last20": 104.8,
+          "last10": 97.9,
+          "last5": 106.8
         }
       },
       "cv_minutes": {
@@ -13735,6 +13999,12 @@
           "last20": 31.6,
           "last10": 29.3,
           "last5": 17.7
+        },
+        "sb": {
+          "season": 90.7,
+          "last20": 78.3,
+          "last10": 108.2,
+          "last5": 137.9
         }
       },
       "cv_minutes": {
@@ -14125,6 +14395,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -14236,6 +14512,12 @@
           "last20": 37.0,
           "last10": 29.4,
           "last5": 24.3
+        },
+        "sb": {
+          "season": 112.7,
+          "last20": 90.0,
+          "last10": 103.5,
+          "last5": 97.8
         }
       },
       "cv_minutes": {
@@ -14644,6 +14926,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -14751,6 +15039,12 @@
           "last5": null
         },
         "ra": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
+        },
+        "sb": {
           "season": null,
           "last20": null,
           "last10": null,
@@ -14866,6 +15160,12 @@
           "last20": 33.7,
           "last10": 27.9,
           "last5": 24.7
+        },
+        "sb": {
+          "season": 74.3,
+          "last20": 78.1,
+          "last10": 92.4,
+          "last5": 93.0
         }
       },
       "cv_minutes": {
@@ -15190,6 +15490,12 @@
           "last20": 27.1,
           "last10": 32.0,
           "last5": 36.0
+        },
+        "sb": {
+          "season": 68.3,
+          "last20": 89.1,
+          "last10": 90.5,
+          "last5": 73.4
         }
       },
       "cv_minutes": {
@@ -15565,6 +15871,12 @@
           "last20": 38.8,
           "last10": 40.8,
           "last5": 37.3
+        },
+        "sb": {
+          "season": 103.6,
+          "last20": 114.4,
+          "last10": 133.6,
+          "last5": 99.0
         }
       },
       "cv_minutes": {
@@ -15916,6 +16228,12 @@
           "last20": 39.7,
           "last10": 46.1,
           "last5": 51.6
+        },
+        "sb": {
+          "season": 81.4,
+          "last20": 85.1,
+          "last10": 87.6,
+          "last5": 114.6
         }
       },
       "cv_minutes": {
@@ -16333,6 +16651,12 @@
           "last20": 55.7,
           "last10": 65.9,
           "last5": 58.2
+        },
+        "sb": {
+          "season": 104.7,
+          "last20": 104.7,
+          "last10": 125.3,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -16615,6 +16939,12 @@
           "last20": 52.5,
           "last10": 42.3,
           "last5": 61.8
+        },
+        "sb": {
+          "season": 59.7,
+          "last20": 59.7,
+          "last10": 66.3,
+          "last5": 31.6
         }
       },
       "cv_minutes": {
@@ -16855,6 +17185,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -16966,6 +17302,12 @@
           "last20": 43.3,
           "last10": 40.0,
           "last5": 15.6
+        },
+        "sb": {
+          "season": 101.0,
+          "last20": 85.6,
+          "last10": 74.2,
+          "last5": 69.9
         }
       },
       "cv_minutes": {
@@ -17326,6 +17668,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -17437,6 +17785,12 @@
           "last20": 23.0,
           "last10": 23.0,
           "last5": 23.0
+        },
+        "sb": {
+          "season": 91.3,
+          "last20": 91.3,
+          "last10": 91.3,
+          "last5": 91.3
         }
       },
       "cv_minutes": {
@@ -17620,6 +17974,12 @@
           "last20": 23.1,
           "last10": 18.8,
           "last5": 11.9
+        },
+        "sb": {
+          "season": 75.4,
+          "last20": 80.5,
+          "last10": 102.8,
+          "last5": 40.4
         }
       },
       "cv_minutes": {
@@ -18001,6 +18361,12 @@
           "last20": 50.0,
           "last10": 23.9,
           "last5": 25.9
+        },
+        "sb": {
+          "season": 84.6,
+          "last20": 95.1,
+          "last10": 82.9,
+          "last5": 50.3
         }
       },
       "cv_minutes": {
@@ -18304,6 +18670,12 @@
           "last20": 30.5,
           "last10": 28.2,
           "last5": 25.2
+        },
+        "sb": {
+          "season": 82.3,
+          "last20": 95.2,
+          "last10": 100.1,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -18679,6 +19051,12 @@
           "last20": 29.4,
           "last10": 30.0,
           "last5": 23.7
+        },
+        "sb": {
+          "season": 109.8,
+          "last20": 144.5,
+          "last10": 146.1,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -19057,6 +19435,12 @@
           "last20": 40.5,
           "last10": 44.6,
           "last5": 31.9
+        },
+        "sb": {
+          "season": 44.8,
+          "last20": 44.8,
+          "last10": 46.6,
+          "last5": 48.4
         }
       },
       "cv_minutes": {
@@ -19309,6 +19693,12 @@
           "last20": 95.5,
           "last10": 95.5,
           "last5": 76.4
+        },
+        "sb": {
+          "season": 122.5,
+          "last20": 122.5,
+          "last10": 122.5,
+          "last5": 149.1
         }
       },
       "cv_minutes": {
@@ -19501,6 +19891,12 @@
           "last20": 36.6,
           "last10": 45.0,
           "last5": 58.9
+        },
+        "sb": {
+          "season": 106.8,
+          "last20": 107.4,
+          "last10": 159.7,
+          "last5": 163.0
         }
       },
       "cv_minutes": {
@@ -19888,6 +20284,12 @@
           "last20": 46.6,
           "last10": 46.6,
           "last5": 46.6
+        },
+        "sb": {
+          "season": 72.6,
+          "last20": 72.6,
+          "last10": 72.6,
+          "last5": 72.6
         }
       },
       "cv_minutes": {
@@ -20071,6 +20473,12 @@
           "last20": 52.7,
           "last10": 62.5,
           "last5": 54.3
+        },
+        "sb": {
+          "season": 95.2,
+          "last20": 81.0,
+          "last10": 81.1,
+          "last5": 50.7
         }
       },
       "cv_minutes": {
@@ -20368,6 +20776,12 @@
           "last20": 58.3,
           "last10": 54.7,
           "last5": 43.4
+        },
+        "sb": {
+          "season": 117.9,
+          "last20": 135.0,
+          "last10": 133.0,
+          "last5": 137.4
         }
       },
       "cv_minutes": {
@@ -20677,6 +21091,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -20788,6 +21208,12 @@
           "last20": 70.0,
           "last10": 80.4,
           "last5": 84.5
+        },
+        "sb": {
+          "season": 150.0,
+          "last20": 162.2,
+          "last10": 237.6,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -21106,6 +21532,12 @@
           "last20": 28.3,
           "last10": 17.7,
           "last5": 18.7
+        },
+        "sb": {
+          "season": 77.5,
+          "last20": 73.9,
+          "last10": 117.4,
+          "last5": 113.5
         }
       },
       "cv_minutes": {
@@ -21484,6 +21916,12 @@
           "last20": 34.9,
           "last10": 39.9,
           "last5": 40.2
+        },
+        "sb": {
+          "season": 108.2,
+          "last20": 107.3,
+          "last10": 99.6,
+          "last5": 137.0
         }
       },
       "cv_minutes": {
@@ -21790,6 +22228,12 @@
           "last20": 64.8,
           "last10": 65.6,
           "last5": 61.8
+        },
+        "sb": {
+          "season": 95.3,
+          "last20": 95.3,
+          "last10": 135.2,
+          "last5": 140.1
         }
       },
       "cv_minutes": {
@@ -22066,6 +22510,12 @@
           "last20": 25.4,
           "last10": 27.4,
           "last5": 18.1
+        },
+        "sb": {
+          "season": 80.4,
+          "last20": 83.2,
+          "last10": 65.9,
+          "last5": 77.2
         }
       },
       "cv_minutes": {
@@ -22435,6 +22885,12 @@
           "last20": 50.1,
           "last10": 40.5,
           "last5": 43.0
+        },
+        "sb": {
+          "season": 76.8,
+          "last20": 77.2,
+          "last10": 70.1,
+          "last5": 114.8
         }
       },
       "cv_minutes": {
@@ -22798,6 +23254,12 @@
           "last20": 46.9,
           "last10": 46.9,
           "last5": 50.3
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -22990,6 +23452,12 @@
           "last20": 40.8,
           "last10": 39.1,
           "last5": 47.8
+        },
+        "sb": {
+          "season": 113.8,
+          "last20": 114.8,
+          "last10": 127.8,
+          "last5": 123.6
         }
       },
       "cv_minutes": {
@@ -23308,6 +23776,12 @@
           "last20": 46.2,
           "last10": 38.4,
           "last5": 44.9
+        },
+        "sb": {
+          "season": 85.4,
+          "last20": 110.3,
+          "last10": 114.5,
+          "last5": 67.6
         }
       },
       "cv_minutes": {
@@ -23668,6 +24142,12 @@
           "last20": 29.9,
           "last10": 29.9,
           "last5": 31.1
+        },
+        "sb": {
+          "season": 101.3,
+          "last20": 101.3,
+          "last10": 101.3,
+          "last5": 110.4
         }
       },
       "cv_minutes": {
@@ -23878,6 +24358,12 @@
           "last20": 34.2,
           "last10": 25.3,
           "last5": 21.9
+        },
+        "sb": {
+          "season": 143.4,
+          "last20": 138.0,
+          "last10": 123.6,
+          "last5": 98.4
         }
       },
       "cv_minutes": {
@@ -24190,6 +24676,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -24301,6 +24793,12 @@
           "last20": 68.9,
           "last10": 68.9,
           "last5": 60.4
+        },
+        "sb": {
+          "season": 155.9,
+          "last20": 155.9,
+          "last10": 155.9,
+          "last5": 137.9
         }
       },
       "cv_minutes": {
@@ -24493,6 +24991,12 @@
           "last20": 45.8,
           "last10": 51.1,
           "last5": 56.1
+        },
+        "sb": {
+          "season": 69.0,
+          "last20": 76.8,
+          "last10": 87.4,
+          "last5": 113.8
         }
       },
       "cv_minutes": {
@@ -24826,6 +25330,12 @@
           "last20": 42.6,
           "last10": 51.0,
           "last5": 57.6
+        },
+        "sb": {
+          "season": 105.7,
+          "last20": 85.7,
+          "last10": 83.1,
+          "last5": 45.5
         }
       },
       "cv_minutes": {
@@ -25195,6 +25705,12 @@
           "last20": 27.2,
           "last10": 26.9,
           "last5": 31.6
+        },
+        "sb": {
+          "season": 79.3,
+          "last20": 69.7,
+          "last10": 72.2,
+          "last5": 105.2
         }
       },
       "cv_minutes": {
@@ -25576,6 +26092,12 @@
           "last20": 44.7,
           "last10": 56.2,
           "last5": 48.8
+        },
+        "sb": {
+          "season": 85.1,
+          "last20": 96.5,
+          "last10": 114.8,
+          "last5": 90.7
         }
       },
       "cv_minutes": {
@@ -25915,6 +26437,12 @@
           "last20": 26.2,
           "last10": 24.3,
           "last5": 13.0
+        },
+        "sb": {
+          "season": 60.2,
+          "last20": 72.7,
+          "last10": 64.3,
+          "last5": 49.9
         }
       },
       "cv_minutes": {
@@ -26311,6 +26839,12 @@
           "last20": 25.8,
           "last10": 28.9,
           "last5": 25.9
+        },
+        "sb": {
+          "season": 51.1,
+          "last20": 51.1,
+          "last10": 59.4,
+          "last5": 35.6
         }
       },
       "cv_minutes": {
@@ -26575,6 +27109,12 @@
           "last20": 32.1,
           "last10": 33.1,
           "last5": 40.0
+        },
+        "sb": {
+          "season": 82.1,
+          "last20": 117.3,
+          "last10": 103.4,
+          "last5": 88.6
         }
       },
       "cv_minutes": {
@@ -26962,6 +27502,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -27073,6 +27619,12 @@
           "last20": 29.0,
           "last10": 32.3,
           "last5": 19.8
+        },
+        "sb": {
+          "season": 77.2,
+          "last20": 72.4,
+          "last10": 50.5,
+          "last5": 41.9
         }
       },
       "cv_minutes": {
@@ -27481,6 +28033,12 @@
           "last20": 32.7,
           "last10": 24.7,
           "last5": 29.6
+        },
+        "sb": {
+          "season": 81.8,
+          "last20": 92.3,
+          "last10": 85.0,
+          "last5": 49.7
         }
       },
       "cv_minutes": {
@@ -27823,6 +28381,12 @@
           "last20": 64.3,
           "last10": 49.0,
           "last5": 43.8
+        },
+        "sb": {
+          "season": 92.2,
+          "last20": 92.4,
+          "last10": 131.2,
+          "last5": 163.0
         }
       },
       "cv_minutes": {
@@ -28150,6 +28714,12 @@
           "last20": 64.9,
           "last10": 64.9,
           "last5": 71.1
+        },
+        "sb": {
+          "season": 195.8,
+          "last20": 195.8,
+          "last10": 195.8,
+          "last5": 146.7
         }
       },
       "cv_minutes": {
@@ -28360,6 +28930,12 @@
           "last20": 54.9,
           "last10": 54.9,
           "last5": 60.1
+        },
+        "sb": {
+          "season": 128.0,
+          "last20": 128.0,
+          "last10": 128.0,
+          "last5": 136.9
         }
       },
       "cv_minutes": {
@@ -28579,6 +29155,12 @@
           "last20": 25.5,
           "last10": 19.9,
           "last5": 24.4
+        },
+        "sb": {
+          "season": 70.0,
+          "last20": 69.2,
+          "last10": 53.6,
+          "last5": 37.5
         }
       },
       "cv_minutes": {
@@ -28960,6 +29542,12 @@
           "last20": 31.9,
           "last10": 29.2,
           "last5": 26.7
+        },
+        "sb": {
+          "season": 98.3,
+          "last20": 91.7,
+          "last10": 95.2,
+          "last5": 166.4
         }
       },
       "cv_minutes": {
@@ -29311,6 +29899,12 @@
           "last20": 47.0,
           "last10": 40.4,
           "last5": 43.5
+        },
+        "sb": {
+          "season": 114.5,
+          "last20": 106.7,
+          "last10": 147.6,
+          "last5": 142.2
         }
       },
       "cv_minutes": {
@@ -29683,6 +30277,12 @@
           "last20": 40.3,
           "last10": 38.5,
           "last5": 18.5
+        },
+        "sb": {
+          "season": 79.2,
+          "last20": 81.8,
+          "last10": 109.6,
+          "last5": 113.1
         }
       },
       "cv_minutes": {
@@ -29974,6 +30574,12 @@
           "last20": 35.7,
           "last10": 32.2,
           "last5": 13.9
+        },
+        "sb": {
+          "season": 83.3,
+          "last20": 85.1,
+          "last10": 63.6,
+          "last5": 78.0
         }
       },
       "cv_minutes": {
@@ -30358,6 +30964,12 @@
           "last20": 48.7,
           "last10": 51.7,
           "last5": 64.6
+        },
+        "sb": {
+          "season": 89.6,
+          "last20": 104.3,
+          "last10": 94.6,
+          "last5": 73.7
         }
       },
       "cv_minutes": {
@@ -30694,6 +31306,12 @@
           "last20": 32.0,
           "last10": 27.6,
           "last5": 19.1
+        },
+        "sb": {
+          "season": 83.5,
+          "last20": 79.5,
+          "last10": 82.5,
+          "last5": 67.3
         }
       },
       "cv_minutes": {
@@ -31096,6 +31714,12 @@
           "last20": 31.9,
           "last10": 28.1,
           "last5": 38.9
+        },
+        "sb": {
+          "season": 81.1,
+          "last20": 72.8,
+          "last10": 66.9,
+          "last5": 63.2
         }
       },
       "cv_minutes": {
@@ -31447,6 +32071,12 @@
           "last20": 51.9,
           "last10": 56.9,
           "last5": 64.8
+        },
+        "sb": {
+          "season": 94.3,
+          "last20": 87.5,
+          "last10": 75.4,
+          "last5": 79.4
         }
       },
       "cv_minutes": {
@@ -31780,6 +32410,12 @@
           "last20": 35.1,
           "last10": 45.6,
           "last5": 45.1
+        },
+        "sb": {
+          "season": 68.2,
+          "last20": 68.3,
+          "last10": 74.2,
+          "last5": 69.5
         }
       },
       "cv_minutes": {
@@ -32077,6 +32713,12 @@
           "last20": 40.4,
           "last10": 40.4,
           "last5": 26.2
+        },
+        "sb": {
+          "season": 64.0,
+          "last20": 64.0,
+          "last10": 64.0,
+          "last5": 80.3
         }
       },
       "cv_minutes": {
@@ -32287,6 +32929,12 @@
           "last20": 28.4,
           "last10": 24.2,
           "last5": 29.9
+        },
+        "sb": {
+          "season": 71.6,
+          "last20": 51.7,
+          "last10": 43.6,
+          "last5": 10.0
         }
       },
       "cv_minutes": {
@@ -32665,6 +33313,12 @@
           "last20": 29.5,
           "last10": 24.0,
           "last5": 11.8
+        },
+        "sb": {
+          "season": 64.2,
+          "last20": 56.0,
+          "last10": 68.3,
+          "last5": 72.7
         }
       },
       "cv_minutes": {
@@ -33040,6 +33694,12 @@
           "last20": 68.0,
           "last10": 62.3,
           "last5": 65.5
+        },
+        "sb": {
+          "season": 69.1,
+          "last20": 69.1,
+          "last10": 56.1,
+          "last5": 43.1
         }
       },
       "cv_minutes": {
@@ -33286,6 +33946,12 @@
           "last20": 80.8,
           "last10": 78.4,
           "last5": 57.7
+        },
+        "sb": {
+          "season": 76.7,
+          "last20": 76.7,
+          "last10": 77.4,
+          "last5": 52.1
         }
       },
       "cv_minutes": {
@@ -33574,6 +34240,12 @@
           "last20": 23.4,
           "last10": 24.2,
           "last5": 23.1
+        },
+        "sb": {
+          "season": 88.7,
+          "last20": 56.8,
+          "last10": 57.0,
+          "last5": 28.1
         }
       },
       "cv_minutes": {
@@ -33877,6 +34549,12 @@
           "last20": 60.4,
           "last10": 45.5,
           "last5": 40.6
+        },
+        "sb": {
+          "season": 106.6,
+          "last20": 106.6,
+          "last10": 119.7,
+          "last5": 101.4
         }
       },
       "cv_minutes": {
@@ -34153,6 +34831,12 @@
           "last20": 33.2,
           "last10": 36.9,
           "last5": 27.0
+        },
+        "sb": {
+          "season": 81.1,
+          "last20": 59.3,
+          "last10": 68.4,
+          "last5": 62.3
         }
       },
       "cv_minutes": {
@@ -34531,6 +35215,12 @@
           "last20": 43.6,
           "last10": 33.8,
           "last5": 33.0
+        },
+        "sb": {
+          "season": 90.1,
+          "last20": 81.1,
+          "last10": 89.3,
+          "last5": 97.0
         }
       },
       "cv_minutes": {
@@ -34861,6 +35551,12 @@
           "last20": 36.2,
           "last10": 39.6,
           "last5": 44.6
+        },
+        "sb": {
+          "season": 136.2,
+          "last20": 136.0,
+          "last10": 120.0,
+          "last5": 139.0
         }
       },
       "cv_minutes": {
@@ -35155,6 +35851,12 @@
           "last20": 27.3,
           "last10": 26.9,
           "last5": 11.4
+        },
+        "sb": {
+          "season": 73.3,
+          "last20": 86.3,
+          "last10": 106.5,
+          "last5": 104.3
         }
       },
       "cv_minutes": {
@@ -35539,6 +36241,12 @@
           "last20": 41.1,
           "last10": 53.7,
           "last5": 50.7
+        },
+        "sb": {
+          "season": 131.5,
+          "last20": 158.0,
+          "last10": 129.8,
+          "last5": 82.4
         }
       },
       "cv_minutes": {
@@ -35872,6 +36580,12 @@
           "last20": 26.0,
           "last10": 30.1,
           "last5": 14.9
+        },
+        "sb": {
+          "season": 81.3,
+          "last20": 89.0,
+          "last10": 78.1,
+          "last5": 94.0
         }
       },
       "cv_minutes": {
@@ -36256,6 +36970,12 @@
           "last20": 30.5,
           "last10": 30.0,
           "last5": 13.0
+        },
+        "sb": {
+          "season": 143.5,
+          "last20": 143.5,
+          "last10": 133.8,
+          "last5": 138.1
         }
       },
       "cv_minutes": {
@@ -36490,6 +37210,12 @@
           "last20": 35.0,
           "last10": 34.4,
           "last5": 21.8
+        },
+        "sb": {
+          "season": 69.3,
+          "last20": 76.7,
+          "last10": 63.9,
+          "last5": 59.3
         }
       },
       "cv_minutes": {
@@ -36808,6 +37534,12 @@
           "last20": 37.0,
           "last10": 32.9,
           "last5": 37.8
+        },
+        "sb": {
+          "season": 117.2,
+          "last20": 112.6,
+          "last10": 104.2,
+          "last5": 99.3
         }
       },
       "cv_minutes": {
@@ -37117,6 +37849,12 @@
           "last20": 51.0,
           "last10": 52.1,
           "last5": 23.6
+        },
+        "sb": {
+          "season": 132.6,
+          "last20": 132.9,
+          "last10": 99.8,
+          "last5": 101.8
         }
       },
       "cv_minutes": {
@@ -37411,6 +38149,12 @@
           "last20": 35.7,
           "last10": 42.6,
           "last5": 44.7
+        },
+        "sb": {
+          "season": 75.1,
+          "last20": 63.4,
+          "last10": 66.4,
+          "last5": 97.5
         }
       },
       "cv_minutes": {
@@ -37774,6 +38518,12 @@
           "last20": 32.7,
           "last10": 40.4,
           "last5": 34.5
+        },
+        "sb": {
+          "season": 61.1,
+          "last20": 54.9,
+          "last10": 43.7,
+          "last5": 40.1
         }
       },
       "cv_minutes": {
@@ -38116,6 +38866,12 @@
           "last20": 26.7,
           "last10": 23.0,
           "last5": 16.9
+        },
+        "sb": {
+          "season": 55.9,
+          "last20": 55.9,
+          "last10": 57.7,
+          "last5": 30.1
         }
       },
       "cv_minutes": {
@@ -38398,6 +39154,12 @@
           "last20": 29.0,
           "last10": 30.3,
           "last5": 32.6
+        },
+        "sb": {
+          "season": 82.6,
+          "last20": 75.2,
+          "last10": 73.6,
+          "last5": 46.9
         }
       },
       "cv_minutes": {
@@ -38737,6 +39499,12 @@
           "last20": 41.8,
           "last10": 30.5,
           "last5": 37.8
+        },
+        "sb": {
+          "season": 63.1,
+          "last20": 62.0,
+          "last10": 62.7,
+          "last5": 57.8
         }
       },
       "cv_minutes": {
@@ -39124,6 +39892,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -39235,6 +40009,12 @@
           "last20": 38.2,
           "last10": 37.2,
           "last5": 26.0
+        },
+        "sb": {
+          "season": 72.8,
+          "last20": 71.2,
+          "last10": 62.5,
+          "last5": 69.9
         }
       },
       "cv_minutes": {
@@ -39610,6 +40390,12 @@
           "last20": 29.0,
           "last10": 26.8,
           "last5": 28.6
+        },
+        "sb": {
+          "season": 72.8,
+          "last20": 76.5,
+          "last10": 88.5,
+          "last5": 138.4
         }
       },
       "cv_minutes": {
@@ -40003,6 +40789,12 @@
           "last20": 57.6,
           "last10": 38.9,
           "last5": 16.3
+        },
+        "sb": {
+          "season": 131.8,
+          "last20": 156.1,
+          "last10": 94.8,
+          "last5": 95.0
         }
       },
       "cv_minutes": {
@@ -40300,6 +41092,12 @@
           "last20": 40.2,
           "last10": 42.4,
           "last5": 30.8
+        },
+        "sb": {
+          "season": 63.1,
+          "last20": 61.4,
+          "last10": 65.7,
+          "last5": 72.8
         }
       },
       "cv_minutes": {
@@ -40624,6 +41422,12 @@
           "last20": 41.7,
           "last10": 40.0,
           "last5": 28.7
+        },
+        "sb": {
+          "season": 105.5,
+          "last20": 108.1,
+          "last10": 96.1,
+          "last5": 94.5
         }
       },
       "cv_minutes": {
@@ -40915,6 +41719,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -41026,6 +41836,12 @@
           "last20": 39.3,
           "last10": 52.9,
           "last5": 62.9
+        },
+        "sb": {
+          "season": 79.6,
+          "last20": 81.6,
+          "last10": 71.3,
+          "last5": 83.7
         }
       },
       "cv_minutes": {
@@ -41383,6 +42199,12 @@
           "last20": 53.7,
           "last10": 74.5,
           "last5": 114.2
+        },
+        "sb": {
+          "season": 133.1,
+          "last20": 149.8,
+          "last10": 129.2,
+          "last5": 136.9
         }
       },
       "cv_minutes": {
@@ -41737,6 +42559,12 @@
           "last20": 27.2,
           "last10": 36.4,
           "last5": 27.6
+        },
+        "sb": {
+          "season": 85.3,
+          "last20": 119.2,
+          "last10": 103.3,
+          "last5": 111.8
         }
       },
       "cv_minutes": {
@@ -42106,6 +42934,12 @@
           "last20": 31.7,
           "last10": 31.7,
           "last5": 31.7
+        },
+        "sb": {
+          "season": 77.7,
+          "last20": 77.7,
+          "last10": 77.7,
+          "last5": 77.7
         }
       },
       "cv_minutes": {
@@ -42289,6 +43123,12 @@
           "last20": 56.1,
           "last10": 59.0,
           "last5": 62.7
+        },
+        "sb": {
+          "season": 83.1,
+          "last20": 103.8,
+          "last10": 108.6,
+          "last5": 95.3
         }
       },
       "cv_minutes": {
@@ -42616,6 +43456,12 @@
           "last20": 84.2,
           "last10": 63.0,
           "last5": 57.1
+        },
+        "sb": {
+          "season": 135.4,
+          "last20": 127.8,
+          "last10": 110.6,
+          "last5": 93.7
         }
       },
       "cv_minutes": {
@@ -42922,6 +43768,12 @@
           "last20": 44.6,
           "last10": 40.2,
           "last5": 31.5
+        },
+        "sb": {
+          "season": 98.9,
+          "last20": 79.8,
+          "last10": 80.0,
+          "last5": 98.7
         }
       },
       "cv_minutes": {
@@ -43288,6 +44140,12 @@
           "last20": 55.0,
           "last10": 56.2,
           "last5": 58.6
+        },
+        "sb": {
+          "season": 118.0,
+          "last20": 121.4,
+          "last10": 99.6,
+          "last5": 101.8
         }
       },
       "cv_minutes": {
@@ -43579,6 +44437,12 @@
           "last20": 49.7,
           "last10": 56.8,
           "last5": 64.3
+        },
+        "sb": {
+          "season": 92.6,
+          "last20": 81.8,
+          "last10": 115.8,
+          "last5": 125.2
         }
       },
       "cv_minutes": {
@@ -43930,6 +44794,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -44041,6 +44911,12 @@
           "last20": 63.7,
           "last10": 69.0,
           "last5": 45.4
+        },
+        "sb": {
+          "season": 172.4,
+          "last20": 193.8,
+          "last10": 163.4,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -44410,6 +45286,12 @@
           "last20": 20.8,
           "last10": 25.7,
           "last5": 14.6
+        },
+        "sb": {
+          "season": 82.1,
+          "last20": 99.8,
+          "last10": 132.9,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -44797,6 +45679,12 @@
           "last20": 50.3,
           "last10": 50.3,
           "last5": 40.2
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -45016,6 +45904,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -45127,6 +46021,12 @@
           "last20": 35.9,
           "last10": 40.6,
           "last5": 32.1
+        },
+        "sb": {
+          "season": 117.3,
+          "last20": 100.2,
+          "last10": 110.5,
+          "last5": 108.3
         }
       },
       "cv_minutes": {
@@ -45481,6 +46381,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -45592,6 +46498,12 @@
           "last20": 79.3,
           "last10": 46.7,
           "last5": 60.6
+        },
+        "sb": {
+          "season": 107.6,
+          "last20": 107.6,
+          "last10": 116.6,
+          "last5": 100.9
         }
       },
       "cv_minutes": {
@@ -45856,6 +46768,12 @@
           "last20": 39.8,
           "last10": 41.4,
           "last5": 53.5
+        },
+        "sb": {
+          "season": 112.3,
+          "last20": 97.0,
+          "last10": 112.3,
+          "last5": 128.6
         }
       },
       "cv_minutes": {
@@ -46201,6 +47119,12 @@
           "last20": 28.1,
           "last10": 26.4,
           "last5": 27.1
+        },
+        "sb": {
+          "season": 102.2,
+          "last20": 119.4,
+          "last10": 147.9,
+          "last5": 179.6
         }
       },
       "cv_minutes": {
@@ -46546,6 +47470,12 @@
           "last20": 31.0,
           "last10": 36.3,
           "last5": 18.4
+        },
+        "sb": {
+          "season": 67.8,
+          "last20": 70.1,
+          "last10": 65.4,
+          "last5": 58.4
         }
       },
       "cv_minutes": {
@@ -46861,6 +47791,12 @@
           "last20": 36.1,
           "last10": 22.4,
           "last5": 29.8
+        },
+        "sb": {
+          "season": 109.6,
+          "last20": 120.7,
+          "last10": 162.1,
+          "last5": 92.4
         }
       },
       "cv_minutes": {
@@ -47218,6 +48154,12 @@
           "last20": 67.9,
           "last10": 66.5,
           "last5": 92.7
+        },
+        "sb": {
+          "season": 187.8,
+          "last20": 187.8,
+          "last10": 125.0,
+          "last5": 138.1
         }
       },
       "cv_minutes": {
@@ -47494,6 +48436,12 @@
           "last20": 38.3,
           "last10": 26.5,
           "last5": 24.3
+        },
+        "sb": {
+          "season": 103.2,
+          "last20": 101.4,
+          "last10": 91.7,
+          "last5": 95.6
         }
       },
       "cv_minutes": {
@@ -47818,6 +48766,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -47929,6 +48883,12 @@
           "last20": 51.5,
           "last10": 32.1,
           "last5": 43.1
+        },
+        "sb": {
+          "season": 93.6,
+          "last20": 93.6,
+          "last10": 112.6,
+          "last5": 101.7
         }
       },
       "cv_minutes": {
@@ -48169,6 +49129,12 @@
           "last20": 31.2,
           "last10": 36.9,
           "last5": 34.6
+        },
+        "sb": {
+          "season": 134.3,
+          "last20": 134.3,
+          "last10": 146.7,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -48457,6 +49423,12 @@
           "last20": 38.9,
           "last10": 38.7,
           "last5": 47.0
+        },
+        "sb": {
+          "season": 89.1,
+          "last20": 89.1,
+          "last10": 94.3,
+          "last5": 57.4
         }
       },
       "cv_minutes": {
@@ -48727,6 +49699,12 @@
           "last20": 60.0,
           "last10": 45.8,
           "last5": 58.4
+        },
+        "sb": {
+          "season": 125.5,
+          "last20": 136.2,
+          "last10": 156.3,
+          "last5": 112.0
         }
       },
       "cv_minutes": {
@@ -49033,6 +50011,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -49144,6 +50128,12 @@
           "last20": 63.3,
           "last10": 63.3,
           "last5": 50.7
+        },
+        "sb": {
+          "season": 174.4,
+          "last20": 174.4,
+          "last10": 174.4,
+          "last5": 126.9
         }
       },
       "cv_minutes": {
@@ -49354,6 +50344,12 @@
           "last20": 33.0,
           "last10": 38.7,
           "last5": 39.2
+        },
+        "sb": {
+          "season": 81.3,
+          "last20": 87.4,
+          "last10": 45.3,
+          "last5": 12.2
         }
       },
       "cv_minutes": {
@@ -49675,6 +50671,12 @@
           "last20": 45.7,
           "last10": 50.4,
           "last5": 73.4
+        },
+        "sb": {
+          "season": 58.6,
+          "last20": 48.4,
+          "last10": 49.2,
+          "last5": 72.3
         }
       },
       "cv_minutes": {
@@ -50029,6 +51031,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -50140,6 +51148,12 @@
           "last20": 28.3,
           "last10": 25.0,
           "last5": 20.8
+        },
+        "sb": {
+          "season": 78.8,
+          "last20": 79.8,
+          "last10": 92.4,
+          "last5": 98.0
         }
       },
       "cv_minutes": {
@@ -50521,6 +51535,12 @@
           "last20": 43.3,
           "last10": 47.3,
           "last5": 57.9
+        },
+        "sb": {
+          "season": 41.4,
+          "last20": 33.2,
+          "last10": 35.8,
+          "last5": 39.2
         }
       },
       "cv_minutes": {
@@ -50827,6 +51847,12 @@
           "last20": 99.8,
           "last10": 99.8,
           "last5": 99.8
+        },
+        "sb": {
+          "season": 137.1,
+          "last20": 137.1,
+          "last10": 137.1,
+          "last5": 137.1
         }
       },
       "cv_minutes": {
@@ -51010,6 +52036,12 @@
           "last20": 37.0,
           "last10": 36.0,
           "last5": 33.3
+        },
+        "sb": {
+          "season": 87.0,
+          "last20": 90.9,
+          "last10": 81.8,
+          "last5": 107.2
         }
       },
       "cv_minutes": {
@@ -51349,6 +52381,12 @@
           "last20": 36.8,
           "last10": 28.8,
           "last5": 30.6
+        },
+        "sb": {
+          "season": 57.6,
+          "last20": 58.7,
+          "last10": 63.0,
+          "last5": 99.5
         }
       },
       "cv_minutes": {
@@ -51664,6 +52702,12 @@
           "last20": 20.9,
           "last10": 20.9,
           "last5": 20.9
+        },
+        "sb": {
+          "season": 61.3,
+          "last20": 61.3,
+          "last10": 61.3,
+          "last5": 61.3
         }
       },
       "cv_minutes": {
@@ -51847,6 +52891,12 @@
           "last20": 51.5,
           "last10": 56.5,
           "last5": 70.9
+        },
+        "sb": {
+          "season": 124.4,
+          "last20": 145.3,
+          "last10": 125.2,
+          "last5": 123.2
         }
       },
       "cv_minutes": {
@@ -52189,6 +53239,12 @@
           "last20": 53.7,
           "last10": 53.7,
           "last5": 60.0
+        },
+        "sb": {
+          "season": 168.7,
+          "last20": 162.6,
+          "last10": 155.7,
+          "last5": 136.9
         }
       },
       "cv_minutes": {
@@ -52492,6 +53548,12 @@
           "last20": 42.8,
           "last10": 40.1,
           "last5": 13.1
+        },
+        "sb": {
+          "season": 83.8,
+          "last20": 74.6,
+          "last10": 65.7,
+          "last5": 66.1
         }
       },
       "cv_minutes": {
@@ -52840,6 +53902,12 @@
           "last20": 36.6,
           "last10": 28.7,
           "last5": 35.0
+        },
+        "sb": {
+          "season": 75.5,
+          "last20": 63.9,
+          "last10": 73.3,
+          "last5": 63.8
         }
       },
       "cv_minutes": {
@@ -53251,6 +54319,12 @@
           "last20": 55.6,
           "last10": 55.6,
           "last5": 72.9
+        },
+        "sb": {
+          "season": 136.0,
+          "last20": 136.0,
+          "last10": 136.0,
+          "last5": 117.4
         }
       },
       "cv_minutes": {
@@ -53470,6 +54544,12 @@
           "last20": 51.8,
           "last10": 44.4,
           "last5": 46.3
+        },
+        "sb": {
+          "season": 97.0,
+          "last20": 95.7,
+          "last10": 115.6,
+          "last5": 93.0
         }
       },
       "cv_minutes": {
@@ -53764,6 +54844,12 @@
           "last20": 52.3,
           "last10": 52.3,
           "last5": 37.3
+        },
+        "sb": {
+          "season": 82.8,
+          "last20": 82.8,
+          "last10": 82.8,
+          "last5": 98.9
         }
       },
       "cv_minutes": {
@@ -53992,6 +55078,12 @@
           "last20": 37.0,
           "last10": 38.8,
           "last5": 36.0
+        },
+        "sb": {
+          "season": 79.2,
+          "last20": 74.1,
+          "last10": 76.1,
+          "last5": 78.4
         }
       },
       "cv_minutes": {
@@ -54283,6 +55375,12 @@
           "last20": 41.0,
           "last10": 38.1,
           "last5": 32.9
+        },
+        "sb": {
+          "season": 142.9,
+          "last20": 142.9,
+          "last10": 112.7,
+          "last5": 137.2
         }
       },
       "cv_minutes": {
@@ -54547,6 +55645,12 @@
           "last20": 36.1,
           "last10": 35.0,
           "last5": 12.7
+        },
+        "sb": {
+          "season": 81.8,
+          "last20": 58.9,
+          "last10": 59.2,
+          "last5": 75.0
         }
       },
       "cv_minutes": {
@@ -54913,6 +56017,12 @@
           "last20": 40.0,
           "last10": 40.0,
           "last5": 43.2
+        },
+        "sb": {
+          "season": 55.0,
+          "last20": 55.0,
+          "last10": 55.0,
+          "last5": 70.1
         }
       },
       "cv_minutes": {
@@ -55114,6 +56224,12 @@
           "last20": 44.4,
           "last10": 37.0,
           "last5": 19.3
+        },
+        "sb": {
+          "season": 111.8,
+          "last20": 111.8,
+          "last10": 112.3,
+          "last5": 92.7
         }
       },
       "cv_minutes": {
@@ -55366,6 +56482,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -55477,6 +56599,12 @@
           "last20": 28.4,
           "last10": 32.4,
           "last5": 30.8
+        },
+        "sb": {
+          "season": 63.3,
+          "last20": 57.9,
+          "last10": 62.3,
+          "last5": 41.6
         }
       },
       "cv_minutes": {
@@ -55840,6 +56968,12 @@
           "last20": 39.4,
           "last10": 28.6,
           "last5": 14.9
+        },
+        "sb": {
+          "season": 106.6,
+          "last20": 129.6,
+          "last10": 117.3,
+          "last5": 68.5
         }
       },
       "cv_minutes": {
@@ -56209,6 +57343,12 @@
           "last20": 26.8,
           "last10": 33.8,
           "last5": 31.3
+        },
+        "sb": {
+          "season": 114.0,
+          "last20": 115.5,
+          "last10": 113.6,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -56605,6 +57745,12 @@
           "last20": 44.7,
           "last10": 49.9,
           "last5": 62.7
+        },
+        "sb": {
+          "season": 143.4,
+          "last20": 143.4,
+          "last10": 175.3,
+          "last5": 158.8
         }
       },
       "cv_minutes": {
@@ -56893,6 +58039,12 @@
           "last20": 38.9,
           "last10": 40.5,
           "last5": 21.2
+        },
+        "sb": {
+          "season": 54.0,
+          "last20": 54.0,
+          "last10": 54.8,
+          "last5": 79.8
         }
       },
       "cv_minutes": {
@@ -57127,6 +58279,12 @@
           "last20": 47.3,
           "last10": 56.8,
           "last5": 48.3
+        },
+        "sb": {
+          "season": 114.3,
+          "last20": 129.7,
+          "last10": 128.7,
+          "last5": 137.0
         }
       },
       "cv_minutes": {
@@ -57451,6 +58609,12 @@
           "last20": 27.9,
           "last10": 22.9,
           "last5": 22.5
+        },
+        "sb": {
+          "season": 118.7,
+          "last20": 129.1,
+          "last10": 148.6,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -57763,6 +58927,12 @@
           "last20": 25.0,
           "last10": 25.4,
           "last5": 13.0
+        },
+        "sb": {
+          "season": 70.7,
+          "last20": 91.4,
+          "last10": 66.0,
+          "last5": 29.4
         }
       },
       "cv_minutes": {
@@ -58153,6 +59323,12 @@
           "last20": 48.7,
           "last10": 53.5,
           "last5": 46.4
+        },
+        "sb": {
+          "season": 121.0,
+          "last20": 123.0,
+          "last10": 139.4,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -58537,6 +59713,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -58648,6 +59830,12 @@
           "last20": 47.0,
           "last10": 54.2,
           "last5": 69.5
+        },
+        "sb": {
+          "season": 82.9,
+          "last20": 77.5,
+          "last10": 78.6,
+          "last5": 56.6
         }
       },
       "cv_minutes": {
@@ -58999,6 +60187,12 @@
           "last20": 22.5,
           "last10": 24.7,
           "last5": 24.5
+        },
+        "sb": {
+          "season": 71.9,
+          "last20": 74.6,
+          "last10": 69.4,
+          "last5": 74.7
         }
       },
       "cv_minutes": {
@@ -59368,6 +60562,12 @@
           "last20": 38.2,
           "last10": 36.0,
           "last5": 32.5
+        },
+        "sb": {
+          "season": 66.0,
+          "last20": 66.9,
+          "last10": 72.9,
+          "last5": 53.5
         }
       },
       "cv_minutes": {
@@ -59689,6 +60889,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -59796,6 +61002,12 @@
           "last5": null
         },
         "ra": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
+        },
+        "sb": {
           "season": null,
           "last20": null,
           "last10": null,
@@ -59911,6 +61123,12 @@
           "last20": 41.9,
           "last10": 41.9,
           "last5": 39.7
+        },
+        "sb": {
+          "season": 82.8,
+          "last20": 82.8,
+          "last10": 82.8,
+          "last5": 54.8
         }
       },
       "cv_minutes": {
@@ -60130,6 +61348,12 @@
           "last20": 41.6,
           "last10": 32.0,
           "last5": 35.1
+        },
+        "sb": {
+          "season": 103.0,
+          "last20": 90.0,
+          "last10": 68.3,
+          "last5": 75.6
         }
       },
       "cv_minutes": {
@@ -60502,6 +61726,12 @@
           "last20": 49.2,
           "last10": 57.8,
           "last5": 50.2
+        },
+        "sb": {
+          "season": 108.0,
+          "last20": 109.6,
+          "last10": 151.4,
+          "last5": 138.5
         }
       },
       "cv_minutes": {
@@ -60802,6 +62032,12 @@
           "last20": 63.1,
           "last10": 60.6,
           "last5": 57.6
+        },
+        "sb": {
+          "season": 64.8,
+          "last20": 62.0,
+          "last10": 62.5,
+          "last5": 96.4
         }
       },
       "cv_minutes": {
@@ -61099,6 +62335,12 @@
           "last20": 14.7,
           "last10": 14.7,
           "last5": 16.3
+        },
+        "sb": {
+          "season": 122.5,
+          "last20": 122.5,
+          "last10": 122.5,
+          "last5": 104.6
         }
       },
       "cv_minutes": {
@@ -61291,6 +62533,12 @@
           "last20": 43.8,
           "last10": 49.1,
           "last5": 54.4
+        },
+        "sb": {
+          "season": 124.5,
+          "last20": 132.5,
+          "last10": 122.6,
+          "last5": 113.2
         }
       },
       "cv_minutes": {
@@ -61585,6 +62833,12 @@
           "last20": 28.6,
           "last10": 26.6,
           "last5": 31.7
+        },
+        "sb": {
+          "season": 71.4,
+          "last20": 68.5,
+          "last10": 69.7,
+          "last5": 50.0
         }
       },
       "cv_minutes": {
@@ -61921,6 +63175,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -62032,6 +63292,12 @@
           "last20": 84.7,
           "last10": 82.8,
           "last5": 61.8
+        },
+        "sb": {
+          "season": 93.8,
+          "last20": 89.2,
+          "last10": 98.9,
+          "last5": 118.5
         }
       },
       "cv_minutes": {
@@ -62380,6 +63646,12 @@
           "last20": 11.7,
           "last10": 11.7,
           "last5": 11.7
+        },
+        "sb": {
+          "season": 63.4,
+          "last20": 63.4,
+          "last10": 63.4,
+          "last5": 63.4
         }
       },
       "cv_minutes": {
@@ -62563,6 +63835,12 @@
           "last20": 45.9,
           "last10": 41.2,
           "last5": 39.2
+        },
+        "sb": {
+          "season": 168.9,
+          "last20": 190.1,
+          "last10": 316.2,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -62869,6 +64147,12 @@
           "last20": 60.5,
           "last10": 66.4,
           "last5": 72.4
+        },
+        "sb": {
+          "season": 124.5,
+          "last20": 124.5,
+          "last10": 147.9,
+          "last5": 130.1
         }
       },
       "cv_minutes": {
@@ -63109,6 +64393,12 @@
           "last20": 72.9,
           "last10": 84.9,
           "last5": 108.7
+        },
+        "sb": {
+          "season": 191.5,
+          "last20": 191.5,
+          "last10": 211.0,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -63355,6 +64645,12 @@
           "last20": 29.0,
           "last10": 37.4,
           "last5": 33.7
+        },
+        "sb": {
+          "season": 102.0,
+          "last20": 94.8,
+          "last10": 89.2,
+          "last5": 144.7
         }
       },
       "cv_minutes": {
@@ -63754,6 +65050,12 @@
           "last20": 48.5,
           "last10": 46.3,
           "last5": 39.3
+        },
+        "sb": {
+          "season": 247.9,
+          "last20": 247.9,
+          "last10": 235.4,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -63988,6 +65290,12 @@
           "last20": 50.3,
           "last10": 50.3,
           "last5": 58.6
+        },
+        "sb": {
+          "season": 72.1,
+          "last20": 72.1,
+          "last10": 72.1,
+          "last5": 105.3
         }
       },
       "cv_minutes": {
@@ -64198,6 +65506,12 @@
           "last20": 54.0,
           "last10": 56.6,
           "last5": 77.2
+        },
+        "sb": {
+          "season": 79.8,
+          "last20": 79.8,
+          "last10": 59.6,
+          "last5": 64.0
         }
       },
       "cv_minutes": {
@@ -64438,6 +65752,12 @@
           "last20": 28.6,
           "last10": 31.8,
           "last5": 40.9
+        },
+        "sb": {
+          "season": 74.9,
+          "last20": 75.7,
+          "last10": 67.1,
+          "last5": 85.9
         }
       },
       "cv_minutes": {
@@ -64780,6 +66100,12 @@
           "last20": 59.6,
           "last10": 51.5,
           "last5": 40.9
+        },
+        "sb": {
+          "season": 97.8,
+          "last20": 89.5,
+          "last10": 137.6,
+          "last5": 143.1
         }
       },
       "cv_minutes": {
@@ -65134,6 +66460,12 @@
           "last20": 27.8,
           "last10": 23.1,
           "last5": 20.3
+        },
+        "sb": {
+          "season": 84.8,
+          "last20": 84.8,
+          "last10": 81.0,
+          "last5": 65.6
         }
       },
       "cv_minutes": {
@@ -65398,6 +66730,12 @@
           "last20": 48.4,
           "last10": 34.7,
           "last5": 25.4
+        },
+        "sb": {
+          "season": 115.1,
+          "last20": 107.0,
+          "last10": 161.1,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -65755,6 +67093,12 @@
           "last20": 37.7,
           "last10": 40.6,
           "last5": 26.7
+        },
+        "sb": {
+          "season": 83.8,
+          "last20": 88.5,
+          "last10": 53.5,
+          "last5": 32.7
         }
       },
       "cv_minutes": {
@@ -66088,6 +67432,12 @@
           "last20": 27.3,
           "last10": 34.9,
           "last5": 48.8
+        },
+        "sb": {
+          "season": 93.3,
+          "last20": 86.9,
+          "last10": 87.8,
+          "last5": 47.7
         }
       },
       "cv_minutes": {
@@ -66409,6 +67759,12 @@
           "last20": 40.4,
           "last10": 40.3,
           "last5": 51.8
+        },
+        "sb": {
+          "season": 94.8,
+          "last20": 109.1,
+          "last10": 137.1,
+          "last5": 168.5
         }
       },
       "cv_minutes": {
@@ -66751,6 +68107,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -66862,6 +68224,12 @@
           "last20": 46.8,
           "last10": 48.3,
           "last5": 39.6
+        },
+        "sb": {
+          "season": 100.1,
+          "last20": 102.5,
+          "last10": 108.9,
+          "last5": 98.5
         }
       },
       "cv_minutes": {
@@ -67153,6 +68521,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -67264,6 +68638,12 @@
           "last20": 39.7,
           "last10": 44.4,
           "last5": 46.7
+        },
+        "sb": {
+          "season": 72.2,
+          "last20": 62.4,
+          "last10": 68.8,
+          "last5": 113.3
         }
       },
       "cv_minutes": {
@@ -67612,6 +68992,12 @@
           "last20": 22.1,
           "last10": 25.6,
           "last5": 21.6
+        },
+        "sb": {
+          "season": 71.7,
+          "last20": 69.6,
+          "last10": 73.5,
+          "last5": 13.3
         }
       },
       "cv_minutes": {
@@ -67981,6 +69367,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -68092,6 +69484,12 @@
           "last20": 65.1,
           "last10": 65.1,
           "last5": 74.8
+        },
+        "sb": {
+          "season": 185.4,
+          "last20": 185.4,
+          "last10": 185.4,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -68302,6 +69700,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -68413,6 +69817,12 @@
           "last20": 32.8,
           "last10": 32.6,
           "last5": 31.3
+        },
+        "sb": {
+          "season": 71.8,
+          "last20": 71.8,
+          "last10": 76.3,
+          "last5": 59.8
         }
       },
       "cv_minutes": {
@@ -68647,6 +70057,12 @@
           "last20": 54.3,
           "last10": 28.3,
           "last5": 37.2
+        },
+        "sb": {
+          "season": 88.1,
+          "last20": 98.9,
+          "last10": 108.5,
+          "last5": 91.9
         }
       },
       "cv_minutes": {
@@ -68980,6 +70396,12 @@
           "last20": 42.8,
           "last10": 28.6,
           "last5": 32.1
+        },
+        "sb": {
+          "season": 140.5,
+          "last20": 140.5,
+          "last10": 149.3,
+          "last5": 101.3
         }
       },
       "cv_minutes": {
@@ -69220,6 +70642,12 @@
           "last20": 43.6,
           "last10": 33.5,
           "last5": 16.5
+        },
+        "sb": {
+          "season": 116.2,
+          "last20": 111.3,
+          "last10": 141.8,
+          "last5": 141.4
         }
       },
       "cv_minutes": {
@@ -69511,6 +70939,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -69622,6 +71056,12 @@
           "last20": 43.6,
           "last10": 46.2,
           "last5": 46.4
+        },
+        "sb": {
+          "season": 78.0,
+          "last20": 71.1,
+          "last10": 63.5,
+          "last5": 74.0
         }
       },
       "cv_minutes": {
@@ -69970,6 +71410,12 @@
           "last20": 43.2,
           "last10": 50.3,
           "last5": 41.4
+        },
+        "sb": {
+          "season": 105.5,
+          "last20": 108.7,
+          "last10": 100.9,
+          "last5": 110.8
         }
       },
       "cv_minutes": {
@@ -70318,6 +71764,12 @@
           "last20": 53.5,
           "last10": 61.0,
           "last5": 74.7
+        },
+        "sb": {
+          "season": 107.9,
+          "last20": 107.9,
+          "last10": 100.0,
+          "last5": 104.6
         }
       },
       "cv_minutes": {
@@ -70594,6 +72046,12 @@
           "last20": 33.2,
           "last10": 29.9,
           "last5": 37.6
+        },
+        "sb": {
+          "season": 98.0,
+          "last20": 83.1,
+          "last10": 59.8,
+          "last5": 67.2
         }
       },
       "cv_minutes": {
@@ -70927,6 +72385,12 @@
           "last20": 33.4,
           "last10": 37.9,
           "last5": 43.5
+        },
+        "sb": {
+          "season": 86.5,
+          "last20": 82.3,
+          "last10": 60.3,
+          "last5": 72.2
         }
       },
       "cv_minutes": {
@@ -71308,6 +72772,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -71419,6 +72889,12 @@
           "last20": 60.1,
           "last10": 60.1,
           "last5": 42.1
+        },
+        "sb": {
+          "season": 137.7,
+          "last20": 137.7,
+          "last10": 137.7,
+          "last5": 104.6
         }
       },
       "cv_minutes": {
@@ -71620,6 +73096,12 @@
           "last20": 46.7,
           "last10": 56.1,
           "last5": 39.2
+        },
+        "sb": {
+          "season": 96.1,
+          "last20": 93.5,
+          "last10": 98.0,
+          "last5": 104.6
         }
       },
       "cv_minutes": {
@@ -71926,6 +73408,12 @@
           "last20": 31.3,
           "last10": 30.2,
           "last5": 18.2
+        },
+        "sb": {
+          "season": 99.5,
+          "last20": 109.9,
+          "last10": 82.9,
+          "last5": 32.2
         }
       },
       "cv_minutes": {
@@ -72259,6 +73747,12 @@
           "last20": 50.6,
           "last10": 58.0,
           "last5": 65.8
+        },
+        "sb": {
+          "season": 93.1,
+          "last20": 93.1,
+          "last10": 106.8,
+          "last5": 136.9
         }
       },
       "cv_minutes": {
@@ -72547,6 +74041,12 @@
           "last20": 35.0,
           "last10": 47.5,
           "last5": 46.8
+        },
+        "sb": {
+          "season": 59.4,
+          "last20": 57.1,
+          "last10": 49.0,
+          "last5": 31.2
         }
       },
       "cv_minutes": {
@@ -72943,6 +74443,12 @@
           "last20": 46.9,
           "last10": 48.8,
           "last5": 57.0
+        },
+        "sb": {
+          "season": 64.9,
+          "last20": 64.9,
+          "last10": 75.3,
+          "last5": 57.1
         }
       },
       "cv_minutes": {
@@ -73225,6 +74731,12 @@
           "last20": 45.0,
           "last10": 41.3,
           "last5": 24.4
+        },
+        "sb": {
+          "season": 133.5,
+          "last20": 133.5,
+          "last10": 130.0,
+          "last5": 92.4
         }
       },
       "cv_minutes": {
@@ -73495,6 +75007,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -73606,6 +75124,12 @@
           "last20": 49.9,
           "last10": 38.7,
           "last5": 30.8
+        },
+        "sb": {
+          "season": 91.6,
+          "last20": 87.5,
+          "last10": 77.6,
+          "last5": 71.3
         }
       },
       "cv_minutes": {
@@ -73990,6 +75514,12 @@
           "last20": 40.0,
           "last10": 33.0,
           "last5": 24.8
+        },
+        "sb": {
+          "season": 81.0,
+          "last20": 77.5,
+          "last10": 91.1,
+          "last5": 142.2
         }
       },
       "cv_minutes": {
@@ -74335,6 +75865,12 @@
           "last20": 41.0,
           "last10": 42.3,
           "last5": 41.8
+        },
+        "sb": {
+          "season": 78.1,
+          "last20": 88.4,
+          "last10": 74.5,
+          "last5": 93.5
         }
       },
       "cv_minutes": {
@@ -74725,6 +76261,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -74836,6 +76378,12 @@
           "last20": 39.9,
           "last10": 40.9,
           "last5": 27.1
+        },
+        "sb": {
+          "season": 96.6,
+          "last20": 96.6,
+          "last10": 87.0,
+          "last5": 68.3
         }
       },
       "cv_minutes": {
@@ -75070,6 +76618,12 @@
           "last20": 68.0,
           "last10": 68.0,
           "last5": 56.6
+        },
+        "sb": {
+          "season": 199.3,
+          "last20": 199.3,
+          "last10": 199.3,
+          "last5": 137.7
         }
       },
       "cv_minutes": {
@@ -75289,6 +76843,12 @@
           "last20": 51.3,
           "last10": 58.4,
           "last5": 43.9
+        },
+        "sb": {
+          "season": 67.5,
+          "last20": 83.2,
+          "last10": 92.0,
+          "last5": 73.9
         }
       },
       "cv_minutes": {
@@ -75607,6 +77167,12 @@
           "last20": 47.1,
           "last10": 53.1,
           "last5": 60.3
+        },
+        "sb": {
+          "season": 119.1,
+          "last20": 140.0,
+          "last10": 147.1,
+          "last5": 91.5
         }
       },
       "cv_minutes": {
@@ -75940,6 +77506,12 @@
           "last20": 47.0,
           "last10": 52.5,
           "last5": 55.4
+        },
+        "sb": {
+          "season": 91.8,
+          "last20": 120.2,
+          "last10": 113.0,
+          "last5": 141.7
         }
       },
       "cv_minutes": {
@@ -76288,6 +77860,12 @@
           "last20": 31.3,
           "last10": 27.0,
           "last5": 32.6
+        },
+        "sb": {
+          "season": 60.2,
+          "last20": 60.7,
+          "last10": 62.2,
+          "last5": 40.5
         }
       },
       "cv_minutes": {
@@ -76630,6 +78208,12 @@
           "last20": 44.3,
           "last10": 46.6,
           "last5": 62.6
+        },
+        "sb": {
+          "season": 121.1,
+          "last20": 121.1,
+          "last10": 106.6,
+          "last5": 91.5
         }
       },
       "cv_minutes": {
@@ -76882,6 +78466,12 @@
           "last20": 40.4,
           "last10": 41.9,
           "last5": 43.4
+        },
+        "sb": {
+          "season": 94.8,
+          "last20": 94.8,
+          "last10": 75.6,
+          "last5": 104.7
         }
       },
       "cv_minutes": {
@@ -77152,6 +78742,12 @@
           "last20": 39.7,
           "last10": 46.8,
           "last5": 56.5
+        },
+        "sb": {
+          "season": 101.7,
+          "last20": 102.8,
+          "last10": 88.1,
+          "last5": 97.6
         }
       },
       "cv_minutes": {
@@ -77464,6 +79060,12 @@
           "last20": 40.9,
           "last10": 35.5,
           "last5": 41.3
+        },
+        "sb": {
+          "season": 67.1,
+          "last20": 82.0,
+          "last10": 96.2,
+          "last5": 74.7
         }
       },
       "cv_minutes": {
@@ -77809,6 +79411,12 @@
           "last20": 29.8,
           "last10": 32.8,
           "last5": 29.5
+        },
+        "sb": {
+          "season": 100.3,
+          "last20": 114.8,
+          "last10": 105.1,
+          "last5": 74.4
         }
       },
       "cv_minutes": {
@@ -78184,6 +79792,12 @@
           "last20": 29.9,
           "last10": 27.2,
           "last5": 12.1
+        },
+        "sb": {
+          "season": 68.3,
+          "last20": 54.7,
+          "last10": 39.5,
+          "last5": 41.3
         }
       },
       "cv_minutes": {
@@ -78583,6 +80197,12 @@
           "last20": 37.2,
           "last10": 40.1,
           "last5": 34.3
+        },
+        "sb": {
+          "season": 58.1,
+          "last20": 46.5,
+          "last10": 45.4,
+          "last5": 38.9
         }
       },
       "cv_minutes": {
@@ -78952,6 +80572,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -79063,6 +80689,12 @@
           "last20": 46.5,
           "last10": 56.5,
           "last5": 76.8
+        },
+        "sb": {
+          "season": 116.5,
+          "last20": 127.2,
+          "last10": 146.2,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -79393,6 +81025,12 @@
           "last20": 44.8,
           "last10": 35.5,
           "last5": 16.6
+        },
+        "sb": {
+          "season": 74.4,
+          "last20": 86.2,
+          "last10": 47.8,
+          "last5": 67.0
         }
       },
       "cv_minutes": {
@@ -79747,6 +81385,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -79858,6 +81502,12 @@
           "last20": 32.8,
           "last10": 36.0,
           "last5": 49.2
+        },
+        "sb": {
+          "season": 75.8,
+          "last20": 75.8,
+          "last10": 82.3,
+          "last5": 83.7
         }
       },
       "cv_minutes": {
@@ -80134,6 +81784,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -80245,6 +81901,12 @@
           "last20": 35.0,
           "last10": 26.5,
           "last5": 29.4
+        },
+        "sb": {
+          "season": 73.7,
+          "last20": 53.9,
+          "last10": 54.4,
+          "last5": 33.9
         }
       },
       "cv_minutes": {
@@ -80641,6 +82303,12 @@
           "last20": 29.4,
           "last10": 29.4,
           "last5": 22.0
+        },
+        "sb": {
+          "season": 63.9,
+          "last20": 63.9,
+          "last10": 63.9,
+          "last5": 20.7
         }
       },
       "cv_minutes": {
@@ -80842,6 +82510,12 @@
           "last20": 35.3,
           "last10": 41.4,
           "last5": 26.2
+        },
+        "sb": {
+          "season": 85.2,
+          "last20": 84.8,
+          "last10": 79.1,
+          "last5": 68.7
         }
       },
       "cv_minutes": {
@@ -81229,6 +82903,12 @@
           "last20": 45.2,
           "last10": 46.7,
           "last5": 33.7
+        },
+        "sb": {
+          "season": 82.1,
+          "last20": 82.1,
+          "last10": 79.7,
+          "last5": 47.6
         }
       },
       "cv_minutes": {
@@ -81505,6 +83185,12 @@
           "last20": 39.8,
           "last10": 30.0,
           "last5": 30.8
+        },
+        "sb": {
+          "season": 101.3,
+          "last20": 90.6,
+          "last10": 81.7,
+          "last5": 36.3
         }
       },
       "cv_minutes": {
@@ -81820,6 +83506,12 @@
           "last20": 38.6,
           "last10": 37.3,
           "last5": 47.4
+        },
+        "sb": {
+          "season": 80.3,
+          "last20": 80.3,
+          "last10": 58.3,
+          "last5": 12.6
         }
       },
       "cv_minutes": {
@@ -82102,6 +83794,12 @@
           "last20": 49.5,
           "last10": 59.2,
           "last5": 28.7
+        },
+        "sb": {
+          "season": 150.3,
+          "last20": 175.2,
+          "last10": 162.5,
+          "last5": 138.9
         }
       },
       "cv_minutes": {
@@ -82426,6 +84124,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -82537,6 +84241,12 @@
           "last20": 41.2,
           "last10": 48.2,
           "last5": 37.2
+        },
+        "sb": {
+          "season": 82.7,
+          "last20": 82.7,
+          "last10": 73.2,
+          "last5": 60.2
         }
       },
       "cv_minutes": {
@@ -82789,6 +84499,12 @@
           "last20": 32.4,
           "last10": 27.9,
           "last5": 31.8
+        },
+        "sb": {
+          "season": 87.1,
+          "last20": 68.4,
+          "last10": 56.2,
+          "last5": 37.6
         }
       },
       "cv_minutes": {
@@ -83161,6 +84877,12 @@
           "last20": 35.7,
           "last10": 34.6,
           "last5": 33.9
+        },
+        "sb": {
+          "season": 215.2,
+          "last20": 215.2,
+          "last10": 189.9,
+          "last5": 118.5
         }
       },
       "cv_minutes": {
@@ -83425,6 +85147,12 @@
           "last20": 44.5,
           "last10": 43.4,
           "last5": 34.2
+        },
+        "sb": {
+          "season": 92.1,
+          "last20": 81.9,
+          "last10": 68.6,
+          "last5": 44.0
         }
       },
       "cv_minutes": {
@@ -83752,6 +85480,12 @@
           "last20": 67.3,
           "last10": 67.3,
           "last5": 75.1
+        },
+        "sb": {
+          "season": 87.3,
+          "last20": 87.3,
+          "last10": 87.3,
+          "last5": 67.3
         }
       },
       "cv_minutes": {
@@ -83944,6 +85678,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -84051,6 +85791,12 @@
           "last5": null
         },
         "ra": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
+        },
+        "sb": {
           "season": null,
           "last20": null,
           "last10": null,
@@ -84166,6 +85912,12 @@
           "last20": 26.0,
           "last10": 24.4,
           "last5": 25.7
+        },
+        "sb": {
+          "season": 71.8,
+          "last20": 74.8,
+          "last10": 83.8,
+          "last5": 36.1
         }
       },
       "cv_minutes": {
@@ -84478,6 +86230,12 @@
           "last20": 28.6,
           "last10": 22.9,
           "last5": 26.0
+        },
+        "sb": {
+          "season": 86.1,
+          "last20": 93.3,
+          "last10": 103.4,
+          "last5": 104.8
         }
       },
       "cv_minutes": {
@@ -84886,6 +86644,12 @@
           "last20": 43.2,
           "last10": 57.1,
           "last5": 52.1
+        },
+        "sb": {
+          "season": 74.9,
+          "last20": 67.3,
+          "last10": 59.5,
+          "last5": 96.7
         }
       },
       "cv_minutes": {
@@ -85195,6 +86959,12 @@
           "last20": 32.5,
           "last10": 41.1,
           "last5": 32.8
+        },
+        "sb": {
+          "season": 75.1,
+          "last20": 59.1,
+          "last10": 52.1,
+          "last5": 36.2
         }
       },
       "cv_minutes": {
@@ -85585,6 +87355,12 @@
           "last20": 39.3,
           "last10": 40.8,
           "last5": 40.9
+        },
+        "sb": {
+          "season": 124.7,
+          "last20": 88.3,
+          "last10": 111.7,
+          "last5": 144.2
         }
       },
       "cv_minutes": {
@@ -85918,6 +87694,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -86029,6 +87811,12 @@
           "last20": 56.9,
           "last10": 56.9,
           "last5": 46.3
+        },
+        "sb": {
+          "season": 120.0,
+          "last20": 120.0,
+          "last10": 120.0,
+          "last5": 137.2
         }
       },
       "cv_minutes": {
@@ -86248,6 +88036,12 @@
           "last20": 43.8,
           "last10": 32.0,
           "last5": 27.0
+        },
+        "sb": {
+          "season": 84.2,
+          "last20": 76.8,
+          "last10": 79.0,
+          "last5": 74.0
         }
       },
       "cv_minutes": {
@@ -86581,6 +88375,12 @@
           "last20": 45.8,
           "last10": 45.8,
           "last5": 50.8
+        },
+        "sb": {
+          "season": 146.9,
+          "last20": 146.9,
+          "last10": 146.9,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -86800,6 +88600,12 @@
           "last20": 78.2,
           "last10": 71.0,
           "last5": 80.0
+        },
+        "sb": {
+          "season": 95.1,
+          "last20": 95.1,
+          "last10": 94.7,
+          "last5": 62.3
         }
       },
       "cv_minutes": {
@@ -87070,6 +88876,12 @@
           "last20": 70.8,
           "last10": 36.2,
           "last5": 35.8
+        },
+        "sb": {
+          "season": 82.3,
+          "last20": 82.3,
+          "last10": 71.0,
+          "last5": 60.0
         }
       },
       "cv_minutes": {
@@ -87334,6 +89146,12 @@
           "last20": 40.6,
           "last10": 42.8,
           "last5": 35.3
+        },
+        "sb": {
+          "season": 89.5,
+          "last20": 89.5,
+          "last10": 79.7,
+          "last5": 107.2
         }
       },
       "cv_minutes": {
@@ -87568,6 +89386,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -87675,6 +89499,12 @@
           "last5": null
         },
         "ra": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
+        },
+        "sb": {
           "season": null,
           "last20": null,
           "last10": null,
@@ -87790,6 +89620,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -87901,6 +89737,12 @@
           "last20": 55.6,
           "last10": 55.6,
           "last5": 57.5
+        },
+        "sb": {
+          "season": 244.9,
+          "last20": 244.9,
+          "last10": 244.9,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -88093,6 +89935,12 @@
           "last20": 31.8,
           "last10": 31.8,
           "last5": 22.2
+        },
+        "sb": {
+          "season": 79.8,
+          "last20": 79.8,
+          "last10": 79.8,
+          "last5": 109.0
         }
       },
       "cv_minutes": {
@@ -88321,6 +90169,12 @@
           "last20": 52.9,
           "last10": 52.9,
           "last5": 39.4
+        },
+        "sb": {
+          "season": 146.9,
+          "last20": 146.9,
+          "last10": 146.9,
+          "last5": 139.2
         }
       },
       "cv_minutes": {
@@ -88531,6 +90385,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -88642,6 +90502,12 @@
           "last20": 31.5,
           "last10": 33.3,
           "last5": 18.3
+        },
+        "sb": {
+          "season": 80.0,
+          "last20": 64.0,
+          "last10": 55.0,
+          "last5": 74.7
         }
       },
       "cv_minutes": {
@@ -89023,6 +90889,12 @@
           "last20": 31.8,
           "last10": 30.2,
           "last5": 41.5
+        },
+        "sb": {
+          "season": 73.0,
+          "last20": 69.3,
+          "last10": 59.0,
+          "last5": 43.6
         }
       },
       "cv_minutes": {
@@ -89320,6 +91192,12 @@
           "last20": 44.8,
           "last10": 39.6,
           "last5": 34.0
+        },
+        "sb": {
+          "season": 110.0,
+          "last20": 110.0,
+          "last10": 128.2,
+          "last5": 144.6
         }
       },
       "cv_minutes": {
@@ -89608,6 +91486,12 @@
           "last20": 52.9,
           "last10": 55.9,
           "last5": 41.4
+        },
+        "sb": {
+          "season": 96.9,
+          "last20": 88.7,
+          "last10": 113.2,
+          "last5": 141.4
         }
       },
       "cv_minutes": {
@@ -89905,6 +91789,12 @@
           "last20": 25.3,
           "last10": 31.6,
           "last5": 39.7
+        },
+        "sb": {
+          "season": 49.4,
+          "last20": 47.7,
+          "last10": 38.2,
+          "last5": 49.6
         }
       },
       "cv_minutes": {
@@ -90217,6 +92107,12 @@
           "last20": 36.7,
           "last10": 43.8,
           "last5": 44.0
+        },
+        "sb": {
+          "season": 93.9,
+          "last20": 92.9,
+          "last10": 96.0,
+          "last5": 57.6
         }
       },
       "cv_minutes": {
@@ -90586,6 +92482,12 @@
           "last20": 42.8,
           "last10": 50.4,
           "last5": 52.8
+        },
+        "sb": {
+          "season": 140.3,
+          "last20": 103.1,
+          "last10": 98.2,
+          "last5": 64.2
         }
       },
       "cv_minutes": {
@@ -90937,6 +92839,12 @@
           "last20": 45.2,
           "last10": 41.1,
           "last5": 54.3
+        },
+        "sb": {
+          "season": 72.4,
+          "last20": 72.4,
+          "last10": 72.1,
+          "last5": 82.8
         }
       },
       "cv_minutes": {
@@ -91201,6 +93109,12 @@
           "last20": 47.9,
           "last10": 26.2,
           "last5": 16.3
+        },
+        "sb": {
+          "season": 130.2,
+          "last20": 114.1,
+          "last10": 119.2,
+          "last5": 146.8
         }
       },
       "cv_minutes": {
@@ -91504,6 +93418,12 @@
           "last20": 46.7,
           "last10": 41.2,
           "last5": 44.9
+        },
+        "sb": {
+          "season": 121.7,
+          "last20": 130.0,
+          "last10": 153.7,
+          "last5": 158.2
         }
       },
       "cv_minutes": {
@@ -91801,6 +93721,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -91912,6 +93838,12 @@
           "last20": 49.3,
           "last10": 62.4,
           "last5": 23.9
+        },
+        "sb": {
+          "season": 70.5,
+          "last20": 78.2,
+          "last10": 66.7,
+          "last5": 60.7
         }
       },
       "cv_minutes": {
@@ -92275,6 +94207,12 @@
           "last20": 79.7,
           "last10": 79.7,
           "last5": 84.5
+        },
+        "sb": {
+          "season": 93.6,
+          "last20": 93.6,
+          "last10": 93.6,
+          "last5": 136.9
         }
       },
       "cv_minutes": {
@@ -92476,6 +94414,12 @@
           "last20": 31.1,
           "last10": 24.8,
           "last5": 24.0
+        },
+        "sb": {
+          "season": 90.9,
+          "last20": 115.6,
+          "last10": 83.5,
+          "last5": 101.5
         }
       },
       "cv_minutes": {
@@ -92887,6 +94831,12 @@
           "last20": 49.1,
           "last10": 48.5,
           "last5": 34.0
+        },
+        "sb": {
+          "season": 124.7,
+          "last20": 124.7,
+          "last10": 140.3,
+          "last5": 102.9
         }
       },
       "cv_minutes": {
@@ -93133,6 +95083,12 @@
           "last20": 38.3,
           "last10": 38.3,
           "last5": 40.3
+        },
+        "sb": {
+          "season": 116.2,
+          "last20": 116.2,
+          "last10": 116.2,
+          "last5": 98.2
         }
       },
       "cv_minutes": {
@@ -93325,6 +95281,12 @@
           "last20": 31.5,
           "last10": 32.0,
           "last5": 27.4
+        },
+        "sb": {
+          "season": 83.2,
+          "last20": 94.0,
+          "last10": 101.3,
+          "last5": 116.3
         }
       },
       "cv_minutes": {
@@ -93658,6 +95620,12 @@
           "last20": 38.3,
           "last10": 39.1,
           "last5": 52.1
+        },
+        "sb": {
+          "season": 68.3,
+          "last20": 60.6,
+          "last10": 70.8,
+          "last5": 53.4
         }
       },
       "cv_minutes": {
@@ -94033,6 +96001,12 @@
           "last20": 31.1,
           "last10": 36.9,
           "last5": 21.3
+        },
+        "sb": {
+          "season": 75.4,
+          "last20": 70.1,
+          "last10": 73.6,
+          "last5": 47.8
         }
       },
       "cv_minutes": {
@@ -94444,6 +96418,12 @@
           "last20": 25.8,
           "last10": 24.6,
           "last5": 7.9
+        },
+        "sb": {
+          "season": 90.7,
+          "last20": 94.8,
+          "last10": 83.5,
+          "last5": 111.6
         }
       },
       "cv_minutes": {
@@ -94858,6 +96838,12 @@
           "last20": 37.3,
           "last10": 40.2,
           "last5": 36.9
+        },
+        "sb": {
+          "season": 102.2,
+          "last20": 97.8,
+          "last10": 96.4,
+          "last5": 164.4
         }
       },
       "cv_minutes": {
@@ -95158,6 +97144,12 @@
           "last20": 29.9,
           "last10": 36.7,
           "last5": 22.2
+        },
+        "sb": {
+          "season": 83.0,
+          "last20": 91.8,
+          "last10": 81.6,
+          "last5": 113.4
         }
       },
       "cv_minutes": {
@@ -95491,6 +97483,12 @@
           "last20": 31.9,
           "last10": 31.9,
           "last5": 32.4
+        },
+        "sb": {
+          "season": 57.0,
+          "last20": 57.0,
+          "last10": 57.0,
+          "last5": 69.8
         }
       },
       "cv_minutes": {
@@ -95692,6 +97690,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -95803,6 +97807,12 @@
           "last20": 27.2,
           "last10": 27.5,
           "last5": 33.8
+        },
+        "sb": {
+          "season": 67.7,
+          "last20": 61.5,
+          "last10": 60.6,
+          "last5": 97.6
         }
       },
       "cv_minutes": {
@@ -96211,6 +98221,12 @@
           "last20": 68.9,
           "last10": 81.8,
           "last5": 66.9
+        },
+        "sb": {
+          "season": 100.5,
+          "last20": 107.0,
+          "last10": 106.7,
+          "last5": 110.4
         }
       },
       "cv_minutes": {
@@ -96514,6 +98530,12 @@
           "last20": 61.9,
           "last10": 61.9,
           "last5": 55.6
+        },
+        "sb": {
+          "season": 109.7,
+          "last20": 109.7,
+          "last10": 109.7,
+          "last5": 137.1
         }
       },
       "cv_minutes": {
@@ -96706,6 +98728,12 @@
           "last20": 47.3,
           "last10": 47.3,
           "last5": 47.3
+        },
+        "sb": {
+          "season": 137.1,
+          "last20": 137.1,
+          "last10": 137.1,
+          "last5": 137.1
         }
       },
       "cv_minutes": {
@@ -96889,6 +98917,12 @@
           "last20": 46.2,
           "last10": 46.2,
           "last5": 36.8
+        },
+        "sb": {
+          "season": 111.1,
+          "last20": 111.1,
+          "last10": 111.1,
+          "last5": 92.9
         }
       },
       "cv_minutes": {
@@ -97081,6 +99115,12 @@
           "last20": 38.7,
           "last10": 41.0,
           "last5": 24.0
+        },
+        "sb": {
+          "season": 84.7,
+          "last20": 93.3,
+          "last10": 79.7,
+          "last5": 95.8
         }
       },
       "cv_minutes": {
@@ -97444,6 +99484,12 @@
           "last20": 40.6,
           "last10": 26.0,
           "last5": 21.2
+        },
+        "sb": {
+          "season": 91.7,
+          "last20": 124.3,
+          "last10": 112.2,
+          "last5": 90.1
         }
       },
       "cv_minutes": {
@@ -97834,6 +99880,12 @@
           "last20": 42.0,
           "last10": 48.6,
           "last5": 43.6
+        },
+        "sb": {
+          "season": 82.2,
+          "last20": 76.5,
+          "last10": 80.1,
+          "last5": 54.9
         }
       },
       "cv_minutes": {
@@ -98170,6 +100222,12 @@
           "last20": 32.3,
           "last10": 32.3,
           "last5": 32.3
+        },
+        "sb": {
+          "season": 136.9,
+          "last20": 136.9,
+          "last10": 136.9,
+          "last5": 136.9
         }
       },
       "cv_minutes": {
@@ -98353,6 +100411,12 @@
           "last20": 33.8,
           "last10": 32.7,
           "last5": 27.2
+        },
+        "sb": {
+          "season": 69.3,
+          "last20": 76.6,
+          "last10": 78.6,
+          "last5": 69.8
         }
       },
       "cv_minutes": {
@@ -98734,6 +100798,12 @@
           "last20": 66.1,
           "last10": 66.1,
           "last5": 66.1
+        },
+        "sb": {
+          "season": 146.7,
+          "last20": 146.7,
+          "last10": 146.7,
+          "last5": 146.7
         }
       },
       "cv_minutes": {
@@ -98917,6 +100987,12 @@
           "last20": 38.6,
           "last10": 41.0,
           "last5": 41.3
+        },
+        "sb": {
+          "season": 172.3,
+          "last20": 172.3,
+          "last10": 162.0,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -99151,6 +101227,12 @@
           "last20": 25.5,
           "last10": 30.4,
           "last5": 25.6
+        },
+        "sb": {
+          "season": 76.0,
+          "last20": 76.0,
+          "last10": 75.9,
+          "last5": 78.0
         }
       },
       "cv_minutes": {
@@ -99415,6 +101497,12 @@
           "last20": 36.6,
           "last10": 37.3,
           "last5": 21.4
+        },
+        "sb": {
+          "season": 155.8,
+          "last20": 155.8,
+          "last10": 135.7,
+          "last5": 141.4
         }
       },
       "cv_minutes": {
@@ -99697,6 +101785,12 @@
           "last20": 47.2,
           "last10": 55.5,
           "last5": 33.4
+        },
+        "sb": {
+          "season": 131.2,
+          "last20": 112.8,
+          "last10": 86.3,
+          "last5": 71.4
         }
       },
       "cv_minutes": {
@@ -99997,6 +102091,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -100108,6 +102208,12 @@
           "last20": 52.5,
           "last10": 29.5,
           "last5": 26.3
+        },
+        "sb": {
+          "season": 113.6,
+          "last20": 113.6,
+          "last10": 98.2,
+          "last5": 138.3
         }
       },
       "cv_minutes": {
@@ -100378,6 +102484,12 @@
           "last20": 39.2,
           "last10": 46.8,
           "last5": 41.1
+        },
+        "sb": {
+          "season": 74.1,
+          "last20": 74.6,
+          "last10": 100.5,
+          "last5": 101.5
         }
       },
       "cv_minutes": {
@@ -100708,6 +102820,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -100819,6 +102937,12 @@
           "last20": 55.9,
           "last10": 59.3,
           "last5": 53.6
+        },
+        "sb": {
+          "season": 123.2,
+          "last20": 123.2,
+          "last10": 113.7,
+          "last5": 137.1
         }
       },
       "cv_minutes": {
@@ -101053,6 +103177,12 @@
           "last20": 32.9,
           "last10": 39.0,
           "last5": 31.6
+        },
+        "sb": {
+          "season": 93.7,
+          "last20": 95.2,
+          "last10": 72.4,
+          "last5": 109.0
         }
       },
       "cv_minutes": {
@@ -101401,6 +103531,12 @@
           "last20": 29.4,
           "last10": 33.9,
           "last5": 22.5
+        },
+        "sb": {
+          "season": 71.8,
+          "last20": 85.3,
+          "last10": 87.6,
+          "last5": 99.0
         }
       },
       "cv_minutes": {
@@ -101794,6 +103930,12 @@
           "last20": 44.6,
           "last10": 36.7,
           "last5": 31.1
+        },
+        "sb": {
+          "season": 100.9,
+          "last20": 93.1,
+          "last10": 88.7,
+          "last5": 82.5
         }
       },
       "cv_minutes": {
@@ -102109,6 +104251,12 @@
           "last20": 45.7,
           "last10": 39.7,
           "last5": 25.9
+        },
+        "sb": {
+          "season": 104.8,
+          "last20": 98.1,
+          "last10": 107.1,
+          "last5": 117.4
         }
       },
       "cv_minutes": {
@@ -102421,6 +104569,12 @@
           "last20": 62.2,
           "last10": 60.0,
           "last5": 75.1
+        },
+        "sb": {
+          "season": 105.5,
+          "last20": 96.9,
+          "last10": 96.9,
+          "last5": 102.0
         }
       },
       "cv_minutes": {
@@ -102727,6 +104881,12 @@
           "last20": 110.6,
           "last10": 111.7,
           "last5": 170.2
+        },
+        "sb": {
+          "season": 180.6,
+          "last20": 180.6,
+          "last10": 213.5,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -102961,6 +105121,12 @@
           "last20": 26.9,
           "last10": 37.4,
           "last5": 29.2
+        },
+        "sb": {
+          "season": 105.6,
+          "last20": 128.2,
+          "last10": 118.2,
+          "last5": 145.2
         }
       },
       "cv_minutes": {
@@ -103315,6 +105481,12 @@
           "last20": 43.0,
           "last10": 42.9,
           "last5": 39.3
+        },
+        "sb": {
+          "season": 75.6,
+          "last20": 79.6,
+          "last10": 81.4,
+          "last5": 116.5
         }
       },
       "cv_minutes": {
@@ -103681,6 +105853,12 @@
           "last20": 40.1,
           "last10": 39.2,
           "last5": 19.8
+        },
+        "sb": {
+          "season": 102.4,
+          "last20": 112.3,
+          "last10": 128.9,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -104053,6 +106231,12 @@
           "last20": 63.5,
           "last10": 58.5,
           "last5": 60.3
+        },
+        "sb": {
+          "season": 119.2,
+          "last20": 117.8,
+          "last10": 103.6,
+          "last5": 157.0
         }
       },
       "cv_minutes": {
@@ -104377,6 +106561,12 @@
           "last20": 44.5,
           "last10": 40.0,
           "last5": 31.0
+        },
+        "sb": {
+          "season": 66.5,
+          "last20": 62.0,
+          "last10": 55.7,
+          "last5": 82.2
         }
       },
       "cv_minutes": {
@@ -104731,6 +106921,12 @@
           "last20": 25.5,
           "last10": 22.5,
           "last5": 23.8
+        },
+        "sb": {
+          "season": 83.2,
+          "last20": 101.8,
+          "last10": 77.3,
+          "last5": 92.6
         }
       },
       "cv_minutes": {
@@ -105115,6 +107311,12 @@
           "last20": 43.1,
           "last10": 54.1,
           "last5": 43.4
+        },
+        "sb": {
+          "season": 138.6,
+          "last20": 130.8,
+          "last10": 104.3,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -105463,6 +107665,12 @@
           "last20": 42.3,
           "last10": 42.3,
           "last5": 50.1
+        },
+        "sb": {
+          "season": 46.8,
+          "last20": 46.8,
+          "last10": 46.8,
+          "last5": 19.6
         }
       },
       "cv_minutes": {
@@ -105673,6 +107881,12 @@
           "last20": 54.4,
           "last10": 54.4,
           "last5": 43.3
+        },
+        "sb": {
+          "season": 167.3,
+          "last20": 167.3,
+          "last10": 167.3,
+          "last5": 149.1
         }
       },
       "cv_minutes": {
@@ -105865,6 +108079,12 @@
           "last20": 43.2,
           "last10": 43.2,
           "last5": 37.4
+        },
+        "sb": {
+          "season": 103.9,
+          "last20": 103.9,
+          "last10": 103.9,
+          "last5": 95.3
         }
       },
       "cv_minutes": {
@@ -106066,6 +108286,12 @@
           "last20": 44.9,
           "last10": 43.8,
           "last5": 52.3
+        },
+        "sb": {
+          "season": 78.4,
+          "last20": 92.7,
+          "last10": 100.2,
+          "last5": 113.5
         }
       },
       "cv_minutes": {
@@ -106429,6 +108655,12 @@
           "last20": 45.5,
           "last10": 32.7,
           "last5": 13.9
+        },
+        "sb": {
+          "season": 72.7,
+          "last20": 71.4,
+          "last10": 88.8,
+          "last5": 147.3
         }
       },
       "cv_minutes": {
@@ -106777,6 +109009,12 @@
           "last20": 35.1,
           "last10": 36.0,
           "last5": 36.9
+        },
+        "sb": {
+          "season": 126.1,
+          "last20": 115.9,
+          "last10": 95.8,
+          "last5": 62.7
         }
       },
       "cv_minutes": {
@@ -107077,6 +109315,12 @@
           "last20": 32.3,
           "last10": 39.3,
           "last5": 46.8
+        },
+        "sb": {
+          "season": 93.3,
+          "last20": 94.0,
+          "last10": 113.0,
+          "last5": 95.2
         }
       },
       "cv_minutes": {
@@ -107473,6 +109717,12 @@
           "last20": 90.0,
           "last10": 90.0,
           "last5": 90.0
+        },
+        "sb": {
+          "season": 161.2,
+          "last20": 161.2,
+          "last10": 161.2,
+          "last5": 161.2
         }
       },
       "cv_minutes": {
@@ -107656,6 +109906,12 @@
           "last20": 47.0,
           "last10": 40.0,
           "last5": 53.3
+        },
+        "sb": {
+          "season": 103.4,
+          "last20": 103.4,
+          "last10": 104.6,
+          "last5": 115.5
         }
       },
       "cv_minutes": {
@@ -107890,6 +110146,12 @@
           "last20": 46.0,
           "last10": 47.3,
           "last5": 39.8
+        },
+        "sb": {
+          "season": 97.2,
+          "last20": 85.1,
+          "last10": 71.4,
+          "last5": 70.1
         }
       },
       "cv_minutes": {
@@ -108244,6 +110506,12 @@
           "last20": 31.8,
           "last10": 31.8,
           "last5": 27.7
+        },
+        "sb": {
+          "season": 102.5,
+          "last20": 102.5,
+          "last10": 102.5,
+          "last5": 104.6
         }
       },
       "cv_minutes": {
@@ -108463,6 +110731,12 @@
           "last20": 56.3,
           "last10": 52.5,
           "last5": 37.2
+        },
+        "sb": {
+          "season": 74.3,
+          "last20": 65.4,
+          "last10": 72.3,
+          "last5": 81.3
         }
       },
       "cv_minutes": {
@@ -108814,6 +111088,12 @@
           "last20": 61.3,
           "last10": 61.3,
           "last5": 64.2
+        },
+        "sb": {
+          "season": 131.7,
+          "last20": 131.7,
+          "last10": 131.7,
+          "last5": 98.5
         }
       },
       "cv_minutes": {
@@ -109015,6 +111295,12 @@
           "last20": 37.7,
           "last10": 47.4,
           "last5": 37.9
+        },
+        "sb": {
+          "season": 76.4,
+          "last20": 72.3,
+          "last10": 64.0,
+          "last5": 26.0
         }
       },
       "cv_minutes": {
@@ -109333,6 +111619,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -109444,6 +111736,12 @@
           "last20": 81.2,
           "last10": 81.2,
           "last5": 90.6
+        },
+        "sb": {
+          "season": 155.1,
+          "last20": 155.1,
+          "last10": 155.1,
+          "last5": 137.1
         }
       },
       "cv_minutes": {
@@ -109636,6 +111934,12 @@
           "last20": 40.7,
           "last10": 32.8,
           "last5": 23.5
+        },
+        "sb": {
+          "season": 195.7,
+          "last20": 309.2,
+          "last10": 316.2,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -109945,6 +112249,12 @@
           "last20": 25.9,
           "last10": 21.9,
           "last5": 17.2
+        },
+        "sb": {
+          "season": 66.1,
+          "last20": 58.5,
+          "last10": 50.6,
+          "last5": 60.2
         }
       },
       "cv_minutes": {
@@ -110356,6 +112666,12 @@
           "last20": 26.8,
           "last10": 33.3,
           "last5": 35.1
+        },
+        "sb": {
+          "season": 61.1,
+          "last20": 49.9,
+          "last10": 39.7,
+          "last5": 39.4
         }
       },
       "cv_minutes": {
@@ -110713,6 +113029,12 @@
           "last20": 43.8,
           "last10": 27.5,
           "last5": 36.7
+        },
+        "sb": {
+          "season": 89.1,
+          "last20": 97.7,
+          "last10": 125.8,
+          "last5": 139.7
         }
       },
       "cv_minutes": {
@@ -111073,6 +113395,12 @@
           "last20": 53.6,
           "last10": 56.8,
           "last5": 60.7
+        },
+        "sb": {
+          "season": 53.2,
+          "last20": 53.2,
+          "last10": 57.1,
+          "last5": 46.3
         }
       },
       "cv_minutes": {
@@ -111313,6 +113641,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -111424,6 +113758,12 @@
           "last20": 78.5,
           "last10": 61.9,
           "last5": 57.8
+        },
+        "sb": {
+          "season": 85.6,
+          "last20": 85.6,
+          "last10": 83.5,
+          "last5": 96.8
         }
       },
       "cv_minutes": {
@@ -111712,6 +114052,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -111819,6 +114165,12 @@
           "last5": null
         },
         "ra": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
+        },
+        "sb": {
           "season": null,
           "last20": null,
           "last10": null,
@@ -111934,6 +114286,12 @@
           "last20": 25.3,
           "last10": 17.5,
           "last5": 6.6
+        },
+        "sb": {
+          "season": 77.3,
+          "last20": 80.8,
+          "last10": 89.4,
+          "last5": 102.0
         }
       },
       "cv_minutes": {
@@ -112339,6 +114697,12 @@
           "last20": 64.7,
           "last10": 64.7,
           "last5": 51.6
+        },
+        "sb": {
+          "season": 146.9,
+          "last20": 146.9,
+          "last10": 146.9,
+          "last5": 161.5
         }
       },
       "cv_minutes": {
@@ -112567,6 +114931,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -112678,6 +115048,12 @@
           "last20": 55.4,
           "last10": 63.0,
           "last5": 56.8
+        },
+        "sb": {
+          "season": 130.3,
+          "last20": 156.2,
+          "last10": 211.9,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -113002,6 +115378,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -113113,6 +115495,12 @@
           "last20": 37.7,
           "last10": 50.0,
           "last5": 59.8
+        },
+        "sb": {
+          "season": 76.5,
+          "last20": 93.7,
+          "last10": 74.0,
+          "last5": 73.2
         }
       },
       "cv_minutes": {
@@ -113497,6 +115885,12 @@
           "last20": 34.4,
           "last10": 37.5,
           "last5": 47.3
+        },
+        "sb": {
+          "season": 112.3,
+          "last20": 102.5,
+          "last10": 91.4,
+          "last5": 94.8
         }
       },
       "cv_minutes": {
@@ -113851,6 +116245,12 @@
           "last20": 39.7,
           "last10": 32.1,
           "last5": 24.4
+        },
+        "sb": {
+          "season": 108.4,
+          "last20": 123.7,
+          "last10": 121.1,
+          "last5": 93.9
         }
       },
       "cv_minutes": {
@@ -114193,6 +116593,12 @@
           "last20": 55.5,
           "last10": 46.6,
           "last5": 42.7
+        },
+        "sb": {
+          "season": 103.2,
+          "last20": 98.1,
+          "last10": 94.5,
+          "last5": 104.3
         }
       },
       "cv_minutes": {
@@ -114508,6 +116914,12 @@
           "last20": 41.2,
           "last10": 39.7,
           "last5": 32.6
+        },
+        "sb": {
+          "season": 79.6,
+          "last20": 80.9,
+          "last10": 67.9,
+          "last5": 37.4
         }
       },
       "cv_minutes": {
@@ -114883,6 +117295,12 @@
           "last20": 67.0,
           "last10": 65.8,
           "last5": 34.0
+        },
+        "sb": {
+          "season": 112.3,
+          "last20": 115.8,
+          "last10": 107.5,
+          "last5": 83.9
         }
       },
       "cv_minutes": {
@@ -115183,6 +117601,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -115294,6 +117718,12 @@
           "last20": 26.8,
           "last10": 28.3,
           "last5": 37.6
+        },
+        "sb": {
+          "season": 78.2,
+          "last20": 66.5,
+          "last10": 72.8,
+          "last5": 81.2
         }
       },
       "cv_minutes": {
@@ -115672,6 +118102,12 @@
           "last20": 43.6,
           "last10": 52.3,
           "last5": 48.9
+        },
+        "sb": {
+          "season": 101.2,
+          "last20": 104.7,
+          "last10": 96.4,
+          "last5": 109.3
         }
       },
       "cv_minutes": {
@@ -116017,6 +118453,12 @@
           "last20": 24.1,
           "last10": 25.9,
           "last5": 23.9
+        },
+        "sb": {
+          "season": 77.8,
+          "last20": 85.1,
+          "last10": 105.7,
+          "last5": 108.8
         }
       },
       "cv_minutes": {
@@ -116320,6 +118762,12 @@
           "last20": 30.8,
           "last10": 25.6,
           "last5": 26.6
+        },
+        "sb": {
+          "season": 142.8,
+          "last20": 142.8,
+          "last10": 172.9,
+          "last5": 144.9
         }
       },
       "cv_minutes": {
@@ -116566,6 +119014,12 @@
           "last20": 53.0,
           "last10": 67.9,
           "last5": 77.3
+        },
+        "sb": {
+          "season": 115.1,
+          "last20": 115.1,
+          "last10": 82.6,
+          "last5": 73.6
         }
       },
       "cv_minutes": {
@@ -116854,6 +119308,12 @@
           "last20": 59.2,
           "last10": 65.3,
           "last5": 63.5
+        },
+        "sb": {
+          "season": 72.7,
+          "last20": 73.6,
+          "last10": 67.5,
+          "last5": 30.2
         }
       },
       "cv_minutes": {
@@ -117187,6 +119647,12 @@
           "last20": 47.2,
           "last10": 43.1,
           "last5": 62.2
+        },
+        "sb": {
+          "season": 62.3,
+          "last20": 57.8,
+          "last10": 56.3,
+          "last5": 39.3
         }
       },
       "cv_minutes": {
@@ -117565,6 +120031,12 @@
           "last20": 52.4,
           "last10": 56.2,
           "last5": 46.1
+        },
+        "sb": {
+          "season": 113.0,
+          "last20": 113.0,
+          "last10": 104.6,
+          "last5": 104.6
         }
       },
       "cv_minutes": {
@@ -117811,6 +120283,12 @@
           "last20": 50.3,
           "last10": 55.1,
           "last5": 61.4
+        },
+        "sb": {
+          "season": 107.3,
+          "last20": 113.0,
+          "last10": 140.9,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -118102,6 +120580,12 @@
           "last20": 72.0,
           "last10": 77.0,
           "last5": 104.0
+        },
+        "sb": {
+          "season": 100.4,
+          "last20": 100.1,
+          "last10": 72.8,
+          "last5": 52.7
         }
       },
       "cv_minutes": {
@@ -118408,6 +120892,12 @@
           "last20": 35.0,
           "last10": 34.8,
           "last5": 42.7
+        },
+        "sb": {
+          "season": 72.6,
+          "last20": 90.0,
+          "last10": 150.1,
+          "last5": 130.5
         }
       },
       "cv_minutes": {
@@ -118732,6 +121222,12 @@
           "last20": 32.2,
           "last10": 32.6,
           "last5": 31.1
+        },
+        "sb": {
+          "season": 59.1,
+          "last20": 64.4,
+          "last10": 71.5,
+          "last5": 55.7
         }
       },
       "cv_minutes": {
@@ -119083,6 +121579,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -119194,6 +121696,12 @@
           "last20": 50.4,
           "last10": 62.1,
           "last5": 58.8
+        },
+        "sb": {
+          "season": 126.2,
+          "last20": 126.2,
+          "last10": 97.1,
+          "last5": 67.2
         }
       },
       "cv_minutes": {
@@ -119464,6 +121972,12 @@
           "last20": 44.1,
           "last10": 44.1,
           "last5": 53.8
+        },
+        "sb": {
+          "season": 76.5,
+          "last20": 76.5,
+          "last10": 76.5,
+          "last5": 11.4
         }
       },
       "cv_minutes": {
@@ -119665,6 +122179,12 @@
           "last20": 40.6,
           "last10": 43.0,
           "last5": 21.6
+        },
+        "sb": {
+          "season": 71.2,
+          "last20": 78.3,
+          "last10": 69.5,
+          "last5": 76.7
         }
       },
       "cv_minutes": {
@@ -119971,6 +122491,12 @@
           "last20": 46.7,
           "last10": 42.8,
           "last5": 46.5
+        },
+        "sb": {
+          "season": 103.0,
+          "last20": 77.7,
+          "last10": 67.7,
+          "last5": 93.9
         }
       },
       "cv_minutes": {
@@ -120382,6 +122908,12 @@
           "last20": 22.9,
           "last10": 24.4,
           "last5": 19.3
+        },
+        "sb": {
+          "season": 58.4,
+          "last20": 54.6,
+          "last10": 39.7,
+          "last5": 46.1
         }
       },
       "cv_minutes": {
@@ -120739,6 +123271,12 @@
           "last20": 47.0,
           "last10": 39.0,
           "last5": 46.5
+        },
+        "sb": {
+          "season": 82.0,
+          "last20": 82.0,
+          "last10": 82.8,
+          "last5": 58.6
         }
       },
       "cv_minutes": {
@@ -120985,6 +123523,12 @@
           "last20": 37.1,
           "last10": 40.6,
           "last5": 35.9
+        },
+        "sb": {
+          "season": 97.8,
+          "last20": 106.7,
+          "last10": 140.6,
+          "last5": 134.6
         }
       },
       "cv_minutes": {
@@ -121339,6 +123883,12 @@
           "last20": 37.2,
           "last10": 27.3,
           "last5": 32.4
+        },
+        "sb": {
+          "season": 122.3,
+          "last20": 113.1,
+          "last10": 110.5,
+          "last5": 148.1
         }
       },
       "cv_minutes": {
@@ -121651,6 +124201,12 @@
           "last20": 30.0,
           "last10": 25.0,
           "last5": 22.7
+        },
+        "sb": {
+          "season": 67.3,
+          "last20": 74.0,
+          "last10": 66.4,
+          "last5": 113.7
         }
       },
       "cv_minutes": {
@@ -122062,6 +124618,12 @@
           "last20": 43.7,
           "last10": 50.7,
           "last5": 51.9
+        },
+        "sb": {
+          "season": 81.3,
+          "last20": 81.3,
+          "last10": 78.1,
+          "last5": 87.9
         }
       },
       "cv_minutes": {
@@ -122308,6 +124870,12 @@
           "last20": 45.2,
           "last10": 41.1,
           "last5": 51.1
+        },
+        "sb": {
+          "season": 91.7,
+          "last20": 84.2,
+          "last10": 107.7,
+          "last5": 97.2
         }
       },
       "cv_minutes": {
@@ -122638,6 +125206,12 @@
           "last20": 43.6,
           "last10": 48.2,
           "last5": 39.4
+        },
+        "sb": {
+          "season": 64.0,
+          "last20": 78.7,
+          "last10": 63.2,
+          "last5": 59.0
         }
       },
       "cv_minutes": {
@@ -123025,6 +125599,12 @@
           "last20": 39.5,
           "last10": 49.1,
           "last5": 69.2
+        },
+        "sb": {
+          "season": 89.8,
+          "last20": 105.2,
+          "last10": 132.3,
+          "last5": 161.0
         }
       },
       "cv_minutes": {
@@ -123349,6 +125929,12 @@
           "last20": 81.6,
           "last10": 81.6,
           "last5": 49.1
+        },
+        "sb": {
+          "season": 136.1,
+          "last20": 136.1,
+          "last10": 136.1,
+          "last5": 112.4
         }
       },
       "cv_minutes": {
@@ -123568,6 +126154,12 @@
           "last20": 46.2,
           "last10": 38.1,
           "last5": 36.5
+        },
+        "sb": {
+          "season": 151.3,
+          "last20": 151.3,
+          "last10": 161.7,
+          "last5": 92.0
         }
       },
       "cv_minutes": {
@@ -123826,6 +126418,12 @@
           "last20": 37.1,
           "last10": 43.8,
           "last5": 56.2
+        },
+        "sb": {
+          "season": 48.3,
+          "last20": 50.2,
+          "last10": 51.8,
+          "last5": 29.9
         }
       },
       "cv_minutes": {
@@ -124120,6 +126718,12 @@
           "last20": 45.8,
           "last10": 49.5,
           "last5": 59.8
+        },
+        "sb": {
+          "season": 113.5,
+          "last20": 115.8,
+          "last10": 139.3,
+          "last5": 149.1
         }
       },
       "cv_minutes": {
@@ -124438,6 +127042,12 @@
           "last20": 49.7,
           "last10": 46.5,
           "last5": 46.0
+        },
+        "sb": {
+          "season": 112.8,
+          "last20": 112.8,
+          "last10": 118.8,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -124702,6 +127312,12 @@
           "last20": 21.1,
           "last10": 17.2,
           "last5": 10.6
+        },
+        "sb": {
+          "season": 65.1,
+          "last20": 84.4,
+          "last10": 84.3,
+          "last5": 113.8
         }
       },
       "cv_minutes": {
@@ -125062,6 +127678,12 @@
           "last20": 44.9,
           "last10": 50.2,
           "last5": 43.5
+        },
+        "sb": {
+          "season": 92.2,
+          "last20": 95.1,
+          "last10": 148.7,
+          "last5": 110.3
         }
       },
       "cv_minutes": {
@@ -125389,6 +128011,12 @@
           "last20": 65.3,
           "last10": 57.3,
           "last5": 90.0
+        },
+        "sb": {
+          "season": 67.0,
+          "last20": 57.4,
+          "last10": 38.5,
+          "last5": 31.3
         }
       },
       "cv_minutes": {
@@ -125713,6 +128341,12 @@
           "last20": 32.6,
           "last10": 37.9,
           "last5": 16.2
+        },
+        "sb": {
+          "season": 58.9,
+          "last20": 56.3,
+          "last10": 54.5,
+          "last5": 72.0
         }
       },
       "cv_minutes": {
@@ -126010,6 +128644,12 @@
           "last20": 40.3,
           "last10": 50.5,
           "last5": 43.8
+        },
+        "sb": {
+          "season": 77.5,
+          "last20": 92.7,
+          "last10": 93.7,
+          "last5": 98.3
         }
       },
       "cv_minutes": {
@@ -126325,6 +128965,12 @@
           "last20": 40.0,
           "last10": 50.0,
           "last5": 55.3
+        },
+        "sb": {
+          "season": 87.7,
+          "last20": 99.8,
+          "last10": 121.1,
+          "last5": 91.6
         }
       },
       "cv_minutes": {
@@ -126685,6 +129331,12 @@
           "last20": 67.6,
           "last10": 53.6,
           "last5": 41.0
+        },
+        "sb": {
+          "season": 167.1,
+          "last20": 167.1,
+          "last10": 128.2,
+          "last5": 149.1
         }
       },
       "cv_minutes": {
@@ -126973,6 +129625,12 @@
           "last20": null,
           "last10": null,
           "last5": null
+        },
+        "sb": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
         }
       },
       "cv_minutes": {
@@ -127084,6 +129742,12 @@
           "last20": 37.1,
           "last10": 38.3,
           "last5": 39.2
+        },
+        "sb": {
+          "season": 82.1,
+          "last20": 83.8,
+          "last10": 84.1,
+          "last5": 77.8
         }
       },
       "cv_minutes": {
@@ -127381,6 +130045,12 @@
           "last20": 55.1,
           "last10": 55.1,
           "last5": 56.4
+        },
+        "sb": {
+          "season": 228.3,
+          "last20": 228.3,
+          "last10": 228.3,
+          "last5": 223.6
         }
       },
       "cv_minutes": {
@@ -127609,6 +130279,12 @@
           "last20": 38.5,
           "last10": 38.5,
           "last5": 26.7
+        },
+        "sb": {
+          "season": 110.8,
+          "last20": 110.8,
+          "last10": 110.8,
+          "last5": 100.6
         }
       },
       "cv_minutes": {
@@ -127828,6 +130504,12 @@
           "last20": 29.9,
           "last10": 29.9,
           "last5": 32.9
+        },
+        "sb": {
+          "season": 72.0,
+          "last20": 73.3,
+          "last10": 92.3,
+          "last5": 56.1
         }
       },
       "cv_minutes": {
@@ -128164,6 +130846,12 @@
           "last20": 58.6,
           "last10": 49.8,
           "last5": 32.4
+        },
+        "sb": {
+          "season": 98.1,
+          "last20": 93.1,
+          "last10": 112.0,
+          "last5": 92.6
         }
       },
       "cv_minutes": {
@@ -128508,6 +131196,12 @@
           "last5": null
         },
         "ra": {
+          "season": null,
+          "last20": null,
+          "last10": null,
+          "last5": null
+        },
+        "sb": {
           "season": null,
           "last20": null,
           "last10": null,
