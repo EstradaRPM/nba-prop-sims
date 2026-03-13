@@ -510,7 +510,6 @@ function buildOddsIndex(allPropsData, selectedBooks) {
           const entry = index[normName][statKey];
           const side = (outcome.name || '').toLowerCase();
           entry.allBooks.push({ book: bk.key, bookLabel: bk.title, price: outcome.price, point: outcome.point, side });
-          if (outcome.point != null) entry.line = outcome.point;
         });
       });
     });
@@ -518,8 +517,24 @@ function buildOddsIndex(allPropsData, selectedBooks) {
   Object.keys(index).forEach(player => {
     Object.keys(index[player]).forEach(statKey => {
       const entry = index[player][statKey];
-      const overPrices  = entry.allBooks.filter(b => b.side === 'over');
-      const underPrices = entry.allBooks.filter(b => b.side === 'under');
+      // Determine principal line: the point value most frequently offered across all books/sides.
+      // This ensures entry.line, entry.overOdds, and entry.underOdds all refer to the same line.
+      const pointCounts = {};
+      entry.allBooks.forEach(b => {
+        if (b.point != null) {
+          const k = String(b.point);
+          pointCounts[k] = (pointCounts[k] || 0) + 1;
+        }
+      });
+      const sortedPoints = Object.keys(pointCounts).sort((a, b) => {
+        const diff = pointCounts[b] - pointCounts[a]; // descending by count
+        return diff !== 0 ? diff : parseFloat(a) - parseFloat(b); // ascending by value on tie
+      });
+      const principalLine = sortedPoints.length > 0 ? parseFloat(sortedPoints[0]) : null;
+      entry.line = principalLine;
+      // Only compare odds at the principal line so prices and line always match
+      const overPrices  = entry.allBooks.filter(b => b.side === 'over'  && b.point === principalLine);
+      const underPrices = entry.allBooks.filter(b => b.side === 'under' && b.point === principalLine);
       const bestOver  = bestAmericanOdds(overPrices);
       const bestUnder = bestAmericanOdds(underPrices);
       if (bestOver)  { entry.overOdds  = bestOver.price;  entry.overBook  = bestOver.bookLabel;  }
