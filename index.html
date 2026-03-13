@@ -139,7 +139,6 @@ function simulateStatKDE(etrMean, rawScores, historicalMean, n) {
   const hm = parseFloat(historicalMean) || 0;
   if (m <= 0 || hm <= 0 || !rawScores || rawScores.length < 5) return null;
   const k = rawScores.length;
-  const scale = m / hm;
   const LAMBDA = 0.9; // recency decay — rawScores is oldest-first; index k-1 = most recent
 
   // Build exponential-decay weights and CDF (oldest score = lowest weight)
@@ -150,12 +149,17 @@ function simulateStatKDE(etrMean, rawScores, historicalMean, n) {
   let cumul = 0;
   for (let i = 0; i < k; i++) { cumul += cdf[i] / wSum; cdf[i] = cumul; }
 
-  // Weighted mean and variance for Silverman bandwidth
+  // Weighted mean and variance for Silverman bandwidth.
+  // scale uses wMean (recency-weighted) as the denominator — not the unweighted historicalMean —
+  // because the bootstrap samples according to the same recency weights. Using the unweighted
+  // mean would inflate the effective output mean whenever recent games diverge from the season
+  // average (e.g. a player on a usage spike), violating E[output] = etrMean.
   let wMean = 0;
   for (let i = 0; i < k; i++) {
     const wi = i === 0 ? cdf[0] : cdf[i] - cdf[i - 1];
     wMean += wi * rawScores[i];
   }
+  const scale = wMean > 0 ? m / wMean : m / hm;
   let wVar = 0;
   for (let i = 0; i < k; i++) {
     const wi = i === 0 ? cdf[0] : cdf[i] - cdf[i - 1];
