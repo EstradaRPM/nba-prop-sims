@@ -26,7 +26,7 @@ from nba_api.stats.static import players, teams
 SEASON = "2025-26"
 
 # Stats to compute CV for
-STAT_KEYS = ["pts", "reb", "ast", "stl", "blk", "threes", "pra"]
+STAT_KEYS = ["pts", "reb", "ast", "stl", "blk", "threes", "pra", "pr", "pa", "ra"]
 
 # API column → internal key
 COL_MAP = {
@@ -207,6 +207,9 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
             "blk":   float(row.get("BLK") or 0),
             "threes": float(row.get("FG3M") or 0),
             "pra":   pts + reb + ast,
+            "pr":    pts + reb,
+            "pa":    pts + ast,
+            "ra":    reb + ast,
             "team":  team_abbrev,
             "date":  str(row.get("GAME_DATE") or ""),
         })
@@ -412,7 +415,7 @@ def main() -> None:
         sample = output["players"][sample_name]
         assert "cv" in sample, "Schema error: missing 'cv' key"
         assert "cv_minutes" in sample, "Schema error: missing 'cv_minutes' key"
-        assert all(stat in sample["cv"] for stat in STAT_KEYS), "Schema error: missing stat keys"
+        assert all(stat in sample["cv"] for stat in STAT_KEYS), f"Schema error: missing stat keys in cv (expected {STAT_KEYS})"
         assert all(
             w in sample["cv"]["pts"] for w in ["season", "last20", "last10", "last5"]
         ), "Schema error: missing window keys in cv"
