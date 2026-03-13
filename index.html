@@ -194,6 +194,10 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
   const simResults = {};
   Object.keys(stats).forEach((key) => {
     const { mean, stdDev, cvMode, cvValue } = stats[key];
+    // Guard: a manually-entered stdDev of 0 produces a degenerate distribution where every
+    // sample equals the mean, collapsing all probability mass to a single point and returning
+    // 0% for any line that isn't exactly the mean. Fall back to auto estimate instead.
+    const effectiveStd = parseFloat(stdDev) > 0 ? parseFloat(stdDev) : estimateStdDev(key, mean);
     if (POISSON_STATS.has(key)) {
       const cvPct = cvMode && cvValue ? parseFloat(cvValue) : null;
       simResults[key] = (cvPct > 0)
@@ -211,8 +215,16 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
           // KDE bootstraps from observed scores and cannot project beyond the observed
           // range + bandwidth; log-normal provides a probability floor at 2+ SD extremes.
           const lnCount = Math.round(numSims * 0.20);
-          const lnSamples = simulateStatLogNormal(mean, stdDev, lnCount);
+          const lnSamples = simulateStatLogNormal(mean, effectiveStd, lnCount);
           for (let i = 0; i < lnCount; i++) kde[numSims - lnCount + i] = lnSamples[i];
+          // Fisher-Yates shuffle so the 20% log-normal blend is uniformly distributed
+          // across the array. DistBar reads only the first 5k elements; without shuffling
+          // it would never display the tail blend while calcProbability uses all samples —
+          // causing the histogram to visually misrepresent the distribution used for odds.
+          for (let i = numSims - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = kde[i]; kde[i] = kde[j]; kde[j] = tmp;
+          }
           simResults[key] = kde;
           return;
         }
@@ -221,10 +233,10 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
         const cvPct = cvMode && cvValue ? parseFloat(cvValue) : STD_RATIOS['pts'] * 100;
         simResults[key] = simulateStatGamma(mean, cvPct, numSims);
       } else {
-        simResults[key] = simulateStatLogNormal(mean, stdDev, numSims);
+        simResults[key] = simulateStatLogNormal(mean, effectiveStd, numSims);
       }
     } else if (LOG_NORMAL_STATS.has(key)) {
-      simResults[key] = simulateStatLogNormal(mean, stdDev, numSims);
+      simResults[key] = simulateStatLogNormal(mean, effectiveStd, numSims);
     } else {
       simResults[key] = simulateStat(parseFloat(mean) || 0, parseFloat(stdDev) || 0, numSims);
     }
@@ -789,7 +801,10 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
   const rungs = getAltLines(statKey, mean);
   if (rungs.length === 0) return null;
 
-  const interval = statKey === 'pts' ? '5pt' : statKey === 'stl' || statKey === 'blk' ? '1pt' : '1pt';
+  const interval =
+    statKey === 'pts'                                           ? '5pt'   :
+    (statKey === 'pra' || statKey === 'pr' || statKey === 'pa') ? '2.5pt' :
+    statKey === 'sb'                                            ? '0.5pt' : '1pt';
   const primaryLineNum = parseFloat(primaryLine);
 
   return (
@@ -1335,8 +1350,12 @@ function NBASimulator() {
   const [includeHeaders, setIncludeHeaders] = useState(true);
   const [bankroll, setBankroll] = useState("");
   const [cvDatabase, setCvDatabase] = useState(null);
+  const [cvGeneratedAt, setCvGeneratedAt] = useState(null);
   const [cvWindow, setCvWindow] = useState("last20");
   const [praDirectCv, setPraDirectCv] = useState(null);
+  const [prDirectCv,  setPrDirectCv]  = useState(null);
+  const [paDirectCv,  setPaDirectCv]  = useState(null);
+  const [raDirectCv,  setRaDirectCv]  = useState(null);
   const [ptsRawData, setPtsRawData] = useState(null); // { rawScores: number[], historicalMean: number } | null
   const [rebRawData, setRebRawData] = useState(null);
   const [astRawData, setAstRawData] = useState(null);
@@ -1379,7 +1398,7 @@ function NBASimulator() {
   React.useEffect(() => {
     fetch('./cv_data.json')
       .then(r => r.json())
-      .then(data => setCvDatabase(data.players))
+      .then(data => { setCvDatabase(data.players); setCvGeneratedAt(data.generated_at || null); })
       .catch(() => {}); // degrade gracefully — CV lookup is optional
   }, []);
 
@@ -1478,16 +1497,24 @@ function NBASimulator() {
       });
       return updated;
     });
-    // PRA: store effective CV for direct simulation (avoids independence assumption error)
-    const cvPraPer36 = playerData.cv?.pra?.[win];
-    if (cvPraPer36 != null) {
-      const effectivePraCV = (cvMin != null)
-        ? Math.round(Math.sqrt(cvPraPer36 ** 2 + cvMin ** 2) * 10) / 10
-        : Math.round(cvPraPer36 * 10) / 10;
-      setPraDirectCv(effectivePraCV);
-    } else {
-      setPraDirectCv(null);
-    }
+    // PRA / PR / PA / RA: store effective CV for direct simulation.
+    // Direct simulation uses the empirical combo CV (which already encodes within-game
+    // correlations between component stats) rather than summing independently-drawn distributions.
+    const setComboDirectCv = (comboKey, setter) => {
+      const cvPer36 = playerData.cv?.[comboKey]?.[win];
+      if (cvPer36 != null) {
+        const effectiveCV = (cvMin != null)
+          ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMin ** 2) * 10) / 10
+          : Math.round(cvPer36 * 10) / 10;
+        setter(effectiveCV);
+      } else {
+        setter(null);
+      }
+    };
+    setComboDirectCv('pra', setPraDirectCv);
+    setComboDirectCv('pr',  setPrDirectCv);
+    setComboDirectCv('pa',  setPaDirectCv);
+    setComboDirectCv('ra',  setRaDirectCv);
     // pts/reb/ast raw: load historical game scores for KDE hybrid sampler
     const loadRawData = (rawKey, meanKey, setter) => {
       const scores = playerData[rawKey]?.[win];
@@ -1637,15 +1664,16 @@ function NBASimulator() {
     COMBO_CONFIG.forEach(({ key, parts }) => {
       if (comboLines[key].line !== "") {
         let comboVals;
-        if (key === "pra" && praDirectCv != null) {
-          // Direct PRA simulation: avoids the independence assumption error from summing
-          // three separately drawn distributions. Uses empirical PRA CV from cv_data.json
-          // (already captures within-game correlations) combined with minutes variance.
-          const meanPRA = (parseFloat(stats.pts.mean) || 0)
-                        + (parseFloat(stats.reb.mean) || 0)
-                        + (parseFloat(stats.ast.mean) || 0);
-          const stdPRA = meanPRA * (praDirectCv / 100);
-          comboVals = simulateStatLogNormal(meanPRA, stdPRA, numSims);
+        // Prefer direct combo simulation using empirical CV from cv_data.json — avoids the
+        // independence assumption error from summing separately-drawn component distributions.
+        // The empirical combo CV already encodes real within-game correlations (pts/reb/ast
+        // all move together with minutes). Falls back to element-wise sum when CV unavailable.
+        const directCvMap = { pra: praDirectCv, pr: prDirectCv, pa: paDirectCv, ra: raDirectCv };
+        const directCv = directCvMap[key];
+        if (directCv != null) {
+          const meanCombo = parts.reduce((sum, k) => sum + (parseFloat(stats[k]?.mean) || 0), 0);
+          const stdCombo = meanCombo * (directCv / 100);
+          comboVals = simulateStatLogNormal(meanCombo, stdCombo, numSims);
         } else {
           comboVals = calcCombo(simResults, parts);
         }
@@ -1713,7 +1741,7 @@ function NBASimulator() {
       const cvKey = p.name.trim().normalize('NFD');
       const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
       const cvData = cvDatabase?.[cvKey];
-      const gameCtx = gameData?.[p.team] || null;
+      const gameCtx = gameData?.[p.team?.toUpperCase()] || null;
 
       // Build stats object — reuses the exact same CV formula as handleLoadCv
       const statsForSim = buildPlayerStatsForSim(p, playerOdds, cvData);
@@ -2211,11 +2239,19 @@ function NBASimulator() {
               }}>
                 LOAD CV
               </button>
-              {cvLoadStatus === "found" && (
-                <span style={{ fontSize: 10, color: "#22c55e", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
-                  CV LOADED ✓{praDirectCv != null ? " + PRA direct" : ""}
-                </span>
-              )}
+              {cvLoadStatus === "found" && (() => {
+                const directCombos = [
+                  praDirectCv != null && 'PRA',
+                  prDirectCv  != null && 'PR',
+                  paDirectCv  != null && 'PA',
+                  raDirectCv  != null && 'RA',
+                ].filter(Boolean);
+                return (
+                  <span style={{ fontSize: 10, color: "#22c55e", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                    CV LOADED ✓{directCombos.length > 0 ? ` + ${directCombos.join('/')} direct` : ''}
+                  </span>
+                );
+              })()}
               {cvLoadStatus === "found_partial" && (
                 <span style={{ fontSize: 10, color: "#facc15", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
                   CV LOADED (per-36 only — re-run script for full)
@@ -2226,6 +2262,17 @@ function NBASimulator() {
                   NOT IN DB
                 </span>
               )}
+              {cvGeneratedAt && (() => {
+                const ageHours = (Date.now() - new Date(cvGeneratedAt).getTime()) / 3600000;
+                const ts = new Date(cvGeneratedAt).toISOString().slice(0, 16).replace('T', ' ') + 'Z';
+                const stale = ageHours > 26;
+                return (
+                  <span style={{ fontSize: 9, color: stale ? "#f59e0b" : "#475569", fontFamily: "'JetBrains Mono', monospace" }}
+                    title={`CV data generated ${ageHours.toFixed(1)}h ago${stale ? ' — may be stale' : ''}`}>
+                    · {ts}{stale ? ' ⚠' : ''}
+                  </span>
+                );
+              })()}
               <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginLeft: "auto" }}>
                 {Object.keys(cvDatabase).length} players
               </span>
@@ -2301,7 +2348,14 @@ function NBASimulator() {
                         <>
                           <input type="number" step="0.1" value={stats[key].stdDev}
                             onChange={(e) => updateStat(key, "stdDev", e.target.value)}
-                            style={{ ...inputStyle, width: "100%", borderColor: stats[key].stdOverride ? "rgba(251,191,36,0.4)" : "rgba(34,197,94,0.3)" }} />
+                            style={{ ...inputStyle, width: "100%", borderColor: stats[key].stdOverride && parseFloat(stats[key].stdDev) <= 0 ? "rgba(239,68,68,0.6)" : stats[key].stdOverride ? "rgba(251,191,36,0.4)" : "rgba(34,197,94,0.3)" }} />
+                          {stats[key].stdOverride && parseFloat(stats[key].stdDev) <= 0 && (
+                            <div style={{
+                              position: "absolute", top: -5, left: 3, fontSize: 6, fontWeight: 700,
+                              color: "#ef4444", backgroundColor: "rgba(15,23,42,0.95)", padding: "0 2px",
+                              borderRadius: 2, fontFamily: "'JetBrains Mono', monospace",
+                            }} title="σ=0 produces a degenerate distribution — auto estimate applied during simulation">σ≈0</div>
+                          )}
                           {!stats[key].stdOverride ? (
                             <div onClick={() => toggleCvMode(key)} style={{
                               position: "absolute", top: -5, right: 3, fontSize: 6, fontWeight: 700,
