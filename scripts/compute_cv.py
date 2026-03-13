@@ -26,7 +26,7 @@ from nba_api.stats.static import players, teams
 SEASON = "2025-26"
 
 # Stats to compute CV for
-STAT_KEYS = ["pts", "reb", "ast", "stl", "blk", "threes", "pra", "pr", "pa", "ra"]
+STAT_KEYS = ["pts", "reb", "ast", "stl", "blk", "threes", "pra", "pr", "pa", "ra", "sb"]
 
 # API column → internal key
 COL_MAP = {
@@ -210,6 +210,7 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
             "pr":    pts + reb,
             "pa":    pts + ast,
             "ra":    reb + ast,
+            "sb":    float(row.get("STL") or 0) + float(row.get("BLK") or 0),
             "team":  team_abbrev,
             "date":  str(row.get("GAME_DATE") or ""),
         })

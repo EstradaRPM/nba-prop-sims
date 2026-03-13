@@ -115,8 +115,9 @@ Core simulation logic. No external dependencies.
 All components use **inline styles** (no CSS classes, no styled-components).
 
 - **`DistBar`** — 40-bucket histogram rendered as `<div>` bars. Bars left of the prop line are red; bars right are green. Renders up to 5,000 sample points. White vertical line marks the prop line. Min/max range is computed from the same 5,000 samples used for bucketing (not a separate 500-sample slice).
-- **`EdgeBox`** — Displays book implied probability, edge percentage, edge label, and ¼Kelly stake. Only renders if book odds are provided and edge > 0.
-- **`ResultRow`** — Full result card per stat: shows the distribution histogram, OVER/UNDER probability boxes, `EdgeBox` for each side, and a best-side badge if edge ≥ 2%.
+- **`EdgeBox`** — Displays book implied probability, edge percentage, true EV% (`modelProb × decimalOdds − 1`), edge label, and ¼Kelly stake. Only renders if book odds are provided and edge > 0. EV% and Edge% are both shown: edge% is the probability surplus over book implied; EV% is per-dollar financial expectation which accounts for payout size.
+- **`ResultRow`** — Full result card per stat: shows the distribution histogram, OVER/UNDER probability boxes, `EdgeBox` for each side, a best-side badge if edge ≥ 2%, and a distribution model badge (KDE/Gamma/LogNormal/NegBin/Poisson/Direct/Summed) indicating the active sampling method.
+- **`DIST_MODEL_STYLE`** — Color palette map for distribution model badges: KDE=cyan, Gamma=amber, LogNormal=blue, NegBin=purple, Poisson=orange, Direct=teal, Summed=slate.
 
 ### 5. CSV Export (`index.html:318–349`)
 
@@ -211,10 +212,20 @@ python scripts/compute_cv.py
         "stl":    { "season": 96.0, "last20": 111.0, "last10": 114.8, "last5": 143.9 },
         "blk":    { "season": 222.7, "last20": 247.6, "last10": 213.3, "last5": 223.6 },
         "threes": { "season": 59.8, "last20": 54.4, "last10": 57.7, "last5": 23.2 },
-        "pra":    { "season": 23.9, "last20": 23.0, "last10": 28.1, "last5": 14.4 }
+        "pra":    { "season": 23.9, "last20": 23.0, "last10": 28.1, "last5": 14.4 },
+        "pr":     { "season": 25.1, "last20": 24.3, "last10": 27.0, "last5": 15.1 },
+        "pa":     { "season": 24.7, "last20": 23.8, "last10": 26.5, "last5": 14.8 },
+        "ra":     { "season": 35.2, "last20": 37.1, "last10": 33.8, "last5": 38.0 },
+        "sb":     { "season": 145.0, "last20": 162.3, "last10": 158.9, "last5": 170.2 }
       },
       "cv_minutes": { "season": 8.2, "last20": 7.4, "last10": 9.1, "last5": 11.3 },
-      "mean_minutes_last20": 28.4
+      "mean_minutes_last20": 28.4,
+      "pts_raw":      { "season": [28,31,22,35,40,18,27], "last20": [28,31,22,35,40,18,27], "last10": [28,31,22,35,40], "last5": [35,40,18,27,31] },
+      "pts_mean_raw": { "season": 28.71, "last20": 28.71, "last10": 31.2, "last5": 30.2 },
+      "reb_raw":      { "season": [6,8,5,7,9,4,6], "last20": [6,8,5,7,9,4,6], "last10": [6,8,5,7,9], "last5": [7,9,4,6,8] },
+      "reb_mean_raw": { "season": 6.43, "last20": 6.43, "last10": 7.0, "last5": 6.8 },
+      "ast_raw":      { "season": [8,7,9,6,10,7,8], "last20": [8,7,9,6,10,7,8], "last10": [8,7,9,6,10], "last5": [6,10,7,8,7] },
+      "ast_mean_raw": { "season": 7.86, "last20": 7.86, "last10": 8.0, "last5": 7.6 }
     }
   }
 }
@@ -224,13 +235,16 @@ python scripts/compute_cv.py
 - **`position`** field is always `""` — `PlayerGameLog` does not return position; ETR provides it on the JS side
 - **`null` values** mean the window had fewer than 5 qualifying games, or the stat mean was 0 (e.g., a player made 0 three-pointers in the last 5 games — CV is undefined, not zero)
 - **Windows**: `season` = all filtered games this season; `last20/last10/last5` = most recent N qualifying games
+- **`pts_raw` / `reb_raw` / `ast_raw`** — Arrays of situation-filtered raw game totals (not per-36) per window. Used by the JS KDE hybrid sampler (`simulateStatKDE`). Each is `null` if the window has < 5 games.
+- **`pts_mean_raw` / `reb_mean_raw` / `ast_mean_raw`** — Mean of the raw game totals for each window (same filter). Used as the historical mean for KDE recentering.
+- **Combo CVs** (`pra`, `pr`, `pa`, `ra`, `sb` inside `cv`) — Empirical combo CVs for direct simulation. When available, the JS uses these for log-normal combo simulation instead of element-wise component summing, correctly capturing within-game correlation (all stats co-move with minutes).
 
 ### CV Methodology (do not deviate)
 
 1. **Situation filter** — exclude games with `MIN < 10` OR `|game_MIN - trailing_mean_MIN| / trailing_mean_MIN > 0.25`. Trailing mean uses ALL games seen so far (unfiltered) for an accurate baseline.
 2. **Per-36 normalization** — `per36 = (stat / minutes) * 36` for each filtered game.
 3. **CV%** = `(sample_std_dev(per36_rates) / mean(per36_rates)) * 100`. Requires ≥ 5 filtered games per window; returns `null` otherwise.
-4. **Stats**: `pts`, `reb`, `ast`, `stl`, `blk`, `threes` (FG3M), `pra` (pts+reb+ast).
+4. **Stats**: `pts`, `reb`, `ast`, `stl`, `blk`, `threes` (FG3M), `pra` (pts+reb+ast), `pr` (pts+reb), `pa` (pts+ast), `ra` (reb+ast), `sb` (stl+blk).
 
 ### Name Normalization (Python ↔ JS join key)
 
