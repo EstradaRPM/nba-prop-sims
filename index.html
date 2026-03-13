@@ -663,20 +663,44 @@ function DistBar({ simValues, propLine }) {
 }
 
 // ── Edge Box ────────────────────────────────────────────────────────
-function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null }) {
+// kellyFraction: 0.25=¼K, 0.333=⅓K, 0.5=½K, 1.0=Full K
+// unitSize: dollar value of 1 unit (e.g. 20 → $20/unit)
+// ladderMode: splits stake into 3 rungs (40/35/25% of total budget)
+function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false }) {
   const bookProb = americanToProb(bookOdds);
   if (!bookProb) return null;
   const edge = (modelProb - bookProb) * 100;
   const color = getEdgeColor(edge);
   const kelly = calcKelly(modelProb, bookOdds);
-  const isolatedQK = kelly ? kelly * 0.25 : 0;
+  const isolatedKF = kelly ? kelly * kellyFraction : 0;
   const isPortfolio = portfolioFactor !== null && portfolioFactor < 0.9999;
-  const portfolioQK = isPortfolio ? kelly * portfolioFactor * 0.25 : isolatedQK;
+  // Portfolio adjustment: scale the fractional stake by portfolio factor
+  const portfolioKF = isPortfolio ? kelly * portfolioFactor * kellyFraction : isolatedKF;
   const br = parseFloat(bankroll);
   const hasBankroll = !isNaN(br) && br > 0;
+  const us = parseFloat(unitSize);
+  const hasUnitSize = !isNaN(us) && us > 0;
   // True EV per dollar wagered: (modelProb × decimalOdds − 1) × 100
   const decimal = americanToDecimal(bookOdds);
   const ev = decimal != null ? (modelProb * decimal - 1) * 100 : null;
+
+  // Derive stake and unit label
+  const stakeAmt = hasBankroll ? Math.round(br * portfolioKF) : null;
+  const unitAmt = (hasBankroll && hasUnitSize && stakeAmt != null)
+    ? Math.round((stakeAmt / us) * 2) / 2  // round to nearest 0.5U
+    : null;
+
+  // Kelly fraction label for display
+  const kfLabel = kellyFraction >= 1.0 ? "K" : kellyFraction >= 0.5 ? "½K" : kellyFraction >= 0.333 ? "⅓K" : "¼K";
+
+  // Ladder rungs: Rung1=40%, Rung2=35%, Rung3=25% of total stakeAmt
+  // Rung 1 must independently have Kelly > 0 (it does by definition when edge > 0)
+  const ladderRungs = (ladderMode && kelly > 0 && hasBankroll && stakeAmt > 0) ? [
+    { label: "R1 Entry", pct: 0.40, amt: Math.round(stakeAmt * 0.40) },
+    { label: "R2 Add",   pct: 0.35, amt: Math.round(stakeAmt * 0.35) },
+    { label: "R3 Top",   pct: 0.25, amt: Math.round(stakeAmt * 0.25) },
+  ] : null;
+
   return (
     <div style={{
       marginTop: 6, padding: "6px 8px",
@@ -707,7 +731,9 @@ function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null }) {
         <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(148,163,184,0.08)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
-              {isPortfolio ? "P" : ""}¼K: {(portfolioQK * 100).toFixed(2)}%{hasBankroll ? ` → $${Math.round(br * portfolioQK)}` : ""}
+              {isPortfolio ? "P" : ""}{kfLabel}: {(portfolioKF * 100).toFixed(2)}%
+              {stakeAmt != null ? ` → $${stakeAmt}` : ""}
+              {unitAmt != null ? ` (${unitAmt}U)` : ""}
             </span>
             <span style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
               FULL: {(kelly * 100).toFixed(1)}%
@@ -715,7 +741,26 @@ function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null }) {
           </div>
           {isPortfolio && (
             <div style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>
-              ISO¼K: {(isolatedQK * 100).toFixed(2)}%
+              ISO{kfLabel}: {(isolatedKF * 100).toFixed(2)}%
+            </div>
+          )}
+          {ladderRungs && (
+            <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(167,139,250,0.12)" }}>
+              <div style={{ fontSize: 8, color: "#a78bfa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>
+                LADDER — total ${stakeAmt}
+              </div>
+              {ladderRungs.map(({ label: rl, pct, amt }) => {
+                const ru = (hasUnitSize && us > 0) ? Math.round((amt / us) * 2) / 2 : null;
+                return (
+                  <div key={rl} style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", marginBottom: 1 }}>
+                    <span style={{ color: "#a78bfa" }}>{rl}</span>
+                    <span>${amt}{ru != null ? ` · ${ru}U` : ""} <span style={{ color: "#475569" }}>({(pct * 100).toFixed(0)}%)</span></span>
+                  </div>
+                );
+              })}
+              <div style={{ fontSize: 7, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginTop: 3, fontStyle: "italic" }}>
+                R1 must be EV+ standalone · R2/R3 on improved line or steam
+              </div>
             </div>
           )}
         </div>
@@ -735,7 +780,7 @@ const DIST_MODEL_STYLE = {
   Summed:    { color: "#94a3b8", bg: "rgba(148,163,184,0.06)", border: "rgba(148,163,184,0.18)" },
 };
 
-function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null, distModel = null }) {
+function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null, distModel = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false }) {
   if (!prob) return null;
   const overPct = (prob.over * 100).toFixed(1);
   const underPct = (prob.under * 100).toFixed(1);
@@ -801,7 +846,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               Fair: {probToAmerican(prob.over)}
             </div>
           </div>
-          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} bankroll={bankroll} portfolioFactor={portfolioFactorOver} /> : (
+          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} bankroll={bankroll} portfolioFactor={portfolioFactorOver} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No over odds entered
             </div>
@@ -821,7 +866,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               Fair: {probToAmerican(prob.under)}
             </div>
           </div>
-          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} /> : (
+          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No under odds entered
             </div>
@@ -1146,7 +1191,8 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
 }
 
 // ── CSV Export ───────────────────────────────────────────────────────
-function buildCSV(playerName, numSims, statResults, comboResults, timestamp, bankroll, portfolioFactors = {}) {
+function buildCSV(playerName, numSims, statResults, comboResults, timestamp, bankroll, portfolioFactors = {}, kellyFraction = 0.25, unitSize = "20") {
+  const kfLabel = kellyFraction >= 1.0 ? "K" : kellyFraction >= 0.5 ? "½K" : kellyFraction >= 0.333 ? "⅓K" : "¼K";
   const headers = [
     "Timestamp", "Date", "Player", "Stat", "Projection", "Std Dev", "SD Method", "CV %",
     "Prop Line", "Book Over Odds", "Book Under Odds",
@@ -1154,7 +1200,7 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
     "Fair Over Odds", "Fair Under Odds",
     "Over Edge %", "Under Edge %",
     "Best Side", "Best Edge %", "Edge Rating",
-    "Quarter Kelly %", "Stake $",
+    `${kfLabel} %`, "Stake $", "Units",
     "Simulations"
   ];
 
@@ -1181,24 +1227,33 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
     const rating = bestEdgeVal >= 7 ? "STRONG" : bestEdgeVal >= 4 ? "SOLID" :
       bestEdgeVal >= 2 ? "MARGINAL" : "NO EDGE";
 
-    // Portfolio-adjusted Kelly for best side
-    let qKelly = "";
+    // Portfolio-adjusted Kelly for best side (using user-selected kellyFraction)
+    let kfKelly = "";
     let stake = "";
+    let units = "";
+    const us = parseFloat(unitSize);
+    const hasUs = !isNaN(us) && us > 0;
     if (bestSide === "OVER" && overOdds) {
       const k = calcKelly(overProb, parseFloat(overOdds));
       if (k && k > 0) {
         const pf = portfolioFactors[`${stat}_over`] ?? null;
         const adj = pf !== null ? k * pf : k;
-        qKelly = (adj * 25).toFixed(2);
-        stake = hasBr ? Math.round(br * adj * 0.25) : "";
+        const adjKF = adj * kellyFraction;
+        kfKelly = (adjKF * 100).toFixed(2);
+        const stakeAmt = hasBr ? Math.round(br * adjKF) : null;
+        stake = stakeAmt ?? "";
+        units = (stakeAmt != null && hasUs) ? (Math.round((stakeAmt / us) * 2) / 2).toString() : "";
       }
     } else if (bestSide === "UNDER" && underOdds) {
       const k = calcKelly(underProb, parseFloat(underOdds));
       if (k && k > 0) {
         const pf = portfolioFactors[`${stat}_under`] ?? null;
         const adj = pf !== null ? k * pf : k;
-        qKelly = (adj * 25).toFixed(2);
-        stake = hasBr ? Math.round(br * adj * 0.25) : "";
+        const adjKF = adj * kellyFraction;
+        kfKelly = (adjKF * 100).toFixed(2);
+        const stakeAmt = hasBr ? Math.round(br * adjKF) : null;
+        stake = stakeAmt ?? "";
+        units = (stakeAmt != null && hasUs) ? (Math.round((stakeAmt / us) * 2) / 2).toString() : "";
       }
     }
 
@@ -1211,7 +1266,7 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
       typeof overEdge === "number" ? overEdge.toFixed(1) : "",
       typeof underEdge === "number" ? underEdge.toFixed(1) : "",
       bestSide, bestEdgeStr, bestEdgeVal > -999 ? rating : "",
-      qKelly, stake,
+      kfKelly, stake, units,
       numSims,
     ]);
   };
@@ -1386,6 +1441,9 @@ function NBASimulator() {
   const [copied, setCopied] = useState(false);
   const [includeHeaders, setIncludeHeaders] = useState(true);
   const [bankroll, setBankroll] = useState("");
+  const [unitSize, setUnitSize] = useState("20");
+  const [kellyFraction, setKellyFraction] = useState(0.25);
+  const [ladderMode, setLadderMode] = useState(false);
   const [cvDatabase, setCvDatabase] = useState(null);
   const [cvGeneratedAt, setCvGeneratedAt] = useState(null);
   const [cvWindow, setCvWindow] = useState("last20");
@@ -1836,7 +1894,7 @@ function NBASimulator() {
 
   const handleExport = useCallback(() => {
     if (!results) return;
-    const fullCsv = buildCSV(playerName, numSims, results.stats, results.combos, simTimestamp, bankroll, results.portfolioFactors ?? {});
+    const fullCsv = buildCSV(playerName, numSims, results.stats, results.combos, simTimestamp, bankroll, results.portfolioFactors ?? {}, kellyFraction, unitSize);
     const csv = includeHeaders ? fullCsv : fullCsv.split("\n").slice(1).join("\n");
     setCsvData(csv);
     setCopied(false);
@@ -2217,6 +2275,34 @@ function NBASimulator() {
                 onChange={(e) => setBankroll(e.target.value)}
                 style={{ ...inputStyle }} />
             </div>
+            <div style={{ flex: "1 1 80px" }}>
+              <div style={labelStyle}>1U = $</div>
+              <input type="number" step="5" min="1" placeholder="20" value={unitSize}
+                onChange={(e) => setUnitSize(e.target.value)}
+                style={{ ...inputStyle }} />
+            </div>
+            <div style={{ flex: "1 1 90px" }}>
+              <div style={labelStyle}>Kelly Fraction</div>
+              <select value={kellyFraction} onChange={(e) => setKellyFraction(parseFloat(e.target.value))}
+                style={{ ...inputStyle, cursor: "pointer", WebkitAppearance: "none", appearance: "none" }}>
+                <option value={0.25}>¼K (default)</option>
+                <option value={0.333}>⅓K</option>
+                <option value={0.5}>½K (calibrated)</option>
+                <option value={1.0}>Full K (expert)</option>
+              </select>
+            </div>
+            <div style={{ flex: "0 0 auto", alignSelf: "flex-end" }}>
+              <button onClick={() => setLadderMode(v => !v)} style={{
+                padding: "9px 14px", borderRadius: 6,
+                border: ladderMode ? "1px solid rgba(167,139,250,0.5)" : "1px solid rgba(148,163,184,0.15)",
+                background: ladderMode ? "rgba(167,139,250,0.15)" : "rgba(15,23,42,0.4)",
+                color: ladderMode ? "#a78bfa" : "#64748b",
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700, fontSize: 10, letterSpacing: 1, cursor: "pointer",
+              }}>
+                LADDER
+              </button>
+            </div>
             <div style={{ flex: "0 0 auto", alignSelf: "flex-end" }}>
               <button onClick={handleClearPlayer} style={{
                 padding: "9px 14px", borderRadius: 6,
@@ -2228,6 +2314,23 @@ function NBASimulator() {
               </button>
             </div>
           </div>
+
+          {/* Kelly fraction warning */}
+          {kellyFraction > 0.25 && (
+            <div style={{
+              marginTop: 6, padding: "5px 10px", borderRadius: 5,
+              backgroundColor: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)",
+              fontSize: 9, color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <span style={{ fontWeight: 800 }}>⚠</span>
+              {kellyFraction >= 1.0
+                ? "FULL KELLY — requires empirical calibration over 100+ tracked bets. Ruin risk is significant without it."
+                : kellyFraction >= 0.5
+                  ? "½ Kelly — use only with tracked bet history confirming model calibration. ¼K recommended until then."
+                  : "⅓ Kelly — moderate risk increase vs ¼K. Ensure model inputs are validated before using."}
+            </div>
+          )}
 
           {/* Game context badge — shown when Odds API game data is available for this player's team */}
           {(() => {
@@ -2565,7 +2668,7 @@ function NBASimulator() {
                       setIncludeHeaders(e.target.checked);
                       // Re-generate CSV with new setting
                       if (results) {
-                        const fullCsv = buildCSV(playerName, numSims, results.stats, results.combos, simTimestamp, bankroll);
+                        const fullCsv = buildCSV(playerName, numSims, results.stats, results.combos, simTimestamp, bankroll, results.portfolioFactors ?? {}, kellyFraction, unitSize);
                         setCsvData(e.target.checked ? fullCsv : fullCsv.split("\n").slice(1).join("\n"));
                       }
                     }}
@@ -2691,6 +2794,7 @@ function NBASimulator() {
                     portfolioFactorOver={results.portfolioFactors?.[`${key}_over`] ?? null}
                     portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
                     distModel={results.stats[key].distModel}
+                    kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode}
                   />
                   <LadderTable
                     statKey={key}
@@ -2714,6 +2818,7 @@ function NBASimulator() {
                     portfolioFactorOver={results.portfolioFactors?.[`${key}_over`] ?? null}
                     portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
                     distModel={results.combos[key].distModel}
+                    kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode}
                   />
                   <LadderTable
                     statKey={key}
