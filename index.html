@@ -946,7 +946,7 @@ function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfoli
   // Derive stake and unit label
   const stakeAmt = hasBankroll ? Math.round(br * portfolioKF) : null;
   const unitAmt = (hasBankroll && hasUnitSize && stakeAmt != null)
-    ? Math.round((stakeAmt / us) * 2) / 2  // round to nearest 0.5U
+    ? Math.round((stakeAmt / us) * 4) / 4  // round to nearest 0.25U
     : null;
 
   // Kelly fraction label for display
@@ -1014,7 +1014,7 @@ function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfoli
                 LADDER — total ${stakeAmt}
               </div>
               {ladderRungs.map(({ label: rl, pct, amt }) => {
-                const ru = (hasUnitSize && us > 0) ? Math.round((amt / us) * 2) / 2 : null;
+                const ru = (hasUnitSize && us > 0) ? Math.round((amt / us) * 4) / 4 : null;
                 return (
                   <div key={rl} style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", marginBottom: 1 }}>
                     <span style={{ color: "#a78bfa" }}>{rl}</span>
@@ -1535,7 +1535,7 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
         kfKelly = (adjKF * 100).toFixed(2);
         const stakeAmt = hasBr ? Math.round(br * adjKF) : null;
         stake = stakeAmt ?? "";
-        units = (stakeAmt != null && hasUs) ? (Math.round((stakeAmt / us) * 2) / 2).toString() : "";
+        units = (stakeAmt != null && hasUs) ? (Math.round((stakeAmt / us) * 4) / 4).toString() : "";
       }
     } else if (bestSide === "UNDER" && underOdds) {
       const k = calcKelly(underProb, parseFloat(underOdds));
@@ -1546,7 +1546,7 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
         kfKelly = (adjKF * 100).toFixed(2);
         const stakeAmt = hasBr ? Math.round(br * adjKF) : null;
         stake = stakeAmt ?? "";
-        units = (stakeAmt != null && hasUs) ? (Math.round((stakeAmt / us) * 2) / 2).toString() : "";
+        units = (stakeAmt != null && hasUs) ? (Math.round((stakeAmt / us) * 4) / 4).toString() : "";
       }
     }
 
