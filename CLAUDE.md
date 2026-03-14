@@ -78,7 +78,8 @@ Core simulation logic. No external dependencies.
 ### 2. Odds Utilities (`index.html:69–127`)
 
 - **`probToAmerican(prob)`** — Converts model probability to American odds string
-- **`americanToProb(odds)`** — Converts American odds to implied probability (no vig removal)
+- **`americanToProb(odds)`** — Converts American odds to raw implied probability (vig included)
+- **`vigFreeProb(overOdds, underOdds)`** — Returns `{ over, under }` vig-free probabilities by normalizing both sides to sum to 1.0. Falls back to raw `americanToProb` values when one side is missing.
 - **`americanToDecimal(odds)`** — Converts American odds to decimal format for Kelly
 - **`calcKelly(modelProb, americanOdds)`** — Returns full Kelly fraction; returns `0` if no edge
 - **`fmtOdds(o)`** — Formats American odds with `+` prefix for positives
@@ -115,7 +116,7 @@ Core simulation logic. No external dependencies.
 All components use **inline styles** (no CSS classes, no styled-components).
 
 - **`DistBar`** — 40-bucket histogram rendered as `<div>` bars. Bars left of the prop line are red; bars right are green. Renders up to 5,000 sample points. White vertical line marks the prop line. Min/max range is computed from the same 5,000 samples used for bucketing (not a separate 500-sample slice).
-- **`EdgeBox`** — Displays book implied probability, edge percentage, true EV% (`modelProb × decimalOdds − 1`), edge label, and ¼Kelly stake. Only renders if book odds are provided and edge > 0. EV% and Edge% are both shown: edge% is the probability surplus over book implied; EV% is per-dollar financial expectation which accounts for payout size.
+- **`EdgeBox`** — Displays book implied probability, vig-free edge percentage (primary), raw edge (secondary note), true EV% (`modelProb × decimalOdds − 1`), edge label, and ¼Kelly stake. Accepts `otherSideOdds` prop; when provided, normalizes both sides to compute vig-free book probability. Only renders if book odds are provided and edge > 0. EV% and Edge% are both shown: edge% is the probability surplus over vig-free book implied; EV% is per-dollar financial expectation which accounts for payout size.
 - **`ResultRow`** — Full result card per stat: shows the distribution histogram, OVER/UNDER probability boxes, `EdgeBox` for each side, a best-side badge if edge ≥ 2%, and a distribution model badge (KDE/Gamma/LogNormal/NegBin/Poisson/Direct/Summed) indicating the active sampling method.
 - **`DIST_MODEL_STYLE`** — Color palette map for distribution model badges: KDE=cyan, Gamma=amber, LogNormal=blue, NegBin=purple, Poisson=orange, Direct=teal, Summed=slate.
 
@@ -149,14 +150,16 @@ All components use **inline styles** (no CSS classes, no styled-components).
 
 ## Edge Scale
 
+Thresholds apply to **vig-free edge** (both sides' odds normalized to sum to 1.0). When only one side's odds are entered, raw implied probability is used as fallback (slightly more conservative).
+
 | Label | Edge Threshold | Color |
 |---|---|---|
-| STRONG | ≥ 7% | `#22c55e` |
-| SOLID | 4–7% | `#4ade80` |
-| MARGINAL | 2–4% | `#86efac` |
-| NO EDGE | < 2% | `#ef4444` |
+| STRONG | ≥ 5% | `#22c55e` |
+| SOLID | 3–5% | `#4ade80` |
+| MARGINAL | 1.5–3% | `#86efac` |
+| NO EDGE | < 1.5% | `#ef4444` |
 
-Edge = model probability − book implied probability (not vig-adjusted).
+Edge = model probability − vig-free book implied probability. Vig-free: `bookProb_side / (bookProb_over + bookProb_under)`. Raw edge (before vig removal) is shown as a secondary reference in the EdgeBox. At -110/-110, vig-free edge = raw edge + ~2.4pp.
 
 ---
 
@@ -286,7 +289,7 @@ The simulator fetches this URL on load and degrades gracefully if the fetch fail
    - Red (negative): `#ef4444`, `#fca5a5`
 6. **Performance**: Simulations use `Float64Array` for memory efficiency. `DistBar` caps rendering at 5,000 of the simulation samples for display performance.
 7. **Kelly sizing**: Always display ¼ Kelly (quarter Kelly), never full Kelly, as the primary stake recommendation. Full Kelly is shown as a secondary reference.
-8. **No vig removal**: `americanToProb()` returns raw implied probability including vig. Edge calculations do not remove the vig from book odds — this is intentional.
+8. **Vig removal**: Edge calculations use `vigFreeProb(overOdds, underOdds)` to normalize both sides to sum to 1.0 when both are available. `americanToProb()` is retained for single-side fallback and Kelly/EV calculations. Raw edge is shown as a secondary reference in `EdgeBox`.
 
 ---
 

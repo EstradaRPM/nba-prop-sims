@@ -360,6 +360,20 @@ function americanToProb(odds) {
   return 100 / (o + 100);
 }
 
+// Returns vig-free implied probabilities by normalizing both sides to sum to 1.0.
+// When both over and under odds are provided, removes the book's vig.
+// Falls back to raw americanToProb when only one side is available.
+// Example: -110/-110 raw → 52.38%/52.38%; vig-free → 50%/50%.
+function vigFreeProb(overOdds, underOdds) {
+  const overRaw  = americanToProb(overOdds);
+  const underRaw = americanToProb(underOdds);
+  if (overRaw && underRaw) {
+    const total = overRaw + underRaw;
+    return { over: overRaw / total, under: underRaw / total };
+  }
+  return { over: overRaw, under: underRaw };
+}
+
 function americanToDecimal(odds) {
   const o = parseFloat(odds);
   if (isNaN(o) || o === 0) return null;
@@ -397,17 +411,17 @@ function fmtOdds(o) {
 }
 
 function getEdgeColor(edge) {
-  if (edge >= 7) return "#22c55e";
-  if (edge >= 4) return "#4ade80";
-  if (edge >= 2) return "#86efac";
-  if (edge >= 0) return "#94a3b8";
+  if (edge >= 5)   return "#22c55e";
+  if (edge >= 3)   return "#4ade80";
+  if (edge >= 1.5) return "#86efac";
+  if (edge >= 0)   return "#94a3b8";
   return "#ef4444";
 }
 
 function getEdgeLabel(edge) {
-  if (edge >= 7) return "STRONG";
-  if (edge >= 4) return "SOLID";
-  if (edge >= 2) return "MARGINAL";
+  if (edge >= 5)   return "STRONG";
+  if (edge >= 3)   return "SOLID";
+  if (edge >= 1.5) return "MARGINAL";
   return "NO EDGE";
 }
 
@@ -687,10 +701,15 @@ function DistBar({ simValues, propLine }) {
 // kellyFraction: 0.25=¼K, 0.333=⅓K, 0.5=½K, 1.0=Full K
 // unitSize: dollar value of 1 unit (e.g. 20 → $20/unit)
 // ladderMode: splits stake into 3 rungs (40/35/25% of total budget)
-function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false }) {
-  const bookProb = americanToProb(bookOdds);
-  if (!bookProb) return null;
-  const edge = (modelProb - bookProb) * 100;
+function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfolioFactor = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false }) {
+  const bookProbRaw = americanToProb(bookOdds);
+  if (!bookProbRaw) return null;
+  // Vig-free: normalize using both sides when available; fall back to raw otherwise
+  const otherRaw = otherSideOdds != null ? americanToProb(otherSideOdds) : null;
+  const vigRemoved = !!(bookProbRaw && otherRaw);
+  const bookProb = vigRemoved ? bookProbRaw / (bookProbRaw + otherRaw) : bookProbRaw;
+  const edge = (modelProb - bookProb) * 100;           // primary: vig-free when possible
+  const rawEdge = (modelProb - bookProbRaw) * 100;     // secondary reference
   const color = getEdgeColor(edge);
   const kelly = calcKelly(modelProb, bookOdds);
   const isolatedKF = kelly ? kelly * kellyFraction : 0;
@@ -725,23 +744,28 @@ function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null, kellyF
   return (
     <div style={{
       marginTop: 6, padding: "6px 8px",
-      backgroundColor: edge >= 2 ? `${color}11` : "rgba(15,23,42,0.4)",
-      border: `1px solid ${edge >= 2 ? color + "44" : "rgba(148,163,184,0.1)"}`,
+      backgroundColor: edge >= 1.5 ? `${color}11` : "rgba(15,23,42,0.4)",
+      border: `1px solid ${edge >= 1.5 ? color + "44" : "rgba(148,163,184,0.1)"}`,
       borderRadius: 5,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
-          BOOK {fmtOdds(bookOdds)} → {(bookProb * 100).toFixed(1)}%
+          BOOK {fmtOdds(bookOdds)} → {(bookProbRaw * 100).toFixed(1)}%{vigRemoved ? ` (vf ${(bookProb * 100).toFixed(1)}%)` : ""}
         </div>
         <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, color, fontFamily: "'JetBrains Mono', monospace" }}>
           {getEdgeLabel(edge)}
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3 }}>
-        <span style={{ fontSize: 18, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: edge >= 2 ? color : "#475569" }}>
+        <span style={{ fontSize: 18, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: edge >= 1.5 ? color : "#475569" }}>
           {edge >= 0 ? "+" : ""}{edge.toFixed(1)}%
         </span>
-        <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>EDGE</span>
+        <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>{vigRemoved ? "VF EDGE" : "EDGE"}</span>
+        {vigRemoved && (
+          <span style={{ fontSize: 10, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+            · raw {rawEdge >= 0 ? "+" : ""}{rawEdge.toFixed(1)}%
+          </span>
+        )}
         {ev != null && (
           <span style={{ fontSize: 10, color: ev >= 0 ? "#64748b" : "#ef444488", fontFamily: "'JetBrains Mono', monospace", marginLeft: 4 }}>
             · EV {ev >= 0 ? "+" : ""}{ev.toFixed(1)}%
@@ -809,8 +833,12 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
   const hasOver = overOdds !== "" && !isNaN(parseFloat(overOdds));
   const hasUnder = underOdds !== "" && !isNaN(parseFloat(underOdds));
 
-  const overEdge = hasOver ? (prob.over - americanToProb(parseFloat(overOdds))) * 100 : null;
-  const underEdge = hasUnder ? (prob.under - americanToProb(parseFloat(underOdds))) * 100 : null;
+  // Use vig-free book probabilities when both sides are available
+  const vfProbs = (hasOver && hasUnder) ? vigFreeProb(parseFloat(overOdds), parseFloat(underOdds)) : null;
+  const overBookProb  = hasOver  ? (vfProbs ? vfProbs.over  : americanToProb(parseFloat(overOdds)))  : null;
+  const underBookProb = hasUnder ? (vfProbs ? vfProbs.under : americanToProb(parseFloat(underOdds))) : null;
+  const overEdge  = overBookProb  != null ? (prob.over  - overBookProb)  * 100 : null;
+  const underEdge = underBookProb != null ? (prob.under - underBookProb) * 100 : null;
   const bestEdge = Math.max(overEdge ?? -999, underEdge ?? -999);
   const bestSide = (overEdge ?? -999) >= (underEdge ?? -999) ? "OVER" : "UNDER";
   const modelStyle = distModel ? (DIST_MODEL_STYLE[distModel] ?? DIST_MODEL_STYLE.LogNormal) : null;
@@ -818,7 +846,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
   return (
     <div style={{
       backgroundColor: "rgba(15,23,42,0.6)",
-      border: bestEdge >= 4 ? `1px solid ${getEdgeColor(bestEdge)}33` : "1px solid rgba(148,163,184,0.12)",
+      border: bestEdge >= 3 ? `1px solid ${getEdgeColor(bestEdge)}33` : "1px solid rgba(148,163,184,0.12)",
       borderRadius: 8, padding: "12px 16px", marginBottom: 8,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -838,7 +866,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
             </span>
           )}
         </div>
-        {bestEdge >= 2 && (
+        {bestEdge >= 1.5 && (
           <div style={{
             padding: "2px 8px", borderRadius: 4,
             backgroundColor: getEdgeColor(bestEdge) + "22",
@@ -867,7 +895,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               Fair: {probToAmerican(prob.over)}
             </div>
           </div>
-          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} bankroll={bankroll} portfolioFactor={portfolioFactorOver} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} /> : (
+          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} otherSideOdds={hasUnder ? parseFloat(underOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorOver} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No over odds entered
             </div>
@@ -887,7 +915,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               Fair: {probToAmerican(prob.under)}
             </div>
           </div>
-          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} /> : (
+          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} otherSideOdds={hasOver ? parseFloat(overOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No under odds entered
             </div>
@@ -1040,9 +1068,9 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
     whiteSpace: 'nowrap', overflow: 'hidden',
   };
 
-  const strongCount   = results.filter(r => r.edge >= 7).length;
-  const solidCount    = results.filter(r => r.edge >= 4 && r.edge < 7).length;
-  const marginalCount = results.filter(r => r.edge >= 2 && r.edge < 4).length;
+  const strongCount   = results.filter(r => r.edge >= 5).length;
+  const solidCount    = results.filter(r => r.edge >= 3 && r.edge < 5).length;
+  const marginalCount = results.filter(r => r.edge >= 1.5 && r.edge < 3).length;
 
   const allStats = ['pts','reb','ast','stl','blk','threes'];
   const statLabels = { pts:'PTS', reb:'REB', ast:'AST', stl:'STL', blk:'BLK', threes:'3PM' };
@@ -1133,8 +1161,8 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
               </div>
             ) : filtered.map((r, i) => {
               const edgeColor = getEdgeColor(r.edge);
-              const rowBg = r.edge >= 7 ? 'rgba(34,197,94,0.07)'
-                : r.edge >= 4 ? 'rgba(34,197,94,0.03)' : 'transparent';
+              const rowBg = r.edge >= 5 ? 'rgba(34,197,94,0.07)'
+                : r.edge >= 3 ? 'rgba(34,197,94,0.03)' : 'transparent';
               return (
                 <div key={i} style={{ display: 'flex', backgroundColor: rowBg }}>
                   <div style={{ ...cellStyle, ...cols[0].style, color: '#e2e8f0',
@@ -1234,9 +1262,15 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
     if (!prob) return;
     const overProb = prob.over;
     const underProb = prob.under;
-    const bookOverProb = americanToProb(parseFloat(overOdds));
-    const bookUnderProb = americanToProb(parseFloat(underOdds));
-    const overEdge = bookOverProb ? ((overProb - bookOverProb) * 100) : "";
+    const bookOverProbRaw  = americanToProb(parseFloat(overOdds));
+    const bookUnderProbRaw = americanToProb(parseFloat(underOdds));
+    // Use vig-free probabilities when both sides are available
+    const vfP = (bookOverProbRaw && bookUnderProbRaw)
+      ? { over: bookOverProbRaw / (bookOverProbRaw + bookUnderProbRaw), under: bookUnderProbRaw / (bookOverProbRaw + bookUnderProbRaw) }
+      : null;
+    const bookOverProb  = vfP ? vfP.over  : bookOverProbRaw;
+    const bookUnderProb = vfP ? vfP.under : bookUnderProbRaw;
+    const overEdge  = bookOverProb  ? ((overProb  - bookOverProb)  * 100) : "";
     const underEdge = bookUnderProb ? ((underProb - bookUnderProb) * 100) : "";
     const bestEdgeVal = Math.max(
       typeof overEdge === "number" ? overEdge : -999,
@@ -1245,8 +1279,8 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
     const bestSide = bestEdgeVal === -999 ? "" :
       (overEdge >= underEdge ? "OVER" : "UNDER");
     const bestEdgeStr = bestEdgeVal === -999 ? "" : bestEdgeVal.toFixed(1);
-    const rating = bestEdgeVal >= 7 ? "STRONG" : bestEdgeVal >= 4 ? "SOLID" :
-      bestEdgeVal >= 2 ? "MARGINAL" : "NO EDGE";
+    const rating = bestEdgeVal >= 5 ? "STRONG" : bestEdgeVal >= 3 ? "SOLID" :
+      bestEdgeVal >= 1.5 ? "MARGINAL" : "NO EDGE";
 
     // Portfolio-adjusted Kelly for best side (using user-selected kellyFraction)
     let kfKelly = "";
@@ -1892,12 +1926,16 @@ function NBASimulator() {
         const fairUnderOdds = probToAmerican(prob.under);
 
         ['over', 'under'].forEach(side => {
-          const rawOdds = side === 'over' ? s.overOdds : s.underOdds;
+          const rawOdds      = side === 'over' ? s.overOdds : s.underOdds;
+          const otherRawOdds = side === 'over' ? s.underOdds : s.overOdds;
           const bookOdds = parseFloat(rawOdds);
           if (isNaN(bookOdds)) return;
-          const modelProb = prob[side];
-          const bookProb  = americanToProb(bookOdds);
-          if (!bookProb) return;
+          const modelProb    = prob[side];
+          const bookProbRaw  = americanToProb(bookOdds);
+          if (!bookProbRaw) return;
+          // Vig-free when both sides available
+          const otherRaw = americanToProb(parseFloat(otherRawOdds));
+          const bookProb = (otherRaw) ? bookProbRaw / (bookProbRaw + otherRaw) : bookProbRaw;
           const edge      = (modelProb - bookProb) * 100;
           const kelly     = calcKelly(modelProb, bookOdds) || 0;
           allRows.push({
@@ -2222,7 +2260,7 @@ function NBASimulator() {
               </span>
               {batchResults && !batchRunning && (
                 <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
-                  · {batchResults.filter(r => r.edge >= 2).length} plays with edge
+                  · {batchResults.filter(r => r.edge >= 1.5).length} plays with edge
                 </span>
               )}
             </div>
@@ -2785,14 +2823,20 @@ function NBASimulator() {
               const overSignals = coreStats.filter(k => {
                 const r = results.stats[k];
                 if (!r || !r.overOdds || r.overOdds === "") return false;
-                const bookProb = americanToProb(parseFloat(r.overOdds));
-                return bookProb && (r.prob.over - bookProb) * 100 >= 2;
+                const vfP = (r.overOdds && r.underOdds && r.underOdds !== "")
+                  ? vigFreeProb(parseFloat(r.overOdds), parseFloat(r.underOdds))
+                  : null;
+                const bookProb = vfP ? vfP.over : americanToProb(parseFloat(r.overOdds));
+                return bookProb && (r.prob.over - bookProb) * 100 >= 1.5;
               });
               const underSignals = coreStats.filter(k => {
                 const r = results.stats[k];
                 if (!r || !r.underOdds || r.underOdds === "") return false;
-                const bookProb = americanToProb(parseFloat(r.underOdds));
-                return bookProb && (r.prob.under - bookProb) * 100 >= 2;
+                const vfP = (r.overOdds && r.overOdds !== "" && r.underOdds)
+                  ? vigFreeProb(parseFloat(r.overOdds), parseFloat(r.underOdds))
+                  : null;
+                const bookProb = vfP ? vfP.under : americanToProb(parseFloat(r.underOdds));
+                return bookProb && (r.prob.under - bookProb) * 100 >= 1.5;
               });
               if (overSignals.length >= 3) {
                 return (
