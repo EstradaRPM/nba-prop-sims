@@ -749,7 +749,7 @@ function EdgeBox({ modelProb, bookOdds, bankroll, portfolioFactor = null, kellyF
         )}
       </div>
       {kelly > 0 && (
-        <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(148,163,184,0.08)" }}>
+        <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(148,163,184,0.20)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
               {isPortfolio ? "P" : ""}{kfLabel}: {(portfolioKF * 100).toFixed(2)}%
@@ -919,7 +919,7 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
           display: "flex", alignItems: "center", gap: 6, padding: "4px 10px",
           cursor: "pointer", borderRadius: "0 0 6px 6px",
           backgroundColor: "rgba(15,23,42,0.35)",
-          border: "1px solid rgba(148,163,184,0.08)", borderTop: "none",
+          border: "1px solid rgba(148,163,184,0.20)", borderTop: "none",
         }}
       >
         <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
@@ -931,13 +931,13 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
       {open && (
         <div style={{
           backgroundColor: "rgba(15,23,42,0.25)",
-          border: "1px solid rgba(148,163,184,0.08)", borderTop: "none",
+          border: "1px solid rgba(148,163,184,0.20)", borderTop: "none",
           borderRadius: "0 0 8px 8px", overflow: "hidden",
         }}>
           {/* Column headers */}
           <div style={{
             display: "grid", gridTemplateColumns: "60px 1fr 80px 1fr 80px",
-            padding: "4px 10px", borderBottom: "1px solid rgba(148,163,184,0.08)",
+            padding: "4px 10px", borderBottom: "1px solid rgba(148,163,184,0.20)",
           }}>
             {["LINE", "OVER %", "FAIR", "UNDER %", "FAIR"].map((h, i) => (
               <div key={i} style={{ fontSize: 7, fontWeight: 700, color: "#475569", fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.8, textAlign: i === 0 ? "left" : "center" }}>
@@ -1114,7 +1114,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
       </div>
 
       {/* Table */}
-      <div style={{ overflowX: 'auto', borderRadius: 6, border: '1px solid rgba(148,163,184,0.08)' }}>
+      <div style={{ overflowX: 'auto', borderRadius: 6, border: '1px solid rgba(148,163,184,0.20)' }}>
         <div style={{ minWidth: 580 }}>
           {/* Header */}
           <div style={{ display: 'flex' }}>
@@ -1319,7 +1319,8 @@ function buildBatchCSV(batchResults, timestamp) {
   const headers = [
     'Timestamp','Date','Player','Team','Stat','Line','Side',
     'Book Odds','Model%','Book%','Edge%','Edge Rating','¼Kelly%',
-    'Game Total','Spread'
+    'Game Total','Spread',
+    'Bet ID','ETR Projection','Model Fair Over','Model Fair Under','Games (CV)'
   ];
   const dateStr = new Date().toLocaleDateString('en-US');
   const escape = v => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g,'""')}"` : s; };
@@ -1329,7 +1330,11 @@ function buildBatchCSV(batchResults, timestamp) {
     (r.modelProb * 100).toFixed(1), (r.bookProb * 100).toFixed(1),
     r.edge.toFixed(1), r.edgeLabel,
     r.kellyPct > 0 ? r.kellyPct.toFixed(2) : '',
-    r.gameTotal ?? '', r.spread != null ? r.spread : ''
+    r.gameTotal ?? '', r.spread != null ? r.spread : '',
+    r.betId ?? '',
+    r.projection != null ? r.projection.toFixed(1) : '',
+    r.fairOverOdds ?? '', r.fairUnderOdds ?? '',
+    r.gamesAvailable ?? ''
   ]);
   return [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))].join('\n');
 }
@@ -1840,17 +1845,24 @@ function NBASimulator() {
     setBatchResults(null);
     setBatchCsvData(null);
 
-    // Filter to players with at least one stat that has an odds line
+    // Filter to players with at least one stat that has an odds line.
+    // Also gate out players whose CV database sample is too thin to trust (< MIN_BATCH_GAMES).
+    // Players absent from the CV DB entirely still pass through (new/recent players).
     const eligible = projections.filter(p => {
       const normName = normalizeOddsName(p.name);
       const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
       if (!playerOdds) return false;
+      const cvKey = p.name.trim().normalize('NFD');
+      const cvEntry = cvDatabase?.[cvKey];
+      if (cvEntry && cvEntry.games_available < MIN_BATCH_GAMES) return false;
       return STAT_CONFIG.some(({ key }) => playerOdds[key]?.line != null);
     });
 
     setBatchProgress({ current: 0, total: eligible.length });
     const allRows = [];
     const BATCH_SIMS = 10000;
+    const MIN_BATCH_GAMES = 10; // require ≥10 CV-db games to trust the distribution shape
+    const BATCH_PROJ_FLOORS = { pts: 6, reb: 2, ast: 1.5, stl: 0.5, blk: 0.3, threes: 0.5 };
 
     for (let i = 0; i < eligible.length; i++) {
       const p = eligible[i];
@@ -1871,7 +1883,13 @@ function NBASimulator() {
         const s = statsForSim[key];
         if (!s || s.propLine === '') return; // no line for this stat
 
+        // Projection floor: skip tiny-projection props — the edge is projection uncertainty, not alpha
+        const projValue = parseFloat(p[key]);
+        if (isNaN(projValue) || projValue < (BATCH_PROJ_FLOORS[key] ?? 0)) return;
+
         const prob = calcProbability(simResults[key], s.propLine);
+        const fairOverOdds  = probToAmerican(prob.over);
+        const fairUnderOdds = probToAmerican(prob.under);
 
         ['over', 'under'].forEach(side => {
           const rawOdds = side === 'over' ? s.overOdds : s.underOdds;
@@ -1897,6 +1915,12 @@ function NBASimulator() {
             kellyPct:  kelly * 25, // ¼ Kelly displayed
             gameTotal: gameCtx?.total ?? null,
             spread:    gameCtx?.spread ?? null,
+            // Backtest / CLV tracking columns
+            projection:     projValue,
+            fairOverOdds,
+            fairUnderOdds,
+            gamesAvailable: cvData?.games_available ?? null,
+            betId: Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
           });
         });
       });
@@ -1989,7 +2013,7 @@ function NBASimulator() {
         </div>
 
         {/* ETR Projections */}
-        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: `1px solid ${projections ? "rgba(99,102,241,0.25)" : "rgba(148,163,184,0.08)"}`, borderRadius: 12, marginBottom: 12 }}>
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: `1px solid ${projections ? "rgba(99,102,241,0.25)" : "rgba(148,163,184,0.20)"}`, borderRadius: 12, marginBottom: 12 }}>
           {/* Header row — always visible, click to toggle */}
           <div onClick={() => setProjOpen(o => !o)}
             style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", cursor: "pointer" }}>
@@ -2092,91 +2116,8 @@ function NBASimulator() {
           )}
         </div>
 
-        {/* Batch EV Hunt */}
-        <div style={{ backgroundColor: 'rgba(15,23,42,0.4)', border: `1px solid ${batchResults ? 'rgba(99,102,241,0.3)' : 'rgba(148,163,184,0.08)'}`, borderRadius: 12, marginBottom: 12 }}>
-          <div onClick={() => setBatchOpen(o => !o)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', cursor: 'pointer', userSelect: 'none' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10,
-                color: batchResults ? '#a5b4fc' : '#64748b', letterSpacing: 1 }}>
-                BATCH EV HUNT
-              </span>
-              {batchResults && !batchRunning && (
-                <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
-                  · {batchResults.filter(r => r.edge >= 2).length} plays with edge
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {projections && oddsData && !batchRunning && (
-                <button onClick={e => { e.stopPropagation(); setBatchOpen(true); runBatchSimulation(); }}
-                  style={{ padding: '4px 12px', borderRadius: 5, border: 'none',
-                    background: '#6366f1', color: '#fff',
-                    fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
-                    cursor: 'pointer', letterSpacing: 0.8 }}>
-                  RUN BATCH
-                </button>
-              )}
-              {batchRunning && batchProgress && (
-                <span style={{ fontSize: 9, color: '#facc15', fontFamily: "'JetBrains Mono', monospace" }}>
-                  {batchProgress.current} / {batchProgress.total}
-                </span>
-              )}
-              <span style={{ fontSize: 9, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
-                {batchOpen ? '▲' : '▼'}
-              </span>
-            </div>
-          </div>
-          {batchOpen && (
-            <div style={{ padding: '0 16px 16px' }}>
-              {(!projections || !oddsData) && (
-                <div style={{ fontSize: 10, color: '#64748b', fontFamily: "'JetBrains Mono', monospace", padding: '4px 0 8px' }}>
-                  Load ETR projections and fetch live lines first.
-                </div>
-              )}
-              {batchRunning && batchProgress && (
-                <div style={{ fontSize: 10, color: '#facc15', fontFamily: "'JetBrains Mono', monospace", marginBottom: 10 }}>
-                  Simulating {batchProgress.current} / {batchProgress.total} players...
-                  <div style={{ marginTop: 6, height: 3, borderRadius: 2, backgroundColor: 'rgba(148,163,184,0.1)' }}>
-                    <div style={{ height: '100%', borderRadius: 2, backgroundColor: '#6366f1',
-                      width: `${(batchProgress.current / batchProgress.total) * 100}%`,
-                      transition: 'width 0.1s' }} />
-                  </div>
-                </div>
-              )}
-              {batchResults && !batchRunning && (
-                <BatchResultsTable
-                  results={batchResults}
-                  sortCol={batchSortCol}
-                  sortDir={batchSortDir}
-                  onSort={col => {
-                    if (col === batchSortCol) setBatchSortDir(d => d === 'desc' ? 'asc' : 'desc');
-                    else { setBatchSortCol(col); setBatchSortDir('desc'); }
-                  }}
-                  minEdge={batchMinEdge}
-                  setMinEdge={setBatchMinEdge}
-                  statFilter={batchStatFilter}
-                  setStatFilter={setBatchStatFilter}
-                  positiveOnly={batchPositiveOnly}
-                  setPositiveOnly={setBatchPositiveOnly}
-                  bankroll={bankroll}
-                  onExport={() => setBatchCsvData(buildBatchCSV(batchResults, new Date().toISOString()))}
-                  csvData={batchCsvData}
-                  csvCopied={batchCsvCopied}
-                  onCopyCsv={() => {
-                    navigator.clipboard.writeText(batchCsvData).then(() => {
-                      setBatchCsvCopied(true);
-                      setTimeout(() => setBatchCsvCopied(false), 2000);
-                    });
-                  }}
-                />
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Live Lines — Odds API */}
-        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: `1px solid ${oddsData ? "rgba(34,197,94,0.2)" : "rgba(148,163,184,0.08)"}`, borderRadius: 12, marginBottom: 12 }}>
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: `1px solid ${oddsData ? "rgba(34,197,94,0.2)" : "rgba(148,163,184,0.20)"}`, borderRadius: 12, marginBottom: 12 }}>
           <div onClick={() => setShowOddsPanel(o => !o)}
             style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", cursor: "pointer" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2270,8 +2211,91 @@ function NBASimulator() {
           )}
         </div>
 
+        {/* Batch EV Hunt */}
+        <div style={{ backgroundColor: 'rgba(15,23,42,0.4)', border: `1px solid ${batchResults ? 'rgba(99,102,241,0.3)' : 'rgba(148,163,184,0.20)'}`, borderRadius: 12, marginBottom: 12 }}>
+          <div onClick={() => setBatchOpen(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', cursor: 'pointer', userSelect: 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10,
+                color: batchResults ? '#a5b4fc' : '#64748b', letterSpacing: 1 }}>
+                BATCH EV HUNT
+              </span>
+              {batchResults && !batchRunning && (
+                <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
+                  · {batchResults.filter(r => r.edge >= 2).length} plays with edge
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {projections && oddsData && !batchRunning && (
+                <button onClick={e => { e.stopPropagation(); setBatchOpen(true); runBatchSimulation(); }}
+                  style={{ padding: '4px 12px', borderRadius: 5, border: 'none',
+                    background: '#6366f1', color: '#fff',
+                    fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
+                    cursor: 'pointer', letterSpacing: 0.8 }}>
+                  RUN BATCH
+                </button>
+              )}
+              {batchRunning && batchProgress && (
+                <span style={{ fontSize: 9, color: '#facc15', fontFamily: "'JetBrains Mono', monospace" }}>
+                  {batchProgress.current} / {batchProgress.total}
+                </span>
+              )}
+              <span style={{ fontSize: 9, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
+                {batchOpen ? '▲' : '▼'}
+              </span>
+            </div>
+          </div>
+          {batchOpen && (
+            <div style={{ padding: '0 16px 16px' }}>
+              {(!projections || !oddsData) && (
+                <div style={{ fontSize: 10, color: '#64748b', fontFamily: "'JetBrains Mono', monospace", padding: '4px 0 8px' }}>
+                  Load ETR projections and fetch live lines first.
+                </div>
+              )}
+              {batchRunning && batchProgress && (
+                <div style={{ fontSize: 10, color: '#facc15', fontFamily: "'JetBrains Mono', monospace", marginBottom: 10 }}>
+                  Simulating {batchProgress.current} / {batchProgress.total} players...
+                  <div style={{ marginTop: 6, height: 3, borderRadius: 2, backgroundColor: 'rgba(148,163,184,0.1)' }}>
+                    <div style={{ height: '100%', borderRadius: 2, backgroundColor: '#6366f1',
+                      width: `${(batchProgress.current / batchProgress.total) * 100}%`,
+                      transition: 'width 0.1s' }} />
+                  </div>
+                </div>
+              )}
+              {batchResults && !batchRunning && (
+                <BatchResultsTable
+                  results={batchResults}
+                  sortCol={batchSortCol}
+                  sortDir={batchSortDir}
+                  onSort={col => {
+                    if (col === batchSortCol) setBatchSortDir(d => d === 'desc' ? 'asc' : 'desc');
+                    else { setBatchSortCol(col); setBatchSortDir('desc'); }
+                  }}
+                  minEdge={batchMinEdge}
+                  setMinEdge={setBatchMinEdge}
+                  statFilter={batchStatFilter}
+                  setStatFilter={setBatchStatFilter}
+                  positiveOnly={batchPositiveOnly}
+                  setPositiveOnly={setBatchPositiveOnly}
+                  bankroll={bankroll}
+                  onExport={() => setBatchCsvData(buildBatchCSV(batchResults, new Date().toISOString()))}
+                  csvData={batchCsvData}
+                  csvCopied={batchCsvCopied}
+                  onCopyCsv={() => {
+                    navigator.clipboard.writeText(batchCsvData).then(() => {
+                      setBatchCsvCopied(true);
+                      setTimeout(() => setBatchCsvCopied(false), 2000);
+                    });
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Player + Config */}
-        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.08)", borderRadius: 12, padding: 16, marginBottom: 12 }}>
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.20)", borderRadius: 12, padding: 16, marginBottom: 12 }}>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div style={{ flex: "2 1 180px" }}>
               <div style={labelStyle}>Player</div>
@@ -2444,7 +2468,7 @@ function NBASimulator() {
         </div>
 
         {/* Stat Inputs */}
-        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.08)", borderRadius: 12, padding: "16px 12px", marginBottom: 12 }}>
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.20)", borderRadius: 12, padding: "16px 12px", marginBottom: 12 }}>
           <div style={{ ...labelStyle, marginBottom: 12, fontSize: 11, paddingLeft: 4 }}>Projections & Lines</div>
 
           <div style={{ display: "flex", gap: 4, marginBottom: 6, paddingLeft: 30 }}>
@@ -2625,7 +2649,7 @@ function NBASimulator() {
         </div>
 
         {/* Combos */}
-        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.08)", borderRadius: 12, padding: "16px 12px", marginBottom: 16 }}>
+        <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.20)", borderRadius: 12, padding: "16px 12px", marginBottom: 16 }}>
           <div style={{ ...labelStyle, marginBottom: 12, fontSize: 11, paddingLeft: 4 }}>Combo Props</div>
           <div style={{ display: "flex", gap: 4, marginBottom: 6, paddingLeft: 95 }}>
             <div style={{ ...tinyLabel, flex: 1 }}>Line</div>
