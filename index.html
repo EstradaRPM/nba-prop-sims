@@ -523,15 +523,19 @@ function calcKelly(modelProb, americanOdds) {
   return kelly > 0 ? kelly : 0;
 }
 
-// Simultaneous independent-event Kelly: stake_i = κ_i × ∏(1 − κ_j, j≠i)
+// Simultaneous independent-event Kelly: stake_i = κ_i × kf × ∏(1 − κ_j × kf, j≠i)
+// Uses planned fractional-Kelly bet sizes (kelly × kellyFraction) in the product, not
+// full Kelly. Reason: the portfolio interaction depends on what you *actually* plan to
+// bet. Full Kelly in the product collapses all other stakes toward $0 whenever any
+// single bet has a large Kelly fraction (e.g. 80%+ full Kelly from a high-prob input).
 // allBets: array of { key, side, kelly } for each active (best-edge, positive-Kelly) bet.
-// Returns { 'key_side': portfolioFactor } where portfolioFactor = ∏(1−κ_j, j≠i).
-function calcPortfolioFactors(allBets) {
+// Returns { 'key_side': portfolioFactor } where portfolioFactor = ∏(1−κ_j×kf, j≠i).
+function calcPortfolioFactors(allBets, kellyFraction = 0.25) {
   if (allBets.length === 0) return {};
-  const totalProd = allBets.reduce((p, { kelly }) => p * (1 - kelly), 1.0);
+  const totalProd = allBets.reduce((p, { kelly }) => p * (1 - kelly * kellyFraction), 1.0);
   const factors = {};
   allBets.forEach(({ key, side, kelly }) => {
-    factors[`${key}_${side}`] = totalProd / (1 - kelly);
+    factors[`${key}_${side}`] = totalProd / (1 - kelly * kellyFraction);
   });
   return factors;
 }
@@ -2396,7 +2400,7 @@ function NBASimulator() {
       const bestK = Math.max(overK, underK);
       if (bestK > 0) portfolioBets.push({ key, side: overK >= underK ? 'over' : 'under', kelly: bestK });
     });
-    const portfolioFactors = calcPortfolioFactors(portfolioBets);
+    const portfolioFactors = calcPortfolioFactors(portfolioBets, kellyFraction);
 
     // Auto-open ladder for every stat/combo that has a prop line entered
     const newLadderOpen = {};
@@ -2407,7 +2411,7 @@ function NBASimulator() {
     setSimTime(Math.round(performance.now() - t0));
     setSimTimestamp(ts);
     setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
-  }, [stats, comboLines, numSims]);
+  }, [stats, comboLines, numSims, kellyFraction]);
 
   // ── Bet Journal Handlers ─────────────────────────────────────────────
   const handleConfirmLogBet = useCallback((draft) => {
