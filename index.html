@@ -536,6 +536,17 @@ function calcPortfolioFactors(allBets) {
   return factors;
 }
 
+// ── Session Persistence ──────────────────────────────────────────────
+const SESSION_KEY = 'nbaSimSession';
+
+let _sessionCache = null;
+function loadSession() {
+  if (_sessionCache) return _sessionCache;
+  try { _sessionCache = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}'); }
+  catch { _sessionCache = {}; }
+  return _sessionCache;
+}
+
 // ── Bet Journal Utilities ────────────────────────────────────────────
 const JOURNAL_KEY = 'nbaSimJournal';
 
@@ -1955,18 +1966,30 @@ function JournalPanel({ journal, open, onToggle, filter, setFilter, onEdit, onDe
 
 // ── Main App ────────────────────────────────────────────────────────
 function NBASimulator() {
-  const [playerName, setPlayerName] = useState("Player Name");
-  const [numSims, setNumSims] = useState(20000);
+  const [playerName, setPlayerName] = useState(() => loadSession().playerName ?? "Player Name");
+  const [numSims, setNumSims] = useState(() => loadSession().numSims ?? 20000);
   const [stats, setStats] = useState(() => {
+    const saved = loadSession().stats;
     const init = {};
     STAT_CONFIG.forEach(({ key, defaultMean }) => {
       init[key] = { mean: defaultMean, stdDev: estimateStdDev(key, defaultMean), propLine: "", overOdds: "", underOdds: "", stdOverride: false, cvMode: false, cvValue: "", projSD: "" };
     });
+    if (saved) {
+      STAT_CONFIG.forEach(({ key }) => {
+        if (saved[key]) init[key] = { ...init[key], ...saved[key] };
+      });
+    }
     return init;
   });
   const [comboLines, setComboLines] = useState(() => {
+    const saved = loadSession().comboLines;
     const init = {};
     COMBO_CONFIG.forEach(({ key }) => { init[key] = { line: "", overOdds: "", underOdds: "" }; });
+    if (saved) {
+      COMBO_CONFIG.forEach(({ key }) => {
+        if (saved[key]) init[key] = { ...init[key], ...saved[key] };
+      });
+    }
     return init;
   });
   const [results, setResults] = useState(null);
@@ -1975,13 +1998,13 @@ function NBASimulator() {
   const [csvData, setCsvData] = useState(null);
   const [copied, setCopied] = useState(false);
   const [includeHeaders, setIncludeHeaders] = useState(true);
-  const [bankroll, setBankroll] = useState("");
-  const [unitSize, setUnitSize] = useState("20");
-  const [kellyFraction, setKellyFraction] = useState(0.25);
+  const [bankroll, setBankroll] = useState(() => loadSession().bankroll ?? "");
+  const [unitSize, setUnitSize] = useState(() => loadSession().unitSize ?? "20");
+  const [kellyFraction, setKellyFraction] = useState(() => loadSession().kellyFraction ?? 0.25);
   const [ladderMode, setLadderMode] = useState(false);
   const [cvDatabase, setCvDatabase] = useState(null);
   const [cvGeneratedAt, setCvGeneratedAt] = useState(null);
-  const [cvWindow, setCvWindow] = useState("last20");
+  const [cvWindow, setCvWindow] = useState(() => loadSession().cvWindow ?? "last20");
   const [praDirectCv, setPraDirectCv] = useState(null);
   const [prDirectCv,  setPrDirectCv]  = useState(null);
   const [paDirectCv,  setPaDirectCv]  = useState(null);
@@ -2010,7 +2033,7 @@ function NBASimulator() {
   const [batchCsvCopied,    setBatchCsvCopied]     = useState(false);
   const [batchOpen,         setBatchOpen]          = useState(false);
   // Parlay odds inputs for correlated signal banner (3-leg PTS+REB+AST)
-  const [parlayOdds, setParlayOdds] = useState({ over: "", under: "" });
+  const [parlayOdds, setParlayOdds] = useState(() => loadSession().parlayOdds ?? { over: "", under: "" });
 
   // Odds API state
   const [oddsApiKey, setOddsApiKey] = useState(() => localStorage.getItem('oddsApiKey') || '');
@@ -2036,6 +2059,9 @@ function NBASimulator() {
 
   React.useEffect(() => { localStorage.setItem('oddsApiKey', oddsApiKey); }, [oddsApiKey]);
   React.useEffect(() => { localStorage.setItem('selectedBooks', JSON.stringify(selectedBooks)); }, [selectedBooks]);
+  React.useEffect(() => {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ playerName, numSims, stats, comboLines, bankroll, unitSize, kellyFraction, cvWindow, parlayOdds }));
+  }, [playerName, numSims, stats, comboLines, bankroll, unitSize, kellyFraction, cvWindow, parlayOdds]);
 
   // ── Bet Journal state ──────────────────────────────────────────────
   const [journal,             setJournal]             = useState(() => loadJournal());
