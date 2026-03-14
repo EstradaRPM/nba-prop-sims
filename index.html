@@ -87,6 +87,68 @@ function simulateStatNegBin(mean, cvPct, n) {
   return results;
 }
 
+// ── Single-draw helpers + buildKDEModel (for projection uncertainty outer loop) ─
+// buildKDEModel: precomputes the recency-weighted CDF and bandwidth once, so
+// the projection uncertainty outer loop can reuse it without O(n²) rebuilding.
+function buildKDEModel(etrMean, rawScores, historicalMean, targetStd) {
+  const m = parseFloat(etrMean) || 0;
+  const hm = parseFloat(historicalMean) || 0;
+  if (m <= 0 || hm <= 0 || !rawScores || rawScores.length < 5) return null;
+  const k = rawScores.length;
+  const LAMBDA = 0.9;
+  const cdf = new Float64Array(k);
+  let wSum = 0;
+  for (let i = 0; i < k; i++) { cdf[i] = Math.pow(LAMBDA, k - 1 - i); wSum += cdf[i]; }
+  let cumul = 0;
+  for (let i = 0; i < k; i++) { cumul += cdf[i] / wSum; cdf[i] = cumul; }
+  let wMean = 0;
+  for (let i = 0; i < k; i++) {
+    const wi = i === 0 ? cdf[0] : cdf[i] - cdf[i - 1];
+    wMean += wi * rawScores[i];
+  }
+  const scale = wMean > 0 ? m / wMean : m / hm;
+  let wVar = 0;
+  for (let i = 0; i < k; i++) {
+    const wi = i === 0 ? cdf[0] : cdf[i] - cdf[i - 1];
+    wVar += wi * (rawScores[i] - wMean) ** 2;
+  }
+  let wSqSum = 0;
+  for (let i = 0; i < k; i++) wSqSum += Math.pow(LAMBDA, 2 * (k - 1 - i));
+  const kEff = (wSum * wSum) / wSqSum;
+  const hSilverman = 1.06 * Math.sqrt(wVar) * Math.pow(kEff, -0.2);
+  let h = hSilverman;
+  if (targetStd > 0) {
+    const bootstrapVar = wVar * scale * scale;
+    const targetVar    = targetStd * targetStd;
+    if (targetVar > bootstrapVar) {
+      const hCal = Math.sqrt(targetVar / (scale * scale) - wVar);
+      h = Math.max(hCal, hSilverman);
+    }
+  }
+  return { cdf, rawScores, scale, h, wMean };
+}
+
+function sampleSingleKDE(model) {
+  const { cdf, rawScores, scale, h } = model;
+  const k = rawScores.length;
+  const u = Math.random();
+  let lo = 0, hi = k - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (cdf[mid] < u) lo = mid + 1; else hi = mid; }
+  return Math.max(0, (rawScores[lo] + h * randn()) * scale);
+}
+
+function sampleSingleLogNormal(mean, std) {
+  if (mean <= 0 || std <= 0) return Math.max(0, mean);
+  const cv  = std / mean;
+  const mu  = Math.log(mean / Math.sqrt(1 + cv * cv));
+  const sig = Math.sqrt(Math.log(1 + cv * cv));
+  return Math.exp(mu + sig * randn());
+}
+
+function sampleSingleGamma(alpha, beta) {
+  return randGamma(alpha) * beta;
+}
+
 // ── Gamma distribution sampler (Marsaglia-Tsang 2000) ────────────────────────
 // Used for pts when empirical KDE data is unavailable.
 // Parameterization: shape α, scale β. Mean = α×β, Variance = α×β².
@@ -210,7 +272,7 @@ const LOG_NORMAL_STATS = new Set([]);
 const POISSON_STATS    = new Set(['stl', 'blk', 'threes']);
 const KDE_STATS        = new Set(['pts', 'reb', 'ast']);
 
-function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
+function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projSDs = {}) {
   const rawDataMap = { pts: ptsRawData, reb: rebRawData, ast: astRawData };
   const simResults = {};
   Object.keys(stats).forEach((key) => {
@@ -219,6 +281,56 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData) {
     // sample equals the mean, collapsing all probability mass to a single point and returning
     // 0% for any line that isn't exactly the mean. Fall back to auto estimate instead.
     const effectiveStd = parseFloat(stdDev) > 0 ? parseFloat(stdDev) : estimateStdDev(key, mean);
+    const sigmaProj = projSDs && projSDs[key] > 0 ? projSDs[key] : 0;
+
+    // Projection Uncertainty: sample μ ~ N(ETR, σ_proj) in 50 chunks.
+    // Each chunk uses a perturbed mean, approximating the Bayesian mixture
+    // P(X) = ∫ P(X|μ) P(μ) dμ. Performance: 50 sampler calls vs numSims—negligible overhead.
+    if (sigmaProj > 0) {
+      const etrMean = parseFloat(mean) || 0;
+      const CHUNKS = 50;
+      const chunkSize = Math.ceil(numSims / CHUNKS);
+      const combined = new Float64Array(numSims);
+      let offset = 0;
+      // Precompute KDE model for reuse across chunks (avoids O(n²) CDF rebuilding)
+      const rawData = rawDataMap[key];
+      const kdeModel = (KDE_STATS.has(key) && rawData)
+        ? buildKDEModel(etrMean, rawData.rawScores, rawData.historicalMean, effectiveStd)
+        : null;
+      const cvPct_nb = cvMode && cvValue ? parseFloat(cvValue) : null;
+      for (let c = 0; c < CHUNKS && offset < numSims; c++) {
+        const mu_i = Math.max(0, etrMean + sigmaProj * randn());
+        const n_c  = Math.min(chunkSize, numSims - offset);
+        let chunk;
+        if (POISSON_STATS.has(key)) {
+          chunk = (cvPct_nb > 0) ? simulateStatNegBin(mu_i, cvPct_nb, n_c) : simulateStatPoisson(mu_i, n_c);
+        } else if (KDE_STATS.has(key)) {
+          if (kdeModel) {
+            chunk = new Float64Array(n_c);
+            // Build a scaled KDE model for this perturbed mean
+            const scaledModel = { ...kdeModel, scale: kdeModel.wMean > 0 ? mu_i / kdeModel.wMean : kdeModel.scale };
+            for (let j = 0; j < n_c; j++) chunk[j] = sampleSingleKDE(scaledModel);
+          } else if (key === 'pts') {
+            const cvP = cvMode && cvValue ? parseFloat(cvValue) : STD_RATIOS['pts'] * 100;
+            chunk = simulateStatGamma(mu_i, cvP, n_c);
+          } else {
+            chunk = simulateStatLogNormal(mu_i, Math.max(0.001, mu_i * (effectiveStd / Math.max(etrMean, 0.001))), n_c);
+          }
+        } else {
+          chunk = simulateStatLogNormal(mu_i, Math.max(0.001, mu_i * (effectiveStd / Math.max(etrMean, 0.001))), n_c);
+        }
+        combined.set(chunk, offset);
+        offset += n_c;
+      }
+      // Fisher-Yates shuffle for uniform blending across chunks
+      for (let i = numSims - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = combined[i]; combined[i] = combined[j]; combined[j] = tmp;
+      }
+      simResults[key] = combined;
+      return;
+    }
+
     if (POISSON_STATS.has(key)) {
       const cvPct = cvMode && cvValue ? parseFloat(cvValue) : null;
       simResults[key] = (cvPct > 0)
@@ -422,6 +534,82 @@ function calcPortfolioFactors(allBets) {
     factors[`${key}_${side}`] = totalProd / (1 - kelly);
   });
   return factors;
+}
+
+// ── Bet Journal Utilities ────────────────────────────────────────────
+const JOURNAL_KEY = 'nbaSimJournal';
+
+function generateBetId() {
+  return Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(2, 8);
+}
+
+function loadJournal() {
+  try { return JSON.parse(localStorage.getItem(JOURNAL_KEY) || '[]'); }
+  catch { return []; }
+}
+
+// CLV: positive = you beat the closing line (favorable).
+// fairOdds / closingOdds in American. Returns % or null.
+function calcCLV(fairOdds, closingOdds) {
+  const fairDec    = americanToDecimal(parseFloat(fairOdds));
+  const closingDec = americanToDecimal(parseFloat(closingOdds));
+  if (!fairDec || !closingDec || closingDec <= 1) return null;
+  return ((fairDec - closingDec) / closingDec) * 100;
+}
+
+// P&L in dollars (positive = profit, negative = loss)
+function calcPnL(stake, bookOdds, result) {
+  if (!stake || !bookOdds || !result) return null;
+  const dec = americanToDecimal(parseFloat(bookOdds));
+  if (!dec) return null;
+  if (result === 'won')  return Math.round(stake * (dec - 1) * 100) / 100;
+  if (result === 'lost') return -Math.abs(stake);
+  if (result === 'push') return 0;
+  return null;
+}
+
+function buildJournalCSV(entries) {
+  const headers = [
+    'ID','Logged At','Game Date','Player','Stat','Side','Line',
+    'Book Odds','Book','Model Prob%','Fair Odds','Edge%','Stake $',
+    'Status','Closing Line','Closing Odds','CLV%','Result','P&L $','Notes'
+  ];
+  const esc = v => { const s = String(v ?? ''); return (s.includes(',') || s.includes('"')) ? `"${s.replace(/"/g,'""')}"` : s; };
+  const rows = entries.map(e => [
+    e.id, e.loggedAt, e.gameDate, e.player, e.statLabel, e.side,
+    e.propLine, fmtOdds(e.bookOdds), e.bookName || '',
+    e.modelProb != null ? (e.modelProb * 100).toFixed(1) : '',
+    fmtOdds(e.fairOdds), e.edgePct != null ? e.edgePct.toFixed(1) : '',
+    e.stake ?? '', e.status, e.closingLine ?? '',
+    e.closingOdds ? fmtOdds(e.closingOdds) : '',
+    e.clv != null ? e.clv.toFixed(1) : '',
+    e.result ?? '', e.pnl ?? '', e.notes || ''
+  ]);
+  return [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
+}
+
+// Groups settled bets by 7 probability buckets; computes model avg vs actual hit rate
+function computeCalibrationBuckets(entries) {
+  const buckets = [
+    { label: '<35%',   min: 0,    max: 0.35 },
+    { label: '35-45',  min: 0.35, max: 0.45 },
+    { label: '45-55',  min: 0.45, max: 0.55 },
+    { label: '55-65',  min: 0.55, max: 0.65 },
+    { label: '65-75',  min: 0.65, max: 0.75 },
+    { label: '75-85',  min: 0.75, max: 0.85 },
+    { label: '85%+',   min: 0.85, max: 1.01 },
+  ];
+  const settled = entries.filter(e => e.result === 'won' || e.result === 'lost');
+  return buckets.map(b => {
+    const inB  = settled.filter(e => e.modelProb >= b.min && e.modelProb < b.max);
+    const wins = inB.filter(e => e.result === 'won').length;
+    const n    = inB.length;
+    return {
+      label: b.label, n,
+      modelAvg:   n > 0 ? inB.reduce((s, e) => s + e.modelProb, 0) / n : null,
+      actualRate: n > 0 ? wins / n : null,
+    };
+  });
 }
 
 function fmtOdds(o) {
@@ -721,7 +909,7 @@ function DistBar({ simValues, propLine }) {
 // kellyFraction: 0.25=¼K, 0.333=⅓K, 0.5=½K, 1.0=Full K
 // unitSize: dollar value of 1 unit (e.g. 20 → $20/unit)
 // ladderMode: splits stake into 3 rungs (40/35/25% of total budget)
-function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfolioFactor = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false }) {
+function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfolioFactor = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false, onLogBet = null, side = null }) {
   const bookProbRaw = americanToProb(bookOdds);
   if (!bookProbRaw) return null;
   // Vig-free: normalize using both sides when available; fall back to raw otherwise
@@ -830,6 +1018,15 @@ function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfoli
           )}
         </div>
       )}
+      {onLogBet && edge >= 1.5 && (
+        <div style={{ marginTop: 5, paddingTop: 5, borderTop: "1px solid rgba(148,163,184,0.08)" }}>
+          <button
+            onClick={() => onLogBet({ side, modelProb, bookOdds, fairOdds: probToAmerican(modelProb), edgePct: edge, stake: stakeAmt })}
+            style={{ width: "100%", padding: "4px 0", borderRadius: 4, fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: "pointer", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
+            + LOG BET
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -845,7 +1042,7 @@ const DIST_MODEL_STYLE = {
   Summed:    { color: "#94a3b8", bg: "rgba(148,163,184,0.06)", border: "rgba(148,163,184,0.18)" },
 };
 
-function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null, distModel = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false }) {
+function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null, distModel = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false, onLogBetOver = null, onLogBetUnder = null, ciOver = null, ciUnder = null, projUncertaintyMode = false }) {
   if (!prob) return null;
   const overPct = (prob.over * 100).toFixed(1);
   const underPct = (prob.under * 100).toFixed(1);
@@ -914,8 +1111,13 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
             <div style={{ fontSize: 12, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
               Fair: {probToAmerican(prob.over)}
             </div>
+            {ciOver && projUncertaintyMode && (
+              <div style={{ fontSize: 7, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginTop: 1 }}>
+                ±{((ciOver.hi - ciOver.lo) / 2 * 100).toFixed(1)}pp
+              </div>
+            )}
           </div>
-          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} otherSideOdds={hasUnder ? parseFloat(underOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorOver} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} /> : (
+          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} otherSideOdds={hasUnder ? parseFloat(underOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorOver} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetOver} side="over" /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No over odds entered
             </div>
@@ -934,8 +1136,13 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
             <div style={{ fontSize: 12, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
               Fair: {probToAmerican(prob.under)}
             </div>
+            {ciUnder && projUncertaintyMode && (
+              <div style={{ fontSize: 7, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginTop: 1 }}>
+                ±{((ciUnder.hi - ciUnder.lo) / 2 * 100).toFixed(1)}pp
+              </div>
+            )}
           </div>
-          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} otherSideOdds={hasOver ? parseFloat(overOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} /> : (
+          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} otherSideOdds={hasOver ? parseFloat(overOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetUnder} side="under" /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No under odds entered
             </div>
@@ -1498,6 +1705,254 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
   return stats;
 }
 
+// ── Log Bet Modal ────────────────────────────────────────────────────
+function LogBetModal({ draft, onConfirm, onCancel }) {
+  const [bookOdds, setBookOdds] = React.useState(String(draft.bookOdds || ''));
+  const [bookName, setBookName] = React.useState(draft.bookName || '');
+  const [stake,    setStake]    = React.useState(draft.stake ? String(draft.stake) : '');
+  const [notes,    setNotes]    = React.useState('');
+
+  const handleConfirm = () => {
+    onConfirm({ ...draft, bookOdds: parseFloat(bookOdds) || draft.bookOdds, bookName: bookName.trim(), stake: parseFloat(stake) || null, notes: notes.trim() });
+  };
+
+  const inp = { background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 4, color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, padding: '5px 8px', width: '100%', boxSizing: 'border-box' };
+  const lbl = { fontSize: 8, color: '#64748b', fontFamily: "'Outfit', sans-serif", fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3, display: 'block' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ backgroundColor: '#111827', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: 20, width: 340, maxWidth: '92vw', boxShadow: '0 0 40px rgba(245,158,11,0.08)' }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, color: '#f59e0b', marginBottom: 14, letterSpacing: 2 }}>+ LOG BET</div>
+        <div style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 6, padding: '8px 10px', marginBottom: 12, fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#e2e8f0', lineHeight: 1.6 }}>
+          <div><span style={{ color: '#94a3b8' }}>PLAYER  </span>{draft.player || '—'}</div>
+          <div><span style={{ color: '#94a3b8' }}>BET     </span>{draft.statLabel} {draft.side?.toUpperCase()} {draft.propLine}</div>
+          <div><span style={{ color: '#94a3b8' }}>MODEL   </span>{draft.modelProb != null ? (draft.modelProb * 100).toFixed(1) : '—'}% · Fair {fmtOdds(draft.fairOdds)}</div>
+          <div><span style={{ color: '#94a3b8' }}>EDGE    </span><span style={{ color: '#4ade80' }}>{draft.edgePct != null ? draft.edgePct.toFixed(1) : '—'}%</span></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 10px', marginBottom: 10 }}>
+          <div><label style={lbl}>Book Odds</label><input type="number" step="1" value={bookOdds} onChange={e => setBookOdds(e.target.value)} style={inp} /></div>
+          <div><label style={lbl}>Stake $</label><input type="number" step="1" min="0" placeholder="optional" value={stake} onChange={e => setStake(e.target.value)} style={inp} /></div>
+        </div>
+        <div style={{ marginBottom: 10 }}><label style={lbl}>Book / Source</label><input type="text" placeholder="DraftKings, FanDuel…" value={bookName} onChange={e => setBookName(e.target.value)} style={inp} /></div>
+        <div style={{ marginBottom: 14 }}><label style={lbl}>Notes</label><textarea rows={2} placeholder="optional context…" value={notes} onChange={e => setNotes(e.target.value)} style={{ ...inp, resize: 'vertical', fontFamily: "'Outfit', sans-serif" }} /></div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={handleConfirm} style={{ flex: 1, padding: '7px 0', borderRadius: 5, fontWeight: 700, fontSize: 9, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>CONFIRM LOG</button>
+          <button onClick={onCancel}     style={{ flex: 1, padding: '7px 0', borderRadius: 5, fontWeight: 700, fontSize: 9, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(15,23,42,0.4)', color: '#64748b' }}>CANCEL</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Close Out Modal ──────────────────────────────────────────────────
+function CloseOutModal({ bet, onSave, onCancel }) {
+  const [closingLine,  setClosingLine]  = React.useState(String(bet.closingLine  ?? ''));
+  const [closingOdds,  setClosingOdds]  = React.useState(String(bet.closingOdds  ?? ''));
+  const [result,       setResult]       = React.useState(bet.result || '');
+  const [notes,        setNotes]        = React.useState(bet.notes  || '');
+
+  const clv = closingOdds ? calcCLV(bet.fairOdds, parseFloat(closingOdds)) : null;
+  const pnl = result      ? calcPnL(bet.stake, bet.bookOdds, result)       : null;
+
+  const handleSave = () => {
+    const co = parseFloat(closingOdds) || null;
+    onSave({ closingLine: parseFloat(closingLine) || null, closingOdds: co, result: result || null, notes: notes.trim(),
+      clv: co ? calcCLV(bet.fairOdds, co) : null,
+      pnl: result ? calcPnL(bet.stake, bet.bookOdds, result) : null,
+      status: result === 'void' ? 'void' : result ? 'closed' : bet.status });
+  };
+
+  const inp = { background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 4, color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, padding: '5px 8px', width: '100%', boxSizing: 'border-box' };
+  const lbl = { fontSize: 8, color: '#64748b', fontFamily: "'Outfit', sans-serif", fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3, display: 'block' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ backgroundColor: '#111827', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 12, padding: 20, width: 360, maxWidth: '92vw' }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, color: '#94a3b8', marginBottom: 12, letterSpacing: 2 }}>CLOSE OUT BET</div>
+        <div style={{ fontSize: 9, color: '#94a3b8', fontFamily: "'JetBrains Mono', monospace", marginBottom: 12, background: 'rgba(15,23,42,0.5)', borderRadius: 6, padding: '6px 10px', lineHeight: 1.7 }}>
+          {bet.player} · {bet.statLabel} {bet.side?.toUpperCase()} {bet.propLine} @ {fmtOdds(bet.bookOdds)}{bet.bookName ? ` · ${bet.bookName}` : ''}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 10px', marginBottom: 10 }}>
+          <div><label style={lbl}>Closing Line</label><input type="number" step="0.5" value={closingLine} onChange={e => setClosingLine(e.target.value)} style={inp} /></div>
+          <div><label style={lbl}>Closing Odds</label><input type="number" step="1" value={closingOdds} onChange={e => setClosingOdds(e.target.value)} style={inp} /></div>
+        </div>
+        {clv != null && (
+          <div style={{ fontSize: 9, marginBottom: 8, padding: '4px 8px', borderRadius: 4, background: clv >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', color: clv >= 0 ? '#4ade80' : '#fca5a5', fontFamily: "'JetBrains Mono', monospace" }}>
+            CLV {clv >= 0 ? '+' : ''}{clv.toFixed(1)}% — {clv >= 0 ? 'beat the close ✓' : 'closed against you'}
+          </div>
+        )}
+        <div style={{ marginBottom: 10 }}>
+          <label style={lbl}>Result</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['won','lost','push','void'].map(r => (
+              <button key={r} onClick={() => setResult(r === result ? '' : r)} style={{ flex: 1, padding: '5px 0', borderRadius: 4, fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', textTransform: 'uppercase', border: result === r ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(148,163,184,0.2)', background: result === r ? 'rgba(99,102,241,0.15)' : 'rgba(15,23,42,0.4)', color: result === r ? '#a5b4fc' : '#64748b' }}>{r}</button>
+            ))}
+          </div>
+        </div>
+        {pnl != null && (
+          <div style={{ fontSize: 9, marginBottom: 8, padding: '4px 8px', borderRadius: 4, background: pnl >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', color: pnl >= 0 ? '#4ade80' : '#fca5a5', fontFamily: "'JetBrains Mono', monospace" }}>
+            P&L {pnl >= 0 ? '+$' : '-$'}{Math.abs(pnl).toFixed(2)}
+          </div>
+        )}
+        <div style={{ marginBottom: 12 }}><label style={lbl}>Notes</label><textarea rows={1} value={notes} onChange={e => setNotes(e.target.value)} style={{ ...inp, resize: 'none', fontFamily: "'Outfit', sans-serif" }} /></div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={handleSave}  style={{ flex: 1, padding: '7px 0', borderRadius: 5, fontWeight: 700, fontSize: 9, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.12)', color: '#a5b4fc' }}>SAVE</button>
+          <button onClick={onCancel}    style={{ flex: 1, padding: '7px 0', borderRadius: 5, fontWeight: 700, fontSize: 9, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(15,23,42,0.4)', color: '#64748b' }}>CANCEL</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Calibration Chart ────────────────────────────────────────────────
+function CalibrationChart({ buckets }) {
+  const withData = buckets.filter(b => b.n > 0);
+  if (withData.length === 0) return null;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 8, color: '#64748b', letterSpacing: 2, marginBottom: 6 }}>CALIBRATION — predicted vs actual hit rate</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {buckets.map(b => {
+          if (b.n === 0) return null;
+          const model  = b.modelAvg  || 0;
+          const actual = b.actualRate || 0;
+          const diff   = actual - model;
+          const barColor = Math.abs(diff) <= 0.05 ? '#34d399' : diff > 0 ? '#f59e0b' : '#ef4444';
+          return (
+            <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 38, fontSize: 8, color: '#64748b', fontFamily: "'JetBrains Mono', monospace", textAlign: 'right', flexShrink: 0 }}>{b.label}</div>
+              <div style={{ flex: 1, position: 'relative', height: 14 }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${model * 100}%`, background: 'rgba(99,102,241,0.4)', borderRadius: 2 }} />
+                <div style={{ position: 'absolute', top: 2, left: 0, height: '60%', width: `${actual * 100}%`, background: barColor, borderRadius: 2, opacity: 0.9 }} />
+              </div>
+              <div style={{ width: 70, fontSize: 8, color: '#94a3b8', fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>
+                {(model * 100).toFixed(0)}% → <span style={{ color: barColor }}>{(actual * 100).toFixed(0)}%</span>
+              </div>
+              <div style={{ width: 30, fontSize: 7, color: '#475569', fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, textAlign: 'right' }}>n={b.n}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 7, fontFamily: "'Outfit', sans-serif", color: '#475569' }}>
+        <span><span style={{ color: '#6366f1' }}>▬</span> predicted</span>
+        <span><span style={{ color: '#34d399' }}>▬</span> actual (±5pp)</span>
+        <span><span style={{ color: '#f59e0b' }}>▬</span> over-pred</span>
+        <span><span style={{ color: '#ef4444' }}>▬</span> under-pred</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Journal Panel ────────────────────────────────────────────────────
+function JournalPanel({ journal, open, onToggle, filter, setFilter, onEdit, onDelete, onExport, csvCopied }) {
+  const [deleteConfirm, setDeleteConfirm] = React.useState(null);
+
+  const filtered = filter === 'open'   ? journal.filter(e => e.status === 'open')
+                 : filter === 'closed' ? journal.filter(e => e.status === 'closed' || e.status === 'void')
+                 : journal;
+
+  const settled  = journal.filter(e => e.result === 'won' || e.result === 'lost');
+  const wins     = settled.filter(e => e.result === 'won').length;
+  const openBets = journal.filter(e => e.status === 'open').length;
+  const totalPnl = journal.reduce((s, e) => s + (e.pnl ?? 0), 0);
+  const totalStake = journal.filter(e => e.pnl != null && e.stake).reduce((s, e) => s + Math.abs(e.stake), 0);
+  const roi      = totalStake > 0 ? (totalPnl / totalStake) * 100 : null;
+  const clvBets  = settled.filter(e => e.clv != null);
+  const avgClv   = clvBets.length > 0 ? clvBets.reduce((s, e) => s + e.clv, 0) / clvBets.length : null;
+
+  const STATUS_COLOR = { open: '#f59e0b', closed: '#94a3b8', void: '#475569', won: '#4ade80', lost: '#ef4444', push: '#94a3b8' };
+  const cardSt = { flex: 1, minWidth: 80, background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(148,163,184,0.12)', borderRadius: 8, padding: '8px 12px' };
+
+  return (
+    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(245,158,11,0.15)', marginBottom: 8, background: 'rgba(15,23,42,0.3)' }}>
+      <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', cursor: 'pointer', background: open ? 'rgba(245,158,11,0.05)' : 'transparent', borderBottom: open ? '1px solid rgba(245,158,11,0.1)' : 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10, color: journal.length > 0 ? '#f59e0b' : '#64748b', letterSpacing: 2 }}>BET JOURNAL</span>
+          {journal.length > 0 && (
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#64748b' }}>
+              {journal.length} bets · {openBets} open{avgClv != null ? ` · CLV ${avgClv >= 0 ? '+' : ''}${avgClv.toFixed(1)}%` : ''}
+            </span>
+          )}
+        </div>
+        <span style={{ color: '#475569', fontSize: 10 }}>{open ? '▲' : '▼'}</span>
+      </div>
+
+      {open && (
+        <div style={{ padding: '12px 16px' }}>
+          {journal.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#475569', fontSize: 10, fontFamily: "'Outfit', sans-serif", padding: '20px 0' }}>
+              No bets logged yet. Click + LOG BET on any SOLID or STRONG edge after running a simulation.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div style={cardSt}><div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: '#e2e8f0' }}>{wins}-{settled.length - wins}</div><div style={{ fontSize: 9, color: '#64748b', fontFamily: "'Outfit', sans-serif", marginTop: 2 }}>W-L RECORD</div></div>
+                <div style={cardSt}><div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: roi == null ? '#475569' : roi >= 0 ? '#4ade80' : '#ef4444' }}>{roi == null ? '—' : `${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`}</div><div style={{ fontSize: 9, color: '#64748b', fontFamily: "'Outfit', sans-serif", marginTop: 2 }}>ROI</div></div>
+                <div style={cardSt}><div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: avgClv == null ? '#475569' : avgClv >= 0 ? '#4ade80' : '#ef4444' }}>{avgClv == null ? '—' : `${avgClv >= 0 ? '+' : ''}${avgClv.toFixed(1)}%`}</div><div style={{ fontSize: 9, color: '#64748b', fontFamily: "'Outfit', sans-serif", marginTop: 2 }}>AVG CLV</div></div>
+                <div style={cardSt}><div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: openBets > 0 ? '#f59e0b' : '#475569' }}>{openBets}</div><div style={{ fontSize: 9, color: '#64748b', fontFamily: "'Outfit', sans-serif", marginTop: 2 }}>OPEN BETS</div></div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {['all','open','closed'].map(f => (
+                    <button key={f} onClick={() => setFilter(f)} style={{ padding: '3px 10px', borderRadius: 4, fontSize: 8, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', textTransform: 'uppercase', border: filter === f ? '1px solid rgba(245,158,11,0.4)' : '1px solid rgba(148,163,184,0.15)', background: filter === f ? 'rgba(245,158,11,0.1)' : 'rgba(15,23,42,0.4)', color: filter === f ? '#f59e0b' : '#475569' }}>{f}</button>
+                  ))}
+                </div>
+                <button onClick={onExport} style={{ padding: '3px 10px', borderRadius: 4, fontSize: 8, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: csvCopied ? 'rgba(34,197,94,0.1)' : 'rgba(15,23,42,0.4)', color: csvCopied ? '#4ade80' : '#94a3b8' }}>
+                  {csvCopied ? '✓ COPIED' : 'EXPORT CSV'}
+                </button>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
+                      {['DATE','PLAYER','STAT','SIDE','LINE','ODDS','EDGE%','STATUS','CLV%','P&L',''].map((h, i) => (
+                        <th key={i} style={{ padding: '4px 6px', textAlign: 'left', color: '#475569', fontSize: 7, letterSpacing: 1, fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(e => {
+                      const isDel = deleteConfirm === e.id;
+                      return (
+                        <tr key={e.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.06)', background: e.status === 'open' ? 'rgba(245,158,11,0.02)' : 'transparent' }}>
+                          <td style={{ padding: '5px 6px', color: '#64748b', whiteSpace: 'nowrap' }}>{e.gameDate ? e.gameDate.slice(5) : '—'}</td>
+                          <td style={{ padding: '5px 6px', color: '#94a3b8', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.player || '—'}</td>
+                          <td style={{ padding: '5px 6px', color: '#e2e8f0' }}>{e.statLabel}</td>
+                          <td style={{ padding: '5px 6px', color: e.side === 'over' ? '#4ade80' : '#fca5a5', fontWeight: 700 }}>{e.side?.toUpperCase()}</td>
+                          <td style={{ padding: '5px 6px', color: '#e2e8f0' }}>{e.propLine}</td>
+                          <td style={{ padding: '5px 6px', color: '#94a3b8' }}>{fmtOdds(e.bookOdds)}</td>
+                          <td style={{ padding: '5px 6px', color: e.edgePct >= 5 ? '#22c55e' : e.edgePct >= 3 ? '#4ade80' : '#86efac' }}>{e.edgePct != null ? e.edgePct.toFixed(1) : '—'}</td>
+                          <td style={{ padding: '5px 6px' }}>
+                            <span style={{ padding: '1px 5px', borderRadius: 3, fontSize: 7, fontWeight: 700, background: e.status === 'open' ? 'rgba(245,158,11,0.15)' : 'rgba(15,23,42,0.5)', color: STATUS_COLOR[e.result || e.status] || '#94a3b8' }}>
+                              {e.result ? e.result.toUpperCase() : e.status.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ padding: '5px 6px', color: e.clv == null ? '#475569' : e.clv >= 0 ? '#4ade80' : '#fca5a5' }}>{e.clv == null ? '—' : `${e.clv >= 0 ? '+' : ''}${e.clv.toFixed(1)}`}</td>
+                          <td style={{ padding: '5px 6px', color: e.pnl == null ? '#475569' : e.pnl >= 0 ? '#4ade80' : '#fca5a5' }}>{e.pnl == null ? '—' : `${e.pnl >= 0 ? '+' : ''}$${Math.abs(e.pnl).toFixed(0)}`}</td>
+                          <td style={{ padding: '5px 6px', whiteSpace: 'nowrap' }}>
+                            {e.status === 'open' && (
+                              <button onClick={() => onEdit(e)} style={{ padding: '2px 6px', borderRadius: 3, fontSize: 7, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer', marginRight: 4, border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.1)', color: '#a5b4fc' }}>CLOSE</button>
+                            )}
+                            <button onClick={() => isDel ? onDelete(e.id) : setDeleteConfirm(e.id)} onBlur={() => setTimeout(() => setDeleteConfirm(null), 200)} style={{ padding: '2px 5px', borderRadius: 3, fontSize: 7, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer', border: `1px solid ${isDel ? 'rgba(239,68,68,0.4)' : 'rgba(148,163,184,0.15)'}`, background: isDel ? 'rgba(239,68,68,0.1)' : 'rgba(15,23,42,0.4)', color: isDel ? '#ef4444' : '#475569' }}>{isDel ? 'DEL?' : '✕'}</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {settled.length >= 20 && <CalibrationChart buckets={computeCalibrationBuckets(journal)} />}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main App ────────────────────────────────────────────────────────
 function NBASimulator() {
   const [playerName, setPlayerName] = useState("Player Name");
@@ -1505,7 +1960,7 @@ function NBASimulator() {
   const [stats, setStats] = useState(() => {
     const init = {};
     STAT_CONFIG.forEach(({ key, defaultMean }) => {
-      init[key] = { mean: defaultMean, stdDev: estimateStdDev(key, defaultMean), propLine: "", overOdds: "", underOdds: "", stdOverride: false, cvMode: false, cvValue: "" };
+      init[key] = { mean: defaultMean, stdDev: estimateStdDev(key, defaultMean), propLine: "", overOdds: "", underOdds: "", stdOverride: false, cvMode: false, cvValue: "", projSD: "" };
     });
     return init;
   });
@@ -1581,6 +2036,20 @@ function NBASimulator() {
 
   React.useEffect(() => { localStorage.setItem('oddsApiKey', oddsApiKey); }, [oddsApiKey]);
   React.useEffect(() => { localStorage.setItem('selectedBooks', JSON.stringify(selectedBooks)); }, [selectedBooks]);
+
+  // ── Bet Journal state ──────────────────────────────────────────────
+  const [journal,             setJournal]             = useState(() => loadJournal());
+  const [journalOpen,         setJournalOpen]         = useState(false);
+  const [journalFilter,       setJournalFilter]       = useState('all');
+  const [logBetDraft,         setLogBetDraft]         = useState(null);
+  const [editingBet,          setEditingBet]          = useState(null);
+  const [journalCsvCopied,    setJournalCsvCopied]    = useState(false);
+  // ── Projection Uncertainty state ───────────────────────────────────
+  const [projUncertaintyMode, setProjUncertaintyMode] = useState(false);
+
+  React.useEffect(() => {
+    localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal));
+  }, [journal]);
 
   const handleFetchLines = useCallback(async () => {
     if (!oddsApiKey.trim()) { setOddsError('Enter your Odds API key first.'); setShowOddsPanel(true); return; }
@@ -1786,7 +2255,7 @@ function NBASimulator() {
     setStats(() => {
       const init = {};
       STAT_CONFIG.forEach(({ key, defaultMean }) => {
-        init[key] = { mean: "", stdDev: "", propLine: "", overOdds: "", underOdds: "", stdOverride: false, cvMode: false, cvValue: "" };
+        init[key] = { mean: "", stdDev: "", propLine: "", overOdds: "", underOdds: "", stdOverride: false, cvMode: false, cvValue: "", projSD: "" };
       });
       return init;
     });
@@ -1808,7 +2277,16 @@ function NBASimulator() {
   const handleSimulate = useCallback(() => {
     const t0 = performance.now();
     const ts = new Date().toISOString();
-    const simResults = runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData);
+    // Build projection uncertainty σ map when PROJ σ mode is active
+    const projSDs = {};
+    if (projUncertaintyMode) {
+      const defaults = { pts: 4.0, reb: 1.5, ast: 1.5, stl: 0.5, blk: 0.5, threes: 1.0 };
+      STAT_CONFIG.forEach(({ key }) => {
+        const sd = parseFloat(stats[key].projSD);
+        projSDs[key] = isNaN(sd) || sd <= 0 ? defaults[key] : sd;
+      });
+    }
+    const simResults = runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projUncertaintyMode ? projSDs : {});
 
     const statProbs = {};
     STAT_CONFIG.forEach(({ key }) => {
@@ -1823,8 +2301,11 @@ function NBASimulator() {
           : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
         const method = POISSON_STATS.has(key) ? (usingNegBin ? `CV/${distModel}` : "Poisson")
           : stats[key].cvMode ? `CV/${distModel}` : stats[key].stdOverride ? `Manual/${distModel}` : `Auto/${distModel}`;
+        const prob_calc = calcProbability(simResults[key], stats[key].propLine);
+        const seOver_s  = Math.sqrt(prob_calc.over  * (1 - prob_calc.over)  / numSims);
+        const seUnder_s = Math.sqrt(prob_calc.under * (1 - prob_calc.under) / numSims);
         statProbs[key] = {
-          prob: calcProbability(simResults[key], stats[key].propLine),
+          prob: prob_calc,
           simValues: simResults[key],
           propLine: stats[key].propLine,
           overOdds: stats[key].overOdds,
@@ -1834,6 +2315,12 @@ function NBASimulator() {
           stdMethod: method,
           cvValue: stats[key].cvMode ? stats[key].cvValue : "",
           distModel,
+          betIdOver:     generateBetId(),
+          betIdUnder:    generateBetId(),
+          fairOverOdds:  probToAmerican(prob_calc.over),
+          fairUnderOdds: probToAmerican(prob_calc.under),
+          ciOver:  { lo: Math.max(0, prob_calc.over  - 1.96 * seOver_s),  hi: Math.min(1, prob_calc.over  + 1.96 * seOver_s)  },
+          ciUnder: { lo: Math.max(0, prob_calc.under - 1.96 * seUnder_s), hi: Math.min(1, prob_calc.under + 1.96 * seUnder_s) },
         };
       }
     });
@@ -1855,14 +2342,19 @@ function NBASimulator() {
         } else {
           comboVals = calcCombo(simResults, parts);
         }
+        const cProb = calcProbability(comboVals, comboLines[key].line);
         comboProbs[key] = {
-          prob: calcProbability(comboVals, comboLines[key].line),
+          prob: cProb,
           simValues: comboVals,
           propLine: comboLines[key].line,
           overOdds: comboLines[key].overOdds,
           underOdds: comboLines[key].underOdds,
           mean: comboVals.reduce((a, b) => a + b, 0) / numSims,
           distModel: directCv != null ? 'Direct' : 'Summed',
+          betIdOver:     generateBetId(),
+          betIdUnder:    generateBetId(),
+          fairOverOdds:  probToAmerican(cProb.over),
+          fairUnderOdds: probToAmerican(cProb.under),
         };
       }
     });
@@ -1890,6 +2382,59 @@ function NBASimulator() {
     setSimTimestamp(ts);
     setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
   }, [stats, comboLines, numSims]);
+
+  // ── Bet Journal Handlers ─────────────────────────────────────────────
+  const handleConfirmLogBet = useCallback((draft) => {
+    const entry = {
+      id:        draft.betId || generateBetId(),
+      loggedAt:  new Date().toISOString(),
+      gameDate:  draft.gameDate || new Date().toISOString().slice(0, 10),
+      player:    draft.player || '',
+      stat:      draft.stat || '',
+      statLabel: draft.statLabel || '',
+      side:      draft.side,
+      propLine:  draft.propLine,
+      bookOdds:  draft.bookOdds,
+      bookName:  draft.bookName || '',
+      modelProb: draft.modelProb,
+      fairOdds:  draft.fairOdds,
+      edgePct:   draft.edgePct,
+      stake:     draft.stake || null,
+      status:    'open',
+      closingLine:  null,
+      closingOdds:  null,
+      clv:          null,
+      result:       null,
+      pnl:          null,
+      notes:        draft.notes || '',
+    };
+    setJournal(prev => {
+      const next = [entry, ...prev];
+      if (JSON.stringify(next).length > 4 * 1024 * 1024) {
+        alert('Journal approaching storage limit. Export and clear some entries first.');
+        return prev;
+      }
+      return next;
+    });
+    setLogBetDraft(null);
+  }, []);
+
+  const handleCloseOutBet = useCallback((id, updates) => {
+    setJournal(prev => prev.map(e => {
+      if (e.id !== id) return e;
+      const clv = updates.closingOdds ? calcCLV(e.fairOdds, updates.closingOdds) : null;
+      const pnl = updates.result      ? calcPnL(e.stake, e.bookOdds, updates.result) : null;
+      return {
+        ...e, ...updates, clv, pnl,
+        status: updates.result === 'void' ? 'void' : updates.result ? 'closed' : e.status,
+      };
+    }));
+    setEditingBet(null);
+  }, []);
+
+  const handleDeleteBet = useCallback((id) => {
+    setJournal(prev => prev.filter(e => e.id !== id));
+  }, []);
 
   // ── Batch EV Hunt ───────────────────────────────────────────────────
   // Loops all ETR projections that have odds, runs 10k sims each (parametric only —
@@ -2354,6 +2899,22 @@ function NBASimulator() {
           )}
         </div>
 
+        {/* Bet Journal */}
+        <JournalPanel
+          journal={journal}
+          open={journalOpen}
+          onToggle={() => setJournalOpen(o => !o)}
+          filter={journalFilter}
+          setFilter={setJournalFilter}
+          onEdit={setEditingBet}
+          onDelete={handleDeleteBet}
+          onExport={() => {
+            navigator.clipboard.writeText(buildJournalCSV(journal))
+              .then(() => { setJournalCsvCopied(true); setTimeout(() => setJournalCsvCopied(false), 2000); });
+          }}
+          csvCopied={journalCsvCopied}
+        />
+
         {/* Player + Config */}
         <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.20)", borderRadius: 12, padding: 16, marginBottom: 12 }}>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -2418,6 +2979,18 @@ function NBASimulator() {
                 CLEAR
               </button>
             </div>
+            <div style={{ flex: "0 0 auto", alignSelf: "flex-end" }}>
+              <button onClick={() => setProjUncertaintyMode(v => !v)} style={{
+                padding: "9px 14px", borderRadius: 6,
+                border: projUncertaintyMode ? "1px solid rgba(99,102,241,0.4)" : "1px solid rgba(148,163,184,0.15)",
+                background: projUncertaintyMode ? "rgba(99,102,241,0.12)" : "rgba(15,23,42,0.4)",
+                color: projUncertaintyMode ? "#a5b4fc" : "#475569",
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700, fontSize: 10, letterSpacing: 1, cursor: "pointer",
+              }}>
+                PROJ σ
+              </button>
+            </div>
           </div>
 
           {/* Kelly fraction warning */}
@@ -2434,6 +3007,33 @@ function NBASimulator() {
                 : kellyFraction >= 0.5
                   ? "½ Kelly — use only with tracked bet history confirming model calibration. ¼K recommended until then."
                   : "⅓ Kelly — moderate risk increase vs ¼K. Ensure model inputs are validated before using."}
+            </div>
+          )}
+
+          {/* Projection Uncertainty inputs */}
+          {projUncertaintyMode && (
+            <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 6 }}>
+              <div style={{ fontSize: 8, color: '#a5b4fc', fontFamily: "'Outfit', sans-serif", fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>
+                PROJ σ — ETR projection 1-SD error (samples μ ~ N(ETR, σ) per 50-chunk batch)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+                {STAT_CONFIG.map(({ key, label: sl }) => {
+                  const defaults = { pts: '4.0', reb: '1.5', ast: '1.5', stl: '0.5', blk: '0.5', threes: '1.0' };
+                  return (
+                    <div key={key}>
+                      <div style={{ fontSize: 7, color: '#475569', fontFamily: "'Outfit', sans-serif", marginBottom: 2 }}>{sl} σ</div>
+                      <input type="number" step="0.1" min="0" placeholder={defaults[key]}
+                        value={stats[key].projSD || ''}
+                        onChange={e => updateStat(key, 'projSD', e.target.value)}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '4px 6px', fontSize: 10, borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(99,102,241,0.2)', color: '#e2e8f0', outline: 'none' }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 7, color: '#475569', fontFamily: "'Outfit', sans-serif", marginTop: 6, lineHeight: 1.4 }}>
+                Widens distributions; reduces overconfidence on alt lines. Recommended: 20K sims max.
+              </div>
             </div>
           )}
 
@@ -3069,6 +3669,10 @@ function NBASimulator() {
                     portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
                     distModel={results.stats[key].distModel}
                     kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode}
+                    ciOver={results.stats[key].ciOver} ciUnder={results.stats[key].ciUnder}
+                    projUncertaintyMode={projUncertaintyMode}
+                    onLogBetOver={(data) => setLogBetDraft({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdOver, fairOdds: results.stats[key].fairOverOdds, gameDate: new Date().toISOString().slice(0, 10) })}
+                    onLogBetUnder={(data) => setLogBetDraft({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdUnder, fairOdds: results.stats[key].fairUnderOdds, gameDate: new Date().toISOString().slice(0, 10) })}
                   />
                   <LadderTable
                     statKey={key}
@@ -3093,6 +3697,8 @@ function NBASimulator() {
                     portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
                     distModel={results.combos[key].distModel}
                     kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode}
+                    onLogBetOver={(data) => setLogBetDraft({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdOver, fairOdds: results.combos[key].fairOverOdds, gameDate: new Date().toISOString().slice(0, 10) })}
+                    onLogBetUnder={(data) => setLogBetDraft({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdUnder, fairOdds: results.combos[key].fairUnderOdds, gameDate: new Date().toISOString().slice(0, 10) })}
                   />
                   <LadderTable
                     statKey={key}
@@ -3127,6 +3733,22 @@ function NBASimulator() {
           </div>
         )}
       </div>
+
+      {/* Bet Journal Modals */}
+      {logBetDraft && (
+        <LogBetModal
+          draft={logBetDraft}
+          onConfirm={handleConfirmLogBet}
+          onCancel={() => setLogBetDraft(null)}
+        />
+      )}
+      {editingBet && (
+        <CloseOutModal
+          bet={editingBet}
+          onSave={(updates) => handleCloseOutBet(editingBet.id, updates)}
+          onCancel={() => setEditingBet(null)}
+        />
+      )}
     </div>
   );
 }
