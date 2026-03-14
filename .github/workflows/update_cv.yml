@@ -29,17 +29,29 @@ jobs:
       - name: Run compute_cv.py
         run: python scripts/compute_cv.py
 
+      - name: Archive cv_data.json snapshot
+        shell: powershell
+        run: |
+          $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
+          $archiveDir = "cv_snapshots"
+          if (-not (Test-Path $archiveDir)) {
+            New-Item -ItemType Directory -Path $archiveDir | Out-Null
+            Write-Output "Created $archiveDir directory"
+          }
+          Copy-Item "cv_data.json" "$archiveDir/$date.json"
+          Write-Output "Archived cv_data.json → $archiveDir/$date.json"
+
       - name: Commit and push cv_data.json
         shell: powershell
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add cv_data.json
+          $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
+          git add cv_data.json "cv_snapshots/$date.json"
           git diff --staged --quiet
           if ($LASTEXITCODE -ne 0) {
-            $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
-            git commit -m "chore: update cv_data.json (nightly, $date)"
+            git commit -m "chore: update cv_data.json + snapshot (nightly, $date)"
             git push origin main
           } else {
-            Write-Output "No changes to cv_data.json, skipping commit"
+            Write-Output "No changes to commit, skipping"
           }
