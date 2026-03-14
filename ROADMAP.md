@@ -24,12 +24,8 @@ Items queued for future sprints, in rough priority order. None of these are in s
 
 ---
 
-### 3. Correlated Parlay EV Calculator
-**Problem**: The correlated signal banner flags when PTS/REB/AST all show edge in the same direction but doesn't compute parlay EV.
-
-**Approach**: Extend the banner to compute two-leg and three-leg parlay true probability using the existing `Float64Array` simulation results (count trials where all legs hit simultaneously). Compare to parlay book odds if available. Uses the same simulation outputs — zero additional sampling cost.
-
-**Impact**: Medium — adds direct parlay EV output for correlated plays.
+### ~~3. Correlated Parlay EV Calculator~~ ✅ SHIPPED
+**Shipped**: Banner now shows 3-leg joint probability, independent product baseline, fair parlay odds, book parlay odds input → EV% / edge% / ¼Kelly, and three 2-leg combos (PTS+REB, PTS+AST, REB+AST). Zero additional sampling cost — counts joint hits across existing Float64Array trials.
 
 ---
 
@@ -67,6 +63,6 @@ Items queued for future sprints, in rough priority order. None of these are in s
 ## Notes
 
 - Items are independent and can be scheduled in any order.
-- Items 1 (vig removal) and 3 (parlay EV) are the highest mathematical value adds.
+- Items 1 (vig removal) and 3 (parlay EV) are shipped — highest mathematical value adds delivered.
 - Item 4 (CLV pipeline) is the highest operational value for long-term edge tracking.
 - Always run `--test` before `--full` on `compute_cv.py` after any schema changes.

@@ -138,13 +138,19 @@ All components use **inline styles** (no CSS classes, no styled-components).
 | `results` | object \| null | Simulation output after "RUN SIMULATION" |
 | `bankroll` | string | Optional dollar bankroll for Kelly stake display |
 | `simTime` | number | Last simulation duration in milliseconds |
+| `parlayOdds` | object | `{ over: string, under: string }` — book parlay odds inputs for correlated signal banner |
 
 **Std Dev modes per stat** (controlled by `mode` field):
 - `"auto"` — Computed as `estimateStdDev(key, mean)` using `STD_RATIOS`
 - `"manual"` — User-entered value
 - `"cv"` — User-entered CV %; std dev = `mean * (cvPct / 100)`
 
-**Correlated Signal Detection** (`index.html:856–904`): After results are computed, if all three core stats (PTS, REB, AST) show ≥ 2% edge in the same direction (all over or all under), a banner is shown suggesting PRA combo or same-game parlay consideration.
+**Correlated Signal Detection + Parlay EV** (`index.html`): After results are computed, if all three core stats (PTS, REB, AST) show ≥ 1.5% vig-free edge in the same direction, a banner is shown with:
+- **3-leg joint probability** from `calcParlayProb()` — counts simulation trials where all three legs hit simultaneously (zero additional sampling cost; uses existing `Float64Array` outputs)
+- **Independent product baseline** — product of individual probabilities, for correlation strength reference
+- **Fair parlay odds** via `probToAmerican(jointProb)`
+- **Book parlay odds input** → EV%, raw edge%, ¼Kelly stake
+- **Three 2-leg combos** (PTS+REB, PTS+AST, REB+AST) — joint prob and fair odds
 
 ---
 
