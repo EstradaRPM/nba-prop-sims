@@ -564,12 +564,14 @@ function loadJournal() {
 }
 
 // CLV: positive = you beat the closing line (favorable).
-// fairOdds / closingOdds in American. Returns % or null.
-function calcCLV(fairOdds, closingOdds) {
-  const fairDec    = americanToDecimal(parseFloat(fairOdds));
+// takenOdds = the book odds you received; closingOdds = closing line. Both American.
+// Formula: (takenDecimal - closingDecimal) / closingDecimal × 100
+// +CLV = closing shortened vs your price (market agreed with you); −CLV = closing lengthened.
+function calcCLV(takenOdds, closingOdds) {
+  const takenDec   = americanToDecimal(parseFloat(takenOdds));
   const closingDec = americanToDecimal(parseFloat(closingOdds));
-  if (!fairDec || !closingDec || closingDec <= 1) return null;
-  return ((fairDec - closingDec) / closingDec) * 100;
+  if (!takenDec || !closingDec || closingDec <= 1) return null;
+  return ((takenDec - closingDec) / closingDec) * 100;
 }
 
 // P&L in dollars (positive = profit, negative = loss)
@@ -1766,13 +1768,13 @@ function CloseOutModal({ bet, onSave, onCancel }) {
   const [result,       setResult]       = React.useState(bet.result || '');
   const [notes,        setNotes]        = React.useState(bet.notes  || '');
 
-  const clv = closingOdds ? calcCLV(bet.fairOdds, parseFloat(closingOdds)) : null;
+  const clv = closingOdds ? calcCLV(bet.bookOdds, parseFloat(closingOdds)) : null;
   const pnl = result      ? calcPnL(bet.stake, bet.bookOdds, result)       : null;
 
   const handleSave = () => {
     const co = parseFloat(closingOdds) || null;
     onSave({ closingLine: parseFloat(closingLine) || null, closingOdds: co, result: result || null, notes: notes.trim(),
-      clv: co ? calcCLV(bet.fairOdds, co) : null,
+      clv: co ? calcCLV(bet.bookOdds, co) : null,
       pnl: result ? calcPnL(bet.stake, bet.bookOdds, result) : null,
       status: result === 'void' ? 'void' : result ? 'closed' : bet.status });
   };
@@ -2149,7 +2151,7 @@ function NBASimulator() {
 
   const handleLoadCv = useCallback(() => {
     if (!cvDatabase) return;
-    const normalized = playerName.trim().normalize('NFD');
+    const normalized = playerName.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const playerData = cvDatabase[normalized];
     if (!playerData) {
       setCvLoadStatus('notfound');
@@ -2452,7 +2454,7 @@ function NBASimulator() {
   const handleCloseOutBet = useCallback((id, updates) => {
     setJournal(prev => prev.map(e => {
       if (e.id !== id) return e;
-      const clv = updates.closingOdds ? calcCLV(e.fairOdds, updates.closingOdds) : null;
+      const clv = updates.closingOdds ? calcCLV(e.bookOdds, updates.closingOdds) : null;
       const pnl = updates.result      ? calcPnL(e.stake, e.bookOdds, updates.result) : null;
       return {
         ...e, ...updates, clv, pnl,
@@ -2483,7 +2485,7 @@ function NBASimulator() {
       const normName = normalizeOddsName(p.name);
       const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
       if (!playerOdds) return false;
-      const cvKey = p.name.trim().normalize('NFD');
+      const cvKey = p.name.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const cvEntry = cvDatabase?.[cvKey];
       if (cvEntry && cvEntry.games_available < MIN_BATCH_GAMES) return false;
       return STAT_CONFIG.some(({ key }) => playerOdds[key]?.line != null);
@@ -2498,8 +2500,8 @@ function NBASimulator() {
     for (let i = 0; i < eligible.length; i++) {
       const p = eligible[i];
       const normName = normalizeOddsName(p.name);
-      // NFD-normalize for cvDatabase lookup (case-preserved, same as handleLoadCv line 1144)
-      const cvKey = p.name.trim().normalize('NFD');
+      // NFD-normalize + strip diacritics for cvDatabase lookup (matches handleLoadCv + Python normalize_name)
+      const cvKey = p.name.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
       const cvData = cvDatabase?.[cvKey];
       const gameCtx = gameData?.[p.team?.toUpperCase()] || null;
