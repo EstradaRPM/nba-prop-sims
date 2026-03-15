@@ -2066,9 +2066,9 @@ function computeCalibrationStats(entries) {
     { label: '75%+',   min: 0.75, max: 1.01 },
   ].map(b => {
     const grp = groupStats(wl.filter(e => e.modelProb >= b.min && e.modelProb < b.max));
-    const wins = grp.n != null ? Math.round(grp.hitRate * grp.n) : 0;
-    const ci = grp.n != null ? wilsonCI(wins, grp.n) : null;
-    return { ...b, ...grp, wilsonCI: ci };
+    const wins = (grp != null && grp.n != null) ? Math.round(grp.hitRate * grp.n) : 0;
+    const ci = (grp != null && grp.n != null) ? wilsonCI(wins, grp.n) : null;
+    return { ...b, ...(grp || {}), wilsonCI: ci };
   });
 
   // Expected Calibration Error (ECE): weighted mean absolute deviation of hit rate from model prob.
@@ -2344,7 +2344,7 @@ function CalibrationPanel({
 
   const open_entries   = log.filter(e => !e.result);
   const settled        = log.filter(e => e.result === 'won' || e.result === 'lost' || e.result === 'push');
-  const canFetchClose  = open_entries.some(e => e.eventId && e.commenceTime);
+  const canFetchClose  = log.some(e => e.eventId && e.commenceTime && e.closingOdds == null);
 
   const stats = React.useMemo(() => computeCalibrationStats(log), [log]);
 
@@ -3098,25 +3098,31 @@ function NBASimulator() {
     setCalibration(prev => prev.map(e => e.id !== id ? e : { ...e, result }));
   }, []);
 
-  // Fetch closing odds via Odds API historical endpoint for all open tracked entries with eventIds
+  // Fetch closing odds via Odds API historical endpoint for all entries (open or settled) with eventIds and no closing odds yet
   const handleFetchClosingOdds = useCallback(async () => {
     if (!oddsApiKey) return;
     setClosingFetching(true);
     setClosingFetchMsg(null);
-    const openEntries = calibration.filter(e => !e.result && e.eventId && e.commenceTime);
-    const uniqueEventIds = [...new Set(openEntries.map(e => e.eventId))];
+    // Include settled entries that are missing closing odds so marking won/lost first still works
+    const eligibleEntries = calibration.filter(e => e.eventId && e.commenceTime && e.closingOdds == null);
+    const uniqueEventIds = [...new Set(eligibleEntries.map(e => e.eventId))];
+    if (uniqueEventIds.length === 0) {
+      setClosingFetching(false);
+      setClosingFetchMsg('No entries with game context found. Bets must be logged while Odds API game data is loaded.');
+      return;
+    }
     let updated = 0;
     let apiReqLeft = null;
     for (const eventId of uniqueEventIds) {
-      const sample = openEntries.find(e => e.eventId === eventId);
+      const sample = eligibleEntries.find(e => e.eventId === eventId);
       const resp = await fetchHistoricalProps(oddsApiKey, eventId, sample.commenceTime);
       if (!resp) continue;
       apiReqLeft = resp.remainingRequests;
-      // Update all calibration entries for this event
+      // Update all calibration entries for this event (open or settled, missing closing odds)
       setCalibration(prev => {
         let didUpdate = false;
         const next = prev.map(e => {
-          if (e.eventId !== eventId || e.result) return e;
+          if (e.eventId !== eventId || e.closingOdds != null) return e;
           const normName = normalizeOddsName(e.player);
           const closing  = extractClosingOdds(resp.bookmakers, normName, e.stat, e.side.toLowerCase(), selectedBooks);
           if (!closing) return e;
@@ -3128,8 +3134,9 @@ function NBASimulator() {
       });
     }
     setClosingFetching(false);
+    const noDataNote = updated === 0 ? ' (game may not have started yet, or player props unavailable on your plan)' : '';
     setClosingFetchMsg(
-      `Updated ${updated} entr${updated === 1 ? 'y' : 'ies'}${apiReqLeft != null ? ` · ${apiReqLeft} API req remaining` : ''}`
+      `Updated ${updated} entr${updated === 1 ? 'y' : 'ies'}${noDataNote}${apiReqLeft != null ? ` · ${apiReqLeft} API req remaining` : ''}`
     );
   }, [calibration, oddsApiKey, selectedBooks]);
 
