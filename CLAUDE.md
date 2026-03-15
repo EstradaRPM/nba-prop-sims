@@ -73,6 +73,8 @@ Core simulation logic. No external dependencies.
 - **`runSimulation(stats, numSims)`** — Routes each stat key to the correct sampler via `LOG_NORMAL_STATS` / `POISSON_STATS`; returns a map of `{ key → Float64Array }`
 - **`calcProbability(simValues, propLine)`** — Returns `{ over, under, push }` fractions
 - **`calcCombo(simResults, keys)`** — Sums multiple stat arrays element-wise for combo props
+- **`calcDiscreteDist(simValues, maxK=6)`** — For POISSON_STATS only. Rounds each Float64Array value to the nearest integer, buckets into counts, returns `{ 0: prob, 1: prob, ..., '6+': prob }`. Zero resimulation cost; used to render the exact integer probability table for STL/BLK/THREES.
+- **`calcSensitivity(simValues, propLine, mean)`** — Re-evaluates `P(over)` on existing simValues at propLine ± mean×{0.05, 0.10} to approximate "what if ETR is X% wrong?" Returns `{ m10, m5, base, p5, p10 }`. Zero resimulation cost. Displayed as the ETR Sensitivity strip below each result card.
 
 **Distribution rationale by stat:**
 
@@ -123,6 +125,8 @@ Applies to: individual stat CVs, minutes CV (`cv_minutes`), and all combo CVs (`
 
 **Status badge**: single-window loads show "CV LOADED ✓" (green); auto-blend shows "AUTO BLEND ✓" (purple).
 
+**CV Window Divergence Detection** — after blending, `handleLoadCv` compares raw `last5` vs `season` CV per stat. If `last5/season > 1.5` (recently more volatile) or `< 0.67` (recently more consistent), the stat is flagged in `cvDivergence` state. Two alerts surface: (1) a global `⚠ DIVERGENCE: STL/BLK` orange badge near the AUTO BLEND status, and (2) a per-stat `L5 2.1×↑` (amber) or `L5 0.4×↓` (teal) badge in the ResultRow header. This flags when the auto-blend is silently averaging contradictory signals. Only active in auto mode; cleared on player change.
+
 ### 4. Std Dev Estimation & Config
 
 **`STD_RATIOS`** — Hardcoded CV (coefficient of variation) per stat type:
@@ -151,9 +155,12 @@ Applies to: individual stat CVs, minutes CV (`cv_minutes`), and all combo CVs (`
 
 All components use **inline styles** (no CSS classes, no styled-components).
 
-- **`DistBar`** — 40-bucket histogram rendered as `<div>` bars. Bars left of the prop line are red; bars right are green. Renders up to 5,000 sample points. White vertical line marks the prop line. Min/max range is computed from the same 5,000 samples used for bucketing (not a separate 500-sample slice).
-- **`EdgeBox`** — Displays book implied probability, vig-free edge percentage (primary), raw edge (secondary note), true EV% (`modelProb × decimalOdds − 1`), edge label, and ¼Kelly stake. Accepts `otherSideOdds` prop; when provided, normalizes both sides to compute vig-free book probability. Only renders if book odds are provided and edge > 0. EV% and Edge% are both shown: edge% is the probability surplus over vig-free book implied; EV% is per-dollar financial expectation which accounts for payout size. Has a `onLogBet` prop that renders a "+ LOG BET" button (edge ≥ 1.5% only) wiring into the calibration journal.
-- **`ResultRow`** — Full result card per stat: shows the distribution histogram, OVER/UNDER probability boxes, `EdgeBox` for each side, a best-side badge if edge ≥ 2%, and a distribution model badge (KDE/Gamma/LogNormal/NegBin/Poisson/Direct/Summed) indicating the active sampling method.
+- **`DistBar`** — 40-bucket continuous histogram rendered as `<div>` bars. Used for KDE_STATS (pts/reb/ast) and combo props. Bars left of the prop line are red; bars right are green. Renders up to 5,000 sample points. White vertical line marks the prop line.
+- **`DiscreteBar`** — Replaces `DistBar` for POISSON_STATS (stl/blk/threes). Shows 8 equal-width integer columns (0–7+) with exact probability heights. Red fill for values ≤ floor(propLine), green for values above. White vertical divider between floor and ceil of propLine. Honest visualization for discrete NegBin/Poisson output; avoids misleading smooth curve.
+- **`DiscreteCountTable`** — Rendered below `DiscreteBar` for POISSON_STATS. Shows P(X=k) for k=0–6+ as color-coded cells (red=under, green=over the prop line floor). Cumulative split summary shows P(≤floor) and P(≥ceil) as percentages with fair American odds. Zero additional simulation cost.
+- **`SensitivityBar`** — Rendered at the bottom of every `ResultRow` (stats and combos) when a propLine is entered. Shows OVER% at 5 ETR scenarios: −10%, −5%, BASE, +5%, +10%. Cells color-coded green/amber/red vs the vig-free book probability. Answers "does my edge survive if ETR is wrong?"
+- **`EdgeBox`** — Displays book implied probability, vig-free edge percentage (primary), raw edge (secondary note), true EV% (`modelProb × decimalOdds − 1`), edge label, and ¼Kelly stake. Accepts `otherSideOdds` prop; when provided, normalizes both sides to compute vig-free book probability. Only renders if book odds are provided and edge > 0. Has a `onLogBet` prop that renders a "+ LOG BET" button (edge ≥ 1.5% only) wiring into the calibration journal.
+- **`ResultRow`** — Full result card per stat. Props: `statKey`, `prob`, `propLine`, `simValues`, `overOdds`, `underOdds`, `distModel`, `discreteDist`, `sensitivity`, `negBinR`, `divergence`, plus existing bankroll/kelly/ladder props. Renders: distribution model badge (with `r=X.X` for NegBin) + divergence badge in header, `DiscreteBar` or `DistBar` depending on `statKey`, `DiscreteCountTable` (POISSON_STATS only), OVER/UNDER probability boxes + EdgeBoxes, `SensitivityBar`.
 - **`LadderTable`** — Collapsible alt-line table rendered below each `ResultRow`. Shows model Over%, Under%, and fair odds at stat-specific line intervals (5pt for pts, 2.5pt for PRA combos, 1pt for reb/ast/stl/blk/threes, 0.5pt for sb). Accepts `overOdds`/`underOdds` props. **EDGE column**: primary line rung shows vig-free edge vs actual book odds; all other rungs show edge vs −110/−110 reference (50% vig-free). Rows with ≥1% positive edge receive a subtle green left border. `getAltLines(key, mean)` generates the rung array dynamically from the ETR mean.
 - **`CalibrationPanel`** — Full bet journal UI: lists logged picks with outcome recording (won/lost/push), closing odds fetch via Odds API historical endpoint, CLV display, ROI by edge bucket, and CSV export. Opened via a toggle button in the main header.
 - **`CalibrationAnalysis`** — Nested within `CalibrationPanel`. Renders calibration curve bucketing picks by model probability and comparing predicted vs. actual hit rates, plus overall win%, ROI (Kelly-weighted and unit-weighted), and P&L.
@@ -186,11 +193,41 @@ All components use **inline styles** (no CSS classes, no styled-components).
 | `calibrationOpen` | boolean | Toggles `CalibrationPanel` visibility |
 | `projUncertaintyMode` | boolean | Enables 50-chunk projection uncertainty sampling (μ ~ N(ETR, σ_proj)) |
 | `ladderOpen` | object | `{ [statOrComboKey]: boolean }` — tracks open/closed state of each `LadderTable` |
+| `cvDivergence` | object | `{ [statKey]: { ratio, dir: 'up'\|'down' } }` — stats where last5/season CV ratio > 1.5 or < 0.67; computed by `handleLoadCv` in auto mode; cleared on player change |
 
 **Std Dev modes per stat** (controlled by `mode` field):
 - `"auto"` — Computed as `estimateStdDev(key, mean)` using `STD_RATIOS`
 - `"manual"` — User-entered value
 - `"cv"` — User-entered CV %; std dev = `mean * (cvPct / 100)`
+
+**`results` object structure** (stored in state after each simulation):
+```javascript
+results = {
+  stats: {
+    [key]: {
+      prob: { over, under, push },   // simulation probabilities
+      simValues: Float64Array,        // raw samples
+      propLine, overOdds, underOdds, mean, std, stdMethod, cvValue,
+      distModel,                      // "KDE"|"Gamma"|"LogNormal"|"NegBin"|"Poisson"
+      discreteDist,                   // { 0: prob, 1: prob, ..., '6+': prob } | null (POISSON_STATS only)
+      sensitivity,                    // { m10, m5, base, p5, p10 } | null
+      negBinR,                        // dispersion parameter r (number | null, NegBin only)
+      ciOver, ciUnder,                // 95% CI bounds { lo, hi }
+      betIdOver, betIdUnder,          // unique IDs for calibration logging
+      fairOverOdds, fairUnderOdds,
+    }
+  },
+  combos: {
+    [key]: {
+      prob, simValues, propLine, overOdds, underOdds, mean,
+      distModel,                      // "Direct" | "Summed"
+      sensitivity,                    // { m10, m5, base, p5, p10 } | null
+      betIdOver, betIdUnder, fairOverOdds, fairUnderOdds,
+    }
+  },
+  portfolioFactors: { [key_side]: number }
+}
+```
 
 **Correlated Signal Detection + Parlay EV** (`index.html`): After results are computed, if all three core stats (PTS, REB, AST) show ≥ 1.5% vig-free edge in the same direction, a banner is shown with:
 - **3-leg joint probability** from `calcParlayProb()` — counts simulation trials where all three legs hit simultaneously (zero additional sampling cost; uses existing `Float64Array` outputs)
@@ -348,13 +385,40 @@ The simulator fetches this URL on load and degrades gracefully if the fetch fail
 
 ## Git Branch
 
-Most recent development branch: `claude/improve-betting-math-model-RJyH5`
+Most recent development branch: `claude/plan-code-improvements-PoC5Z`
 
 Commit messages should be descriptive (e.g., `Add correlation banner for PRA signals`, not `Update index.html`).
 
 ---
 
 ## Recent Changes
+
+### 2026-03-15 — Sharp Betting Features: Discrete Counts, Sensitivity, CV Divergence, NegBin r
+
+**Discrete Count Probability Table** (`calcDiscreteDist` + `DiscreteCountTable`):
+- New `calcDiscreteDist(simValues, maxK=6)` helper buckets Float64Array into exact integer probabilities P(X=0)…P(X=6+) for POISSON_STATS.
+- `DiscreteCountTable` renders below the histogram for STL/BLK/THREES: color-coded cells per integer, cumulative P(≤floor) / P(≥ceil) with fair American odds.
+- Zero simulation cost — operates on existing NegBin/Poisson Float64Array output.
+
+**Projection Sensitivity Panel** (`calcSensitivity` + `SensitivityBar`):
+- New `calcSensitivity(simValues, propLine, mean)` evaluates P(over) at propLine ± mean×{0.05, 0.10}, approximating the effect of a 5%/10% ETR projection error.
+- `SensitivityBar` renders at the bottom of every result card (stats and combos) when a prop line is entered: 5-cell strip "−10% | −5% | BASE | +5% | +10%", color-coded green/red vs vig-free book probability.
+- Zero simulation cost — reuses existing Float64Array via `calcProbability`.
+
+**CV Window Divergence Alerts** (`cvDivergence` state):
+- `handleLoadCv` now computes `last5/season` CV ratio per stat after blending. Flags any stat where ratio > 1.5 or < 0.67 into `cvDivergence` state.
+- Two display locations: (1) global `⚠ DIVERGENCE: STL/BLK` orange badge near the AUTO BLEND status, (2) per-stat `L5 2.1×↑` / `L5 0.4×↓` badge in ResultRow header next to the distribution model badge.
+- Only active in auto-blend mode; cleared on player change.
+
+**Discrete-Aware Histogram** (`DiscreteBar`):
+- New `DiscreteBar` component replaces `DistBar` for POISSON_STATS. Shows 8 integer columns (0–7+) with true probability-height bars and labels.
+- Honest visualization: NegBin/Poisson output with 70% zeros renders as a dominant zero bar, not a misleading smooth curve.
+
+**NegBin r Parameter** (distribution badge):
+- `handleSimulate` now computes `r = 1/(cv² − 1/μ)` for NegBin stats and stores in `results.stats[key].negBinR`.
+- Distribution badge extended to show `NegBin r=X.X`: red (r<1, very overdispersed), amber (1≤r<3), gray (r≥3, near-Poisson).
+
+---
 
 ### 2026-03-15 — CV Auto-Blend + Alt Line Edge Column
 
@@ -385,24 +449,10 @@ Commit messages should be descriptive (e.g., `Add correlation banner for PRA sig
 
 The following are candidate improvements ranked loosely by expected impact. **This list is for orientation only** — re-analyze current state and actual gaps at the start of each new branch rather than treating this as a fixed roadmap.
 
-### High Leverage
-
-**Discrete count probability table for STL / BLK / 3PM**
-Show `P(X=0)`, `P(X=1)`, `P(X=2)`, `P(X≥3)` directly from the existing `Float64Array`. On 0.5-line integer props, these exact probabilities are more decision-relevant than a continuous histogram. Zero additional simulation cost.
-
-**CV window divergence alert**
-When the auto-blend's constituent windows disagree significantly (e.g., last5 CV > 1.5× season CV), surface a warning flag indicating a potential role/usage change that might make the season-anchored ETR projection less reliable. Helps the user know when to weight their own judgment higher.
-
-**Projection sensitivity panel**
-Show model over% at ±5%, ±10% shifts in the ETR mean. Answers "how much does my edge depend on ETR being exactly right?" — directly quantifies model robustness without extra simulation (just re-call `calcProbability` on existing `Float64Array` at shifted implied lines).
-
 ### Medium Leverage
 
 **Edge ladder with actual alt line odds**
 Currently the EDGE column shows vs -110 for non-primary rungs. A UX addition: let the user paste in a book's full alt line table (or enter odds for any specific rung) to get true edge at that alt line, not just a reference estimate.
-
-**NegBin dispersion display**
-Show the computed `r` (dispersion parameter) in the distribution model badge or a tooltip for STL/BLK/3PM when NegBin is active. Gives the user visibility into how overdispersed the model is treating the stat vs. Poisson baseline.
 
 **Batch simulation enhancements**
 The existing batch mode runs multiple players. Possible additions: sortable edge table with filter by stat type, min edge threshold, or game total band; export filtered slate to CSV in one click.
