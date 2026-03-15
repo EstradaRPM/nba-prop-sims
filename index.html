@@ -552,81 +552,8 @@ function loadSession() {
 }
 
 // ── Bet Journal Utilities ────────────────────────────────────────────
-const JOURNAL_KEY = 'nbaSimJournal';
-
 function generateBetId() {
   return Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(2, 8);
-}
-
-function loadJournal() {
-  try { return JSON.parse(localStorage.getItem(JOURNAL_KEY) || '[]'); }
-  catch { return []; }
-}
-
-// CLV: positive = you beat the closing line (favorable).
-// takenOdds = the book odds you received; closingOdds = closing line. Both American.
-// Formula: (takenDecimal - closingDecimal) / closingDecimal × 100
-// +CLV = closing shortened vs your price (market agreed with you); −CLV = closing lengthened.
-function calcCLV(takenOdds, closingOdds) {
-  const takenDec   = americanToDecimal(parseFloat(takenOdds));
-  const closingDec = americanToDecimal(parseFloat(closingOdds));
-  if (!takenDec || !closingDec || closingDec <= 1) return null;
-  return ((takenDec - closingDec) / closingDec) * 100;
-}
-
-// P&L in dollars (positive = profit, negative = loss)
-function calcPnL(stake, bookOdds, result) {
-  if (!stake || !bookOdds || !result) return null;
-  const dec = americanToDecimal(parseFloat(bookOdds));
-  if (!dec) return null;
-  if (result === 'won')  return Math.round(stake * (dec - 1) * 100) / 100;
-  if (result === 'lost') return -Math.abs(stake);
-  if (result === 'push') return 0;
-  return null;
-}
-
-function buildJournalCSV(entries) {
-  const headers = [
-    'ID','Logged At','Game Date','Player','Stat','Side','Line',
-    'Book Odds','Book','Model Prob%','Fair Odds','Edge%','Stake $',
-    'Status','Closing Line','Closing Odds','CLV%','Result','P&L $','Notes'
-  ];
-  const esc = v => { const s = String(v ?? ''); return (s.includes(',') || s.includes('"')) ? `"${s.replace(/"/g,'""')}"` : s; };
-  const rows = entries.map(e => [
-    e.id, e.loggedAt, e.gameDate, e.player, e.statLabel, e.side,
-    e.propLine, fmtOdds(e.bookOdds), e.bookName || '',
-    e.modelProb != null ? (e.modelProb * 100).toFixed(1) : '',
-    fmtOdds(e.fairOdds), e.edgePct != null ? e.edgePct.toFixed(1) : '',
-    e.stake ?? '', e.status, e.closingLine ?? '',
-    e.closingOdds ? fmtOdds(e.closingOdds) : '',
-    e.clv != null ? e.clv.toFixed(1) : '',
-    e.result ?? '', e.pnl ?? '', e.notes || ''
-  ]);
-  return [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
-}
-
-// Groups settled bets by 7 probability buckets; computes model avg vs actual hit rate
-function computeCalibrationBuckets(entries) {
-  const buckets = [
-    { label: '<35%',   min: 0,    max: 0.35 },
-    { label: '35-45',  min: 0.35, max: 0.45 },
-    { label: '45-55',  min: 0.45, max: 0.55 },
-    { label: '55-65',  min: 0.55, max: 0.65 },
-    { label: '65-75',  min: 0.65, max: 0.75 },
-    { label: '75-85',  min: 0.75, max: 0.85 },
-    { label: '85%+',   min: 0.85, max: 1.01 },
-  ];
-  const settled = entries.filter(e => e.result === 'won' || e.result === 'lost');
-  return buckets.map(b => {
-    const inB  = settled.filter(e => e.modelProb >= b.min && e.modelProb < b.max);
-    const wins = inB.filter(e => e.result === 'won').length;
-    const n    = inB.length;
-    return {
-      label: b.label, n,
-      modelAvg:   n > 0 ? inB.reduce((s, e) => s + e.modelProb, 0) / n : null,
-      actualRate: n > 0 ? wins / n : null,
-    };
-  });
 }
 
 function fmtOdds(o) {
@@ -836,7 +763,7 @@ function buildGameIndex(games, gameLines) {
     const homeAbbr = toAbbr(game.home_team), awayAbbr = toAbbr(game.away_team);
     const gl = gameLines[game.id] || {};
     const favAbbr = gl.favoriteTeam ? toAbbr(gl.favoriteTeam) : null;
-    const ctx = { homeTeam: homeAbbr, awayTeam: awayAbbr, total: gl.total, spread: gl.spread, favoriteTeam: favAbbr };
+    const ctx = { homeTeam: homeAbbr, awayTeam: awayAbbr, total: gl.total, spread: gl.spread, favoriteTeam: favAbbr, eventId: game.id, commenceTime: game.commence_time };
     if (homeAbbr) index[homeAbbr] = { ...ctx, opponent: awayAbbr };
     if (awayAbbr) index[awayAbbr] = { ...ctx, opponent: homeAbbr };
   });
@@ -1263,7 +1190,8 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
 // ── Batch Results Table ──────────────────────────────────────────────
 function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinEdge,
   statFilter, setStatFilter, positiveOnly, setPositiveOnly,
-  bankroll, onExport, csvData, csvCopied, onCopyCsv }) {
+  bankroll, onExport, csvData, csvCopied, onCopyCsv,
+  tracked, onToggleTrack, onTrackSelected }) {
   const { useMemo } = React;
 
   const filtered = useMemo(() => {
@@ -1282,7 +1210,9 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
       });
   }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir]);
 
+  const trackedCount = tracked ? tracked.size : 0;
   const cols = [
+    { key: '_track',    label: '✓',        style: { width: 22,    textAlign: 'center', flexShrink: 0 } },
     { key: 'player',    label: 'PLAYER',   style: { minWidth: 100, textAlign: 'left'   } },
     { key: 'team',      label: 'TM',       style: { width: 30,    textAlign: 'center' } },
     { key: 'statLabel', label: 'STAT',     style: { width: 32,    textAlign: 'center' } },
@@ -1361,8 +1291,8 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
       </div>
 
       {/* Summary + export row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
             {filtered.length} rows
           </span>
@@ -1375,14 +1305,30 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           {marginalCount > 0 && <span style={{ fontSize: 9, color: '#86efac', fontFamily: "'JetBrains Mono', monospace" }}>
             {marginalCount} MARGINAL
           </span>}
+          {trackedCount > 0 && (
+            <span style={{ fontSize: 9, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+              {trackedCount} selected
+            </span>
+          )}
         </div>
-        <button onClick={onExport}
-          style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(148,163,184,0.2)',
-            background: 'rgba(15,23,42,0.5)', color: '#94a3b8',
-            fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
-            cursor: 'pointer' }}>
-          EXPORT CSV
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {trackedCount > 0 && onTrackSelected && (
+            <button onClick={onTrackSelected}
+              style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(245,158,11,0.4)',
+                background: 'rgba(245,158,11,0.12)', color: '#f59e0b',
+                fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
+                cursor: 'pointer' }}>
+              + TRACK {trackedCount}
+            </button>
+          )}
+          <button onClick={onExport}
+            style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(148,163,184,0.2)',
+              background: 'rgba(15,23,42,0.5)', color: '#94a3b8',
+              fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
+              cursor: 'pointer' }}>
+            EXPORT CSV
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -1407,43 +1353,55 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
               const edgeColor = getEdgeColor(r.edge);
               const rowBg = r.edge >= 5 ? 'rgba(34,197,94,0.07)'
                 : r.edge >= 3 ? 'rgba(34,197,94,0.03)' : 'transparent';
+              const isTracked = tracked && tracked.has(r.betId);
               return (
-                <div key={i} style={{ display: 'flex', backgroundColor: rowBg }}>
-                  <div style={{ ...cellStyle, ...cols[0].style, color: '#e2e8f0',
+                <div key={i} style={{ display: 'flex', backgroundColor: isTracked ? 'rgba(245,158,11,0.06)' : rowBg }}>
+                  <div style={{ ...cellStyle, ...cols[0].style }}
+                    onClick={() => onToggleTrack && onToggleTrack(r.betId)}>
+                    <div style={{
+                      width: 12, height: 12, borderRadius: 2, margin: '0 auto',
+                      border: `1px solid ${isTracked ? 'rgba(245,158,11,0.8)' : 'rgba(148,163,184,0.3)'}`,
+                      background: isTracked ? 'rgba(245,158,11,0.7)' : 'transparent',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {isTracked && <span style={{ fontSize: 8, color: '#0b0f1a', fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                    </div>
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[1].style, color: '#e2e8f0',
                     overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {r.player}
                   </div>
-                  <div style={{ ...cellStyle, ...cols[1].style, color: '#64748b' }}>{r.team}</div>
-                  <div style={{ ...cellStyle, ...cols[2].style, color: '#94a3b8' }}>{r.statLabel}</div>
-                  <div style={{ ...cellStyle, ...cols[3].style, color: '#94a3b8' }}>{r.propLine}</div>
-                  <div style={{ ...cellStyle, ...cols[4].style,
+                  <div style={{ ...cellStyle, ...cols[2].style, color: '#64748b' }}>{r.team}</div>
+                  <div style={{ ...cellStyle, ...cols[3].style, color: '#94a3b8' }}>{r.statLabel}</div>
+                  <div style={{ ...cellStyle, ...cols[4].style, color: '#94a3b8' }}>{r.propLine}</div>
+                  <div style={{ ...cellStyle, ...cols[5].style,
                     color: r.side === 'OVER' ? '#4ade80' : '#f87171',
                     fontWeight: 700, fontSize: 9 }}>
                     {r.side}
                   </div>
-                  <div style={{ ...cellStyle, ...cols[5].style, color: '#94a3b8' }}>
+                  <div style={{ ...cellStyle, ...cols[6].style, color: '#94a3b8' }}>
                     {fmtOdds(r.bookOdds)}
                   </div>
-                  <div style={{ ...cellStyle, ...cols[6].style, color: getProbColor(r.modelProb) }}>
+                  <div style={{ ...cellStyle, ...cols[7].style, color: getProbColor(r.modelProb) }}>
                     {(r.modelProb * 100).toFixed(1)}%
                   </div>
-                  <div style={{ ...cellStyle, ...cols[7].style, color: edgeColor, fontWeight: 700 }}>
+                  <div style={{ ...cellStyle, ...cols[8].style, color: edgeColor, fontWeight: 700 }}>
                     {r.edge >= 0 ? '+' : ''}{r.edge.toFixed(1)}%
                   </div>
-                  <div style={{ ...cellStyle, ...cols[8].style }}>
+                  <div style={{ ...cellStyle, ...cols[9].style }}>
                     <span style={{ fontSize: 8, color: edgeColor, fontWeight: 700,
                       backgroundColor: `${edgeColor}18`, border: `1px solid ${edgeColor}30`,
                       padding: '1px 4px', borderRadius: 3 }}>
                       {r.edgeLabel}
                     </span>
                   </div>
-                  <div style={{ ...cellStyle, ...cols[9].style, color: '#64748b' }}>
+                  <div style={{ ...cellStyle, ...cols[10].style, color: '#64748b' }}>
                     {r.kellyPct > 0 ? r.kellyPct.toFixed(2) + '%' : '—'}
                   </div>
-                  <div style={{ ...cellStyle, ...cols[10].style, color: '#64748b' }}>
+                  <div style={{ ...cellStyle, ...cols[11].style, color: '#64748b' }}>
                     {r.gameTotal ?? '—'}
                   </div>
-                  <div style={{ ...cellStyle, ...cols[11].style, color: '#64748b' }}>
+                  <div style={{ ...cellStyle, ...cols[12].style, color: '#64748b' }}>
                     {r.spread != null ? (r.spread > 0 ? '+' : '') + r.spread : '—'}
                   </div>
                 </div>
@@ -1722,172 +1680,393 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
   return stats;
 }
 
-// ── Log Bet Modal ────────────────────────────────────────────────────
-function LogBetModal({ draft, onConfirm, onCancel }) {
-  const [bookOdds, setBookOdds] = React.useState(String(draft.bookOdds || ''));
-  const [bookName, setBookName] = React.useState(draft.bookName || '');
-  const [stake,    setStake]    = React.useState(draft.stake ? String(draft.stake) : '');
-  const [notes,    setNotes]    = React.useState('');
+// ── Calibration Tracker ──────────────────────────────────────────────
+const CALIBRATION_KEY = 'nbaSimCalibration';
 
-  const handleConfirm = () => {
-    onConfirm({ ...draft, bookOdds: parseFloat(bookOdds) || draft.bookOdds, bookName: bookName.trim(), stake: parseFloat(stake) || null, notes: notes.trim() });
-  };
-
-  const inp = { background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 4, color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, padding: '5px 8px', width: '100%', boxSizing: 'border-box' };
-  const lbl = { fontSize: 8, color: '#64748b', fontFamily: "'Outfit', sans-serif", fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3, display: 'block' };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ backgroundColor: '#111827', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: 20, width: 340, maxWidth: '92vw', boxShadow: '0 0 40px rgba(245,158,11,0.08)' }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, color: '#f59e0b', marginBottom: 14, letterSpacing: 2 }}>+ LOG BET</div>
-        <div style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 6, padding: '8px 10px', marginBottom: 12, fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#e2e8f0', lineHeight: 1.6 }}>
-          <div><span style={{ color: '#94a3b8' }}>PLAYER  </span>{draft.player || '—'}</div>
-          <div><span style={{ color: '#94a3b8' }}>BET     </span>{draft.statLabel} {draft.side?.toUpperCase()} {draft.propLine}</div>
-          <div><span style={{ color: '#94a3b8' }}>MODEL   </span>{draft.modelProb != null ? (draft.modelProb * 100).toFixed(1) : '—'}% · Fair {fmtOdds(draft.fairOdds)}</div>
-          <div><span style={{ color: '#94a3b8' }}>EDGE    </span><span style={{ color: '#4ade80' }}>{draft.edgePct != null ? draft.edgePct.toFixed(1) : '—'}%</span></div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 10px', marginBottom: 10 }}>
-          <div><label style={lbl}>Book Odds</label><input type="number" step="1" value={bookOdds} onChange={e => setBookOdds(e.target.value)} style={inp} /></div>
-          <div><label style={lbl}>Stake $</label><input type="number" step="1" min="0" placeholder="optional" value={stake} onChange={e => setStake(e.target.value)} style={inp} /></div>
-        </div>
-        <div style={{ marginBottom: 10 }}><label style={lbl}>Book / Source</label><input type="text" placeholder="DraftKings, FanDuel…" value={bookName} onChange={e => setBookName(e.target.value)} style={inp} /></div>
-        <div style={{ marginBottom: 14 }}><label style={lbl}>Notes</label><textarea rows={2} placeholder="optional context…" value={notes} onChange={e => setNotes(e.target.value)} style={{ ...inp, resize: 'vertical', fontFamily: "'Outfit', sans-serif" }} /></div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleConfirm} style={{ flex: 1, padding: '7px 0', borderRadius: 5, fontWeight: 700, fontSize: 9, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>CONFIRM LOG</button>
-          <button onClick={onCancel}     style={{ flex: 1, padding: '7px 0', borderRadius: 5, fontWeight: 700, fontSize: 9, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(15,23,42,0.4)', color: '#64748b' }}>CANCEL</button>
-        </div>
-      </div>
-    </div>
-  );
+function loadCalibration() {
+  try { return JSON.parse(localStorage.getItem(CALIBRATION_KEY) || '[]'); }
+  catch { return []; }
 }
 
-// ── Close Out Modal ──────────────────────────────────────────────────
-function CloseOutModal({ bet, onSave, onCancel }) {
-  const [closingLine,  setClosingLine]  = React.useState(String(bet.closingLine  ?? ''));
-  const [closingOdds,  setClosingOdds]  = React.useState(String(bet.closingOdds  ?? ''));
-  const [result,       setResult]       = React.useState(bet.result || '');
-  const [notes,        setNotes]        = React.useState(bet.notes  || '');
+// Fetch closing odds from Odds API historical endpoint (5 min before tip).
+// The historical endpoint wraps the response in { data: { bookmakers: [...] } }.
+async function fetchHistoricalProps(apiKey, eventId, commenceTime) {
+  const tipMs  = new Date(commenceTime).getTime();
+  const dateTs = new Date(tipMs - 5 * 60 * 1000).toISOString();
+  const markets = Object.values(ODDS_MARKET_MAP).join(',');
+  const url = `${ODDS_API_BASE}/historical/sports/basketball_nba/events/${eventId}/odds?apiKey=${apiKey}&regions=us&markets=${markets}&oddsFormat=american&date=${dateTs}`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const json = await r.json();
+    const eventData = json.data || json;
+    return { bookmakers: eventData.bookmakers || [], remainingRequests: r.headers.get('x-requests-remaining') };
+  } catch { return null; }
+}
 
-  const clv = closingOdds ? calcCLV(bet.bookOdds, parseFloat(closingOdds)) : null;
-  const pnl = result      ? calcPnL(bet.stake, bet.bookOdds, result)       : null;
+// Pull closing odds for a single tracked entry — returns { closingOdds, closingLine } or null.
+function extractClosingOdds(bookmakers, normName, statKey, side, selectedBooks) {
+  let bestPrice = null;
+  let bestLine  = null;
+  const marketKey = ODDS_MARKET_MAP[statKey];
+  if (!marketKey) return null;
+  (bookmakers || []).forEach(bk => {
+    if (selectedBooks.length > 0 && !selectedBooks.includes(bk.key)) return;
+    (bk.markets || []).forEach(mkt => {
+      if (mkt.key !== marketKey) return;
+      (mkt.outcomes || []).forEach(outcome => {
+        const oNorm = normalizeOddsName(outcome.description || '');
+        const sim   = bigramSimilarity(oNorm, normName);
+        if (sim < 0.72) return;
+        if ((outcome.name || '').toLowerCase() !== side.toLowerCase()) return;
+        const p = parseFloat(outcome.price);
+        if (isNaN(p)) return;
+        if (bestPrice === null || p > bestPrice) { bestPrice = p; bestLine = outcome.point ?? null; }
+      });
+    });
+  });
+  return bestPrice !== null ? { closingOdds: bestPrice, closingLine: bestLine } : null;
+}
 
-  const handleSave = () => {
-    const co = parseFloat(closingOdds) || null;
-    onSave({ closingLine: parseFloat(closingLine) || null, closingOdds: co, result: result || null, notes: notes.trim(),
-      clv: co ? calcCLV(bet.bookOdds, co) : null,
-      pnl: result ? calcPnL(bet.stake, bet.bookOdds, result) : null,
-      status: result === 'void' ? 'void' : result ? 'closed' : bet.status });
+// ── Calibration Analysis Engine ───────────────────────────────────────
+function computeCalibrationStats(entries) {
+  const settled = entries.filter(e => e.result === 'won' || e.result === 'lost' || e.result === 'push');
+  if (settled.length === 0) return null;
+
+  const wins  = settled.filter(e => e.result === 'won').length;
+  const losses= settled.filter(e => e.result === 'lost').length;
+  const pushes= settled.filter(e => e.result === 'push').length;
+  const wl    = settled.filter(e => e.result !== 'push');
+
+  const avgModelProb = wl.length > 0 ? wl.reduce((s, e) => s + e.modelProb, 0) / wl.length : null;
+  const actualRate   = wl.length > 0 ? wl.filter(e => e.result === 'won').length / wl.length : null;
+
+  // ROI helpers
+  const computeROI = (group) => {
+    const sl = group.filter(e => e.result !== 'push');
+    if (sl.length === 0) return { kellyROI: null, unitROI: null, kellyPnL: null, unitPnL: null, totalKellyStake: 0, totalUnitStake: 0 };
+    let kStake = 0, kPnL = 0, uStake = 0, uPnL = 0;
+    sl.forEach(e => {
+      const dec   = americanToDecimal(e.bookOdds);
+      const kAmt  = e.kellyStake  ?? 0;
+      const uAmt  = e.unitStake   ?? 0;
+      kStake += kAmt;
+      uStake += uAmt;
+      if (dec) {
+        kPnL += e.result === 'won' ? kAmt * (dec - 1) : -kAmt;
+        uPnL += e.result === 'won' ? uAmt * (dec - 1) : -uAmt;
+      }
+    });
+    return {
+      kellyROI:        kStake > 0 ? (kPnL / kStake) * 100 : null,
+      unitROI:         uStake > 0 ? (uPnL / uStake) * 100 : null,
+      kellyPnL:        Math.round(kPnL * 100) / 100,
+      unitPnL:         Math.round(uPnL * 100) / 100,
+      totalKellyStake: Math.round(kStake * 100) / 100,
+      totalUnitStake:  Math.round(uStake * 100) / 100,
+    };
   };
 
-  const inp = { background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 4, color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, padding: '5px 8px', width: '100%', boxSizing: 'border-box' };
-  const lbl = { fontSize: 8, color: '#64748b', fontFamily: "'Outfit', sans-serif", fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3, display: 'block' };
+  // Bucket helpers
+  const groupStats = (group) => {
+    const sl = group.filter(e => e.result !== 'push');
+    if (sl.length === 0) return null;
+    const w = sl.filter(e => e.result === 'won').length;
+    return {
+      n: sl.length,
+      wins: w,
+      hitRate:       w / sl.length,
+      modelAvg:      sl.reduce((s, e) => s + e.modelProb, 0) / sl.length,
+      ...computeROI(sl),
+    };
+  };
+
+  // By probability bucket (finer than before)
+  const probBuckets = [
+    { label: '<45%',   min: 0,    max: 0.45 },
+    { label: '45-50',  min: 0.45, max: 0.50 },
+    { label: '50-55',  min: 0.50, max: 0.55 },
+    { label: '55-60',  min: 0.55, max: 0.60 },
+    { label: '60-65',  min: 0.60, max: 0.65 },
+    { label: '65-70',  min: 0.65, max: 0.70 },
+    { label: '70-75',  min: 0.70, max: 0.75 },
+    { label: '75%+',   min: 0.75, max: 1.01 },
+  ].map(b => ({ ...b, ...groupStats(wl.filter(e => e.modelProb >= b.min && e.modelProb < b.max)) }));
+
+  // By stat
+  const allStats = ['pts','reb','ast','stl','blk','threes'];
+  const byStat = {};
+  allStats.forEach(s => { byStat[s] = groupStats(wl.filter(e => e.stat === s)); });
+
+  // By side
+  const bySide = {
+    OVER:  groupStats(wl.filter(e => e.side === 'OVER')),
+    UNDER: groupStats(wl.filter(e => e.side === 'UNDER')),
+  };
+
+  // By edge label
+  const byEdge = {};
+  ['MARGINAL','SOLID','STRONG'].forEach(lbl => {
+    byEdge[lbl] = groupStats(wl.filter(e => e.edgeLabel === lbl));
+  });
+
+  // By odds bucket
+  const oddsBuckets = [
+    { label: '<-120',          filter: e => e.bookOdds < -120 },
+    { label: '-120 to -106',   filter: e => e.bookOdds >= -120 && e.bookOdds <= -106 },
+    { label: '-105 to +100',   filter: e => e.bookOdds >= -105 && e.bookOdds <= 100  },
+    { label: '>+100',          filter: e => e.bookOdds > 100 },
+  ].map(b => ({ label: b.label, ...groupStats(wl.filter(b.filter)) }));
+
+  // CLV analysis (only entries with closing odds)
+  const withCLV = settled.filter(e => e.closingOdds != null && e.result !== 'push');
+  const clvData = withCLV.length > 0 ? (() => {
+    const clvVals = withCLV.map(e => {
+      const td = americanToDecimal(e.bookOdds);
+      const cd = americanToDecimal(e.closingOdds);
+      return (td && cd && cd > 1) ? ((td - cd) / cd) * 100 : null;
+    }).filter(v => v !== null);
+    const avgCLV  = clvVals.length > 0 ? clvVals.reduce((a, b) => a + b, 0) / clvVals.length : null;
+    const pos = withCLV.filter((e, i) => clvVals[i] > 0);
+    const neg = withCLV.filter((e, i) => clvVals[i] <= 0);
+    return {
+      n: withCLV.length,
+      avgCLV,
+      posClvHitRate: pos.length > 0 ? pos.filter(e => e.result === 'won').length / pos.length : null,
+      negClvHitRate: neg.length > 0 ? neg.filter(e => e.result === 'won').length / neg.length : null,
+      posN: pos.length, negN: neg.length,
+    };
+  })() : null;
+
+  // Rolling trend: last-20 hit rate in chronological order
+  const chronological = [...settled].filter(e => e.result !== 'push').sort((a, b) => new Date(a.loggedAt) - new Date(b.loggedAt));
+  const trend = chronological.length >= 10 ? (() => {
+    const window = 10;
+    const points = [];
+    for (let i = window - 1; i < chronological.length; i++) {
+      const slice = chronological.slice(i - window + 1, i + 1);
+      points.push({ idx: i, rate: slice.filter(e => e.result === 'won').length / slice.length });
+    }
+    return points;
+  })() : null;
+
+  return {
+    total: settled.length, wins, losses, pushes,
+    avgModelProb, actualRate,
+    overall: computeROI(wl),
+    probBuckets,
+    byStat,
+    bySide,
+    byEdge,
+    oddsBuckets,
+    clvData,
+    trend,
+  };
+}
+
+// ── CalibrationAnalysis component ─────────────────────────────────────
+function CalibrationAnalysis({ stats: s }) {
+  if (!s) return null;
+  const mono = "'JetBrains Mono', monospace";
+
+  const hitColor  = r => r == null ? '#64748b' : r >= 0.55 ? '#22c55e' : r >= 0.48 ? '#4ade80' : r >= 0.42 ? '#f59e0b' : '#ef4444';
+  const roiColor  = v => v == null ? '#64748b' : v >= 5 ? '#22c55e' : v >= 0 ? '#4ade80' : v >= -5 ? '#f59e0b' : '#ef4444';
+  const diffColor = (actual, model) => {
+    if (actual == null || model == null) return '#64748b';
+    const d = actual - model;
+    return d > 0.03 ? '#22c55e' : d > -0.03 ? '#94a3b8' : '#ef4444';
+  };
+
+  const SectionHeader = ({ children }) => (
+    <div style={{ fontSize: 8, fontWeight: 700, color: '#64748b', fontFamily: mono,
+      letterSpacing: 1.2, marginBottom: 6, marginTop: 14, borderBottom: '1px solid rgba(148,163,184,0.1)',
+      paddingBottom: 3 }}>
+      {children}
+    </div>
+  );
+
+  const GroupRow = ({ label, g, showROI = true }) => {
+    if (!g || g.n == null) return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0',
+        fontSize: 9, color: '#475569', fontFamily: mono }}>
+        <span>{label}</span><span style={{ fontSize: 8 }}>n/a</span>
+      </div>
+    );
+    const diff = g.hitRate != null && g.modelAvg != null ? ((g.hitRate - g.modelAvg) * 100).toFixed(1) : null;
+    const dColor = diffColor(g.hitRate, g.modelAvg);
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '80px 32px 52px 52px 52px 52px', gap: '0 4px',
+        padding: '3px 0', borderBottom: '1px solid rgba(148,163,184,0.04)', alignItems: 'center' }}>
+        <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: mono, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <span style={{ fontSize: 8, color: '#475569', fontFamily: mono, textAlign: 'right' }}>{g.n}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: hitColor(g.hitRate), fontFamily: mono, textAlign: 'right' }}>
+          {g.hitRate != null ? (g.hitRate * 100).toFixed(1) + '%' : '—'}
+        </span>
+        <span style={{ fontSize: 9, color: '#64748b', fontFamily: mono, textAlign: 'right' }}>
+          {g.modelAvg != null ? (g.modelAvg * 100).toFixed(1) + '%' : '—'}
+        </span>
+        <span style={{ fontSize: 9, fontWeight: 700, color: dColor, fontFamily: mono, textAlign: 'right' }}>
+          {diff != null ? (parseFloat(diff) >= 0 ? '+' : '') + diff + 'pp' : '—'}
+        </span>
+        {showROI && <span style={{ fontSize: 9, fontWeight: 700, color: roiColor(g.unitROI), fontFamily: mono, textAlign: 'right' }}>
+          {g.unitROI != null ? (g.unitROI >= 0 ? '+' : '') + g.unitROI.toFixed(1) + '%' : '—'}
+        </span>}
+      </div>
+    );
+  };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ backgroundColor: '#111827', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 12, padding: 20, width: 360, maxWidth: '92vw' }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, color: '#94a3b8', marginBottom: 12, letterSpacing: 2 }}>CLOSE OUT BET</div>
-        <div style={{ fontSize: 9, color: '#94a3b8', fontFamily: "'JetBrains Mono', monospace", marginBottom: 12, background: 'rgba(15,23,42,0.5)', borderRadius: 6, padding: '6px 10px', lineHeight: 1.7 }}>
-          {bet.player} · {bet.statLabel} {bet.side?.toUpperCase()} {bet.propLine} @ {fmtOdds(bet.bookOdds)}{bet.bookName ? ` · ${bet.bookName}` : ''}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 10px', marginBottom: 10 }}>
-          <div><label style={lbl}>Closing Line</label><input type="number" step="0.5" value={closingLine} onChange={e => setClosingLine(e.target.value)} style={inp} /></div>
-          <div><label style={lbl}>Closing Odds</label><input type="number" step="1" value={closingOdds} onChange={e => setClosingOdds(e.target.value)} style={inp} /></div>
-        </div>
-        {clv != null && (
-          <div style={{ fontSize: 9, marginBottom: 8, padding: '4px 8px', borderRadius: 4, background: clv >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', color: clv >= 0 ? '#4ade80' : '#fca5a5', fontFamily: "'JetBrains Mono', monospace" }}>
-            CLV {clv >= 0 ? '+' : ''}{clv.toFixed(1)}% — {clv >= 0 ? 'beat the close ✓' : 'closed against you'}
+    <div style={{ marginTop: 12 }}>
+      {/* Header legend */}
+      <div style={{ display: 'grid', gridTemplateColumns: '80px 32px 52px 52px 52px 52px', gap: '0 4px',
+        marginBottom: 4, padding: '2px 0' }}>
+        {['SEGMENT','N','HIT%','MODEL%','DIFF','1U ROI'].map((h, i) => (
+          <div key={h} style={{ fontSize: 7, color: '#475569', fontFamily: mono, fontWeight: 700,
+            letterSpacing: 0.6, textAlign: i === 0 ? 'left' : 'right' }}>{h}</div>
+        ))}
+      </div>
+
+      {/* Overall */}
+      <SectionHeader>OVERALL</SectionHeader>
+      <GroupRow label="All plays" g={{ n: s.wins + s.losses, hitRate: s.actualRate, modelAvg: s.avgModelProb,
+        unitROI: s.overall.unitROI }} />
+      <div style={{ display: 'flex', gap: 16, marginTop: 6, flexWrap: 'wrap' }}>
+        {[
+          { label: '1U ROI',    val: s.overall.unitROI  != null ? (s.overall.unitROI  >= 0 ? '+' : '') + s.overall.unitROI.toFixed(1)  + '%' : '—', color: roiColor(s.overall.unitROI)  },
+          { label: '¼K ROI',   val: s.overall.kellyROI != null ? (s.overall.kellyROI >= 0 ? '+' : '') + s.overall.kellyROI.toFixed(1) + '%' : '—', color: roiColor(s.overall.kellyROI) },
+          { label: '1U P&L',   val: s.overall.unitPnL  != null ? (s.overall.unitPnL  >= 0 ? '+$' : '-$') + Math.abs(s.overall.unitPnL).toFixed(0)  : '—', color: roiColor(s.overall.unitPnL)  },
+          { label: '¼K P&L',  val: s.overall.kellyPnL != null ? (s.overall.kellyPnL >= 0 ? '+$' : '-$') + Math.abs(s.overall.kellyPnL).toFixed(0) : '—', color: roiColor(s.overall.kellyPnL) },
+          { label: 'W-L-P',    val: `${s.wins}-${s.losses}-${s.pushes}`, color: '#94a3b8' },
+        ].map(({ label, val, color }) => (
+          <div key={label} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 5, padding: '5px 10px' }}>
+            <div style={{ fontSize: 7, color: '#475569', fontFamily: mono, marginBottom: 2 }}>{label}</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: mono }}>{val}</div>
           </div>
-        )}
-        <div style={{ marginBottom: 10 }}>
-          <label style={lbl}>Result</label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {['won','lost','push','void'].map(r => (
-              <button key={r} onClick={() => setResult(r === result ? '' : r)} style={{ flex: 1, padding: '5px 0', borderRadius: 4, fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', textTransform: 'uppercase', border: result === r ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(148,163,184,0.2)', background: result === r ? 'rgba(99,102,241,0.15)' : 'rgba(15,23,42,0.4)', color: result === r ? '#a5b4fc' : '#64748b' }}>{r}</button>
+        ))}
+      </div>
+
+      {/* Prob calibration */}
+      <SectionHeader>PROBABILITY CALIBRATION</SectionHeader>
+      {s.probBuckets.map(b => b.n > 0 && (
+        <div key={b.label} style={{ display: 'grid', gridTemplateColumns: '80px 32px 1fr 50px', gap: '0 6px',
+          alignItems: 'center', padding: '3px 0', borderBottom: '1px solid rgba(148,163,184,0.04)' }}>
+          <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: mono }}>{b.label}</span>
+          <span style={{ fontSize: 8, color: '#475569', fontFamily: mono, textAlign: 'right' }}>{b.n}</span>
+          <div style={{ position: 'relative', height: 10 }}>
+            <div style={{ position: 'absolute', left: 0, top: 0, height: '100%',
+              width: `${(b.modelAvg || 0) * 100}%`, background: 'rgba(99,102,241,0.4)', borderRadius: 2 }} />
+            {b.hitRate != null && <div style={{ position: 'absolute', left: 0, top: '20%', height: '60%',
+              width: `${b.hitRate * 100}%`,
+              background: hitColor(b.hitRate), borderRadius: 2, opacity: 0.85 }} />}
+          </div>
+          <span style={{ fontSize: 9, fontWeight: 700, color: hitColor(b.hitRate), fontFamily: mono, textAlign: 'right' }}>
+            {b.hitRate != null ? (b.hitRate * 100).toFixed(0) + '%' : '—'}
+          </span>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 7, color: '#475569', fontFamily: "'Outfit', sans-serif" }}>
+        <span><span style={{ color: '#6366f1' }}>▬</span> predicted</span>
+        <span><span style={{ color: '#4ade80' }}>▬</span> actual</span>
+      </div>
+
+      {/* By stat */}
+      <SectionHeader>BY STAT</SectionHeader>
+      {Object.entries(s.byStat).map(([stat, g]) => g && (
+        <GroupRow key={stat} label={stat.toUpperCase()} g={g} />
+      ))}
+
+      {/* By side */}
+      <SectionHeader>BY SIDE</SectionHeader>
+      {Object.entries(s.bySide).map(([side, g]) => g && (
+        <GroupRow key={side} label={side} g={g} />
+      ))}
+
+      {/* By edge tier */}
+      <SectionHeader>BY EDGE RATING</SectionHeader>
+      {Object.entries(s.byEdge).map(([lbl, g]) => g && (
+        <GroupRow key={lbl} label={lbl} g={g} />
+      ))}
+
+      {/* By odds bucket */}
+      <SectionHeader>BY BOOK ODDS</SectionHeader>
+      {s.oddsBuckets.map(b => b.n > 0 && (
+        <GroupRow key={b.label} label={b.label} g={b} />
+      ))}
+
+      {/* CLV */}
+      {s.clvData && (
+        <>
+          <SectionHeader>CLOSING LINE VALUE</SectionHeader>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Avg CLV', val: s.clvData.avgCLV != null ? (s.clvData.avgCLV >= 0 ? '+' : '') + s.clvData.avgCLV.toFixed(1) + '%' : '—', color: roiColor(s.clvData.avgCLV) },
+              { label: `+CLV Hit% (n=${s.clvData.posN})`, val: s.clvData.posClvHitRate != null ? (s.clvData.posClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.posClvHitRate) },
+              { label: `−CLV Hit% (n=${s.clvData.negN})`, val: s.clvData.negClvHitRate != null ? (s.clvData.negClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.negClvHitRate) },
+            ].map(({ label, val, color }) => (
+              <div key={label} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 5, padding: '5px 10px' }}>
+                <div style={{ fontSize: 7, color: '#475569', fontFamily: mono, marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: mono }}>{val}</div>
+              </div>
             ))}
           </div>
-        </div>
-        {pnl != null && (
-          <div style={{ fontSize: 9, marginBottom: 8, padding: '4px 8px', borderRadius: 4, background: pnl >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', color: pnl >= 0 ? '#4ade80' : '#fca5a5', fontFamily: "'JetBrains Mono', monospace" }}>
-            P&L {pnl >= 0 ? '+$' : '-$'}{Math.abs(pnl).toFixed(2)}
+        </>
+      )}
+
+      {/* Rolling trend mini-chart */}
+      {s.trend && s.trend.length > 0 && (
+        <>
+          <SectionHeader>ROLLING 10-PLAY HIT RATE</SectionHeader>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 40 }}>
+            {s.trend.map((pt, i) => {
+              const h = Math.max(4, pt.rate * 100);
+              const c = pt.rate >= 0.55 ? '#22c55e' : pt.rate >= 0.45 ? '#64748b' : '#ef4444';
+              return (
+                <div key={i} title={`${(pt.rate * 100).toFixed(0)}%`}
+                  style={{ flex: 1, height: `${h}%`, backgroundColor: c, borderRadius: '1px 1px 0 0', minWidth: 3 }} />
+              );
+            })}
           </div>
-        )}
-        <div style={{ marginBottom: 12 }}><label style={lbl}>Notes</label><textarea rows={1} value={notes} onChange={e => setNotes(e.target.value)} style={{ ...inp, resize: 'none', fontFamily: "'Outfit', sans-serif" }} /></div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleSave}  style={{ flex: 1, padding: '7px 0', borderRadius: 5, fontWeight: 700, fontSize: 9, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.12)', color: '#a5b4fc' }}>SAVE</button>
-          <button onClick={onCancel}    style={{ flex: 1, padding: '7px 0', borderRadius: 5, fontWeight: 700, fontSize: 9, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(15,23,42,0.4)', color: '#64748b' }}>CANCEL</button>
-        </div>
-      </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 7, color: '#475569', fontFamily: mono, marginTop: 2 }}>
+            <span>oldest</span><span>50% line</span><span>most recent</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-// ── Calibration Chart ────────────────────────────────────────────────
-function CalibrationChart({ buckets }) {
-  const withData = buckets.filter(b => b.n > 0);
-  if (withData.length === 0) return null;
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 8, color: '#64748b', letterSpacing: 2, marginBottom: 6 }}>CALIBRATION — predicted vs actual hit rate</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {buckets.map(b => {
-          if (b.n === 0) return null;
-          const model  = b.modelAvg  || 0;
-          const actual = b.actualRate || 0;
-          const diff   = actual - model;
-          const barColor = Math.abs(diff) <= 0.05 ? '#34d399' : diff > 0 ? '#f59e0b' : '#ef4444';
-          return (
-            <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 38, fontSize: 8, color: '#64748b', fontFamily: "'JetBrains Mono', monospace", textAlign: 'right', flexShrink: 0 }}>{b.label}</div>
-              <div style={{ flex: 1, position: 'relative', height: 14 }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${model * 100}%`, background: 'rgba(99,102,241,0.4)', borderRadius: 2 }} />
-                <div style={{ position: 'absolute', top: 2, left: 0, height: '60%', width: `${actual * 100}%`, background: barColor, borderRadius: 2, opacity: 0.9 }} />
-              </div>
-              <div style={{ width: 70, fontSize: 8, color: '#94a3b8', fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>
-                {(model * 100).toFixed(0)}% → <span style={{ color: barColor }}>{(actual * 100).toFixed(0)}%</span>
-              </div>
-              <div style={{ width: 30, fontSize: 7, color: '#475569', fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, textAlign: 'right' }}>n={b.n}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 7, fontFamily: "'Outfit', sans-serif", color: '#475569' }}>
-        <span><span style={{ color: '#6366f1' }}>▬</span> predicted</span>
-        <span><span style={{ color: '#34d399' }}>▬</span> actual (±5pp)</span>
-        <span><span style={{ color: '#f59e0b' }}>▬</span> over-pred</span>
-        <span><span style={{ color: '#ef4444' }}>▬</span> under-pred</span>
-      </div>
-    </div>
-  );
-}
+// ── CalibrationPanel component ────────────────────────────────────────
+function CalibrationPanel({
+  log, open, onToggle,
+  onSetResult, onFetchClosing, closingFetching, closingFetchMsg,
+  onDelete, onExport, csvCopied,
+  unitSize, bankroll, kellyFraction,
+}) {
+  const [analysisOpen, setAnalysisOpen] = React.useState(false);
+  const mono = "'JetBrains Mono', monospace";
 
-// ── Journal Panel ────────────────────────────────────────────────────
-function JournalPanel({ journal, open, onToggle, filter, setFilter, onEdit, onDelete, onExport, csvCopied }) {
-  const [deleteConfirm, setDeleteConfirm] = React.useState(null);
+  const open_entries   = log.filter(e => !e.result);
+  const settled        = log.filter(e => e.result === 'won' || e.result === 'lost' || e.result === 'push');
+  const canFetchClose  = open_entries.some(e => e.eventId && e.commenceTime);
 
-  const filtered = filter === 'open'   ? journal.filter(e => e.status === 'open')
-                 : filter === 'closed' ? journal.filter(e => e.status === 'closed' || e.status === 'void')
-                 : journal;
+  const stats = React.useMemo(() => computeCalibrationStats(log), [log]);
 
-  const settled  = journal.filter(e => e.result === 'won' || e.result === 'lost');
-  const wins     = settled.filter(e => e.result === 'won').length;
-  const openBets = journal.filter(e => e.status === 'open').length;
-  const totalPnl = journal.reduce((s, e) => s + (e.pnl ?? 0), 0);
-  const totalStake = journal.filter(e => e.pnl != null && e.stake).reduce((s, e) => s + Math.abs(e.stake), 0);
-  const roi      = totalStake > 0 ? (totalPnl / totalStake) * 100 : null;
-  const clvBets  = settled.filter(e => e.clv != null);
-  const avgClv   = clvBets.length > 0 ? clvBets.reduce((s, e) => s + e.clv, 0) / clvBets.length : null;
-
-  const STATUS_COLOR = { open: '#f59e0b', closed: '#94a3b8', void: '#475569', won: '#4ade80', lost: '#ef4444', push: '#94a3b8' };
-  const cardSt = { flex: 1, minWidth: 80, background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(148,163,184,0.12)', borderRadius: 8, padding: '8px 12px' };
+  const RESULT_COLORS = { won: '#4ade80', lost: '#ef4444', push: '#94a3b8' };
 
   return (
-    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(245,158,11,0.15)', marginBottom: 8, background: 'rgba(15,23,42,0.3)' }}>
-      <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', cursor: 'pointer', background: open ? 'rgba(245,158,11,0.05)' : 'transparent', borderBottom: open ? '1px solid rgba(245,158,11,0.1)' : 'none' }}>
+    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(245,158,11,0.2)', marginBottom: 8, background: 'rgba(15,23,42,0.3)' }}>
+      {/* Header */}
+      <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 16px', cursor: 'pointer',
+        background: open ? 'rgba(245,158,11,0.05)' : 'transparent',
+        borderBottom: open ? '1px solid rgba(245,158,11,0.1)' : 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10, color: journal.length > 0 ? '#f59e0b' : '#64748b', letterSpacing: 2 }}>BET JOURNAL</span>
-          {journal.length > 0 && (
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#64748b' }}>
-              {journal.length} bets · {openBets} open{avgClv != null ? ` · CLV ${avgClv >= 0 ? '+' : ''}${avgClv.toFixed(1)}%` : ''}
+          <span style={{ fontFamily: mono, fontWeight: 700, fontSize: 10,
+            color: log.length > 0 ? '#f59e0b' : '#64748b', letterSpacing: 2 }}>MODEL ACCURACY</span>
+          {log.length > 0 && (
+            <span style={{ fontFamily: mono, fontSize: 9, color: '#64748b' }}>
+              {settled.length} settled · {open_entries.length} open
+              {stats && stats.actualRate != null ? ` · ${(stats.actualRate * 100).toFixed(1)}% hit` : ''}
             </span>
           )}
         </div>
@@ -1896,72 +2075,141 @@ function JournalPanel({ journal, open, onToggle, filter, setFilter, onEdit, onDe
 
       {open && (
         <div style={{ padding: '12px 16px' }}>
-          {journal.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#475569', fontSize: 10, fontFamily: "'Outfit', sans-serif", padding: '20px 0' }}>
-              No bets logged yet. Click + LOG BET on any SOLID or STRONG edge after running a simulation.
+          {log.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#475569', fontSize: 10,
+              fontFamily: "'Outfit', sans-serif", padding: '20px 0' }}>
+              No plays tracked yet. Run a batch simulation, check plays you took, then click + TRACK.
             </div>
           ) : (
             <>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                <div style={cardSt}><div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: '#e2e8f0' }}>{wins}-{settled.length - wins}</div><div style={{ fontSize: 9, color: '#64748b', fontFamily: "'Outfit', sans-serif", marginTop: 2 }}>W-L RECORD</div></div>
-                <div style={cardSt}><div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: roi == null ? '#475569' : roi >= 0 ? '#4ade80' : '#ef4444' }}>{roi == null ? '—' : `${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`}</div><div style={{ fontSize: 9, color: '#64748b', fontFamily: "'Outfit', sans-serif", marginTop: 2 }}>ROI</div></div>
-                <div style={cardSt}><div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: avgClv == null ? '#475569' : avgClv >= 0 ? '#4ade80' : '#ef4444' }}>{avgClv == null ? '—' : `${avgClv >= 0 ? '+' : ''}${avgClv.toFixed(1)}%`}</div><div style={{ fontSize: 9, color: '#64748b', fontFamily: "'Outfit', sans-serif", marginTop: 2 }}>AVG CLV</div></div>
-                <div style={cardSt}><div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: openBets > 0 ? '#f59e0b' : '#475569' }}>{openBets}</div><div style={{ fontSize: 9, color: '#64748b', fontFamily: "'Outfit', sans-serif", marginTop: 2 }}>OPEN BETS</div></div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {['all','open','closed'].map(f => (
-                    <button key={f} onClick={() => setFilter(f)} style={{ padding: '3px 10px', borderRadius: 4, fontSize: 8, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', textTransform: 'uppercase', border: filter === f ? '1px solid rgba(245,158,11,0.4)' : '1px solid rgba(148,163,184,0.15)', background: filter === f ? 'rgba(245,158,11,0.1)' : 'rgba(15,23,42,0.4)', color: filter === f ? '#f59e0b' : '#475569' }}>{f}</button>
-                  ))}
-                </div>
-                <button onClick={onExport} style={{ padding: '3px 10px', borderRadius: 4, fontSize: 8, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: csvCopied ? 'rgba(34,197,94,0.1)' : 'rgba(15,23,42,0.4)', color: csvCopied ? '#4ade80' : '#94a3b8' }}>
+              {/* Action bar */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                {canFetchClose && (
+                  <button onClick={onFetchClosing} disabled={closingFetching}
+                    style={{ padding: '5px 12px', borderRadius: 5, border: '1px solid rgba(99,102,241,0.4)',
+                      background: 'rgba(99,102,241,0.1)', color: closingFetching ? '#475569' : '#a5b4fc',
+                      fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: closingFetching ? 'default' : 'pointer', letterSpacing: 0.8 }}>
+                    {closingFetching ? 'FETCHING…' : 'FETCH CLOSING ODDS'}
+                  </button>
+                )}
+                {closingFetchMsg && (
+                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>{closingFetchMsg}</span>
+                )}
+                <button onClick={onExport}
+                  style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 5,
+                    border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(15,23,42,0.4)',
+                    color: csvCopied ? '#4ade80' : '#94a3b8', fontFamily: mono, fontWeight: 700, fontSize: 9,
+                    cursor: 'pointer' }}>
                   {csvCopied ? '✓ COPIED' : 'EXPORT CSV'}
                 </button>
               </div>
 
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
-                      {['DATE','PLAYER','STAT','SIDE','LINE','ODDS','EDGE%','STATUS','CLV%','P&L',''].map((h, i) => (
-                        <th key={i} style={{ padding: '4px 6px', textAlign: 'left', color: '#475569', fontSize: 7, letterSpacing: 1, fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map(e => {
-                      const isDel = deleteConfirm === e.id;
+              {/* Open plays */}
+              {open_entries.length > 0 && (
+                <>
+                  <div style={{ fontSize: 8, color: '#f59e0b', fontFamily: mono, fontWeight: 700,
+                    letterSpacing: 1, marginBottom: 6 }}>OPEN — mark result</div>
+                  {open_entries.map(e => (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '6px 8px', marginBottom: 4, borderRadius: 5,
+                      background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.12)' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 9, color: '#e2e8f0', fontFamily: mono, fontWeight: 600,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.player} · {e.statLabel} {e.side} {e.propLine} @ {fmtOdds(e.bookOdds)}
+                        </div>
+                        <div style={{ fontSize: 8, color: '#64748b', fontFamily: mono, marginTop: 1 }}>
+                          Model {(e.modelProb * 100).toFixed(1)}% · Fair {fmtOdds(e.fairOdds)} · {e.edgeLabel} +{e.edgePct.toFixed(1)}%
+                          {e.closingOdds != null && (
+                            <span style={{ color: '#a5b4fc' }}> · Close {fmtOdds(e.closingOdds)}{e.closingLine != null ? ` @ ${e.closingLine}` : ''}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                        {['won','lost','push'].map(r => (
+                          <button key={r} onClick={() => onSetResult(e.id, r)}
+                            style={{ padding: '3px 7px', borderRadius: 3, fontSize: 8, fontWeight: 700,
+                              fontFamily: mono, cursor: 'pointer', letterSpacing: 0.5, textTransform: 'uppercase',
+                              border: `1px solid ${RESULT_COLORS[r]}40`,
+                              background: `${RESULT_COLORS[r]}10`, color: RESULT_COLORS[r] }}>
+                            {r}
+                          </button>
+                        ))}
+                        <button onClick={() => onDelete(e.id)}
+                          style={{ padding: '3px 6px', borderRadius: 3, fontSize: 8, cursor: 'pointer',
+                            border: '1px solid rgba(148,163,184,0.15)', background: 'rgba(15,23,42,0.4)', color: '#475569' }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* Settled plays */}
+              {settled.length > 0 && (
+                <>
+                  <div style={{ fontSize: 8, color: '#64748b', fontFamily: mono, fontWeight: 700,
+                    letterSpacing: 1, marginTop: 10, marginBottom: 6 }}>SETTLED ({settled.length})</div>
+                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                    {[...settled].reverse().map(e => {
+                      const dec  = americanToDecimal(e.bookOdds);
+                      const kPnL = e.kellyStake && dec ? (e.result === 'won' ? e.kellyStake * (dec - 1) : e.result === 'lost' ? -e.kellyStake : 0) : null;
+                      const uPnL = e.unitStake  && dec ? (e.result === 'won' ? e.unitStake  * (dec - 1) : e.result === 'lost' ? -e.unitStake  : 0) : null;
                       return (
-                        <tr key={e.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.06)', background: e.status === 'open' ? 'rgba(245,158,11,0.02)' : 'transparent' }}>
-                          <td style={{ padding: '5px 6px', color: '#64748b', whiteSpace: 'nowrap' }}>{e.gameDate ? e.gameDate.slice(5) : '—'}</td>
-                          <td style={{ padding: '5px 6px', color: '#94a3b8', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.player || '—'}</td>
-                          <td style={{ padding: '5px 6px', color: '#e2e8f0' }}>{e.statLabel}</td>
-                          <td style={{ padding: '5px 6px', color: e.side === 'over' ? '#4ade80' : '#fca5a5', fontWeight: 700 }}>{e.side?.toUpperCase()}</td>
-                          <td style={{ padding: '5px 6px', color: '#e2e8f0' }}>{e.propLine}</td>
-                          <td style={{ padding: '5px 6px', color: '#94a3b8' }}>{fmtOdds(e.bookOdds)}</td>
-                          <td style={{ padding: '5px 6px', color: e.edgePct >= 5 ? '#22c55e' : e.edgePct >= 3 ? '#4ade80' : '#86efac' }}>{e.edgePct != null ? e.edgePct.toFixed(1) : '—'}</td>
-                          <td style={{ padding: '5px 6px' }}>
-                            <span style={{ padding: '1px 5px', borderRadius: 3, fontSize: 7, fontWeight: 700, background: e.status === 'open' ? 'rgba(245,158,11,0.15)' : 'rgba(15,23,42,0.5)', color: STATUS_COLOR[e.result || e.status] || '#94a3b8' }}>
-                              {e.result ? e.result.toUpperCase() : e.status.toUpperCase()}
+                        <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '4px 8px', marginBottom: 3, borderRadius: 4,
+                          background: 'rgba(15,23,42,0.3)', border: '1px solid rgba(148,163,184,0.06)' }}>
+                          <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                            color: RESULT_COLORS[e.result] || '#94a3b8',
+                            background: `${RESULT_COLORS[e.result] || '#94a3b8'}15`,
+                            border: `1px solid ${RESULT_COLORS[e.result] || '#94a3b8'}30`,
+                            fontFamily: mono, letterSpacing: 0.5, flexShrink: 0 }}>
+                            {e.result?.toUpperCase()}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0, fontSize: 8, color: '#94a3b8', fontFamily: mono,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {e.player} · {e.statLabel} {e.side} {e.propLine} @ {fmtOdds(e.bookOdds)}
+                            · {(e.modelProb * 100).toFixed(1)}%
+                          </div>
+                          {uPnL != null && (
+                            <span style={{ fontSize: 8, fontWeight: 700, fontFamily: mono, flexShrink: 0,
+                              color: uPnL >= 0 ? '#4ade80' : '#ef4444' }}>
+                              {uPnL >= 0 ? '+$' : '-$'}{Math.abs(uPnL).toFixed(0)}
                             </span>
-                          </td>
-                          <td style={{ padding: '5px 6px', color: e.clv == null ? '#475569' : e.clv >= 0 ? '#4ade80' : '#fca5a5' }}>{e.clv == null ? '—' : `${e.clv >= 0 ? '+' : ''}${e.clv.toFixed(1)}`}</td>
-                          <td style={{ padding: '5px 6px', color: e.pnl == null ? '#475569' : e.pnl >= 0 ? '#4ade80' : '#fca5a5' }}>{e.pnl == null ? '—' : `${e.pnl >= 0 ? '+' : ''}$${Math.abs(e.pnl).toFixed(0)}`}</td>
-                          <td style={{ padding: '5px 6px', whiteSpace: 'nowrap' }}>
-                            {e.status === 'open' && (
-                              <button onClick={() => onEdit(e)} style={{ padding: '2px 6px', borderRadius: 3, fontSize: 7, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer', marginRight: 4, border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.1)', color: '#a5b4fc' }}>CLOSE</button>
-                            )}
-                            <button onClick={() => isDel ? onDelete(e.id) : setDeleteConfirm(e.id)} onBlur={() => setTimeout(() => setDeleteConfirm(null), 200)} style={{ padding: '2px 5px', borderRadius: 3, fontSize: 7, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer', border: `1px solid ${isDel ? 'rgba(239,68,68,0.4)' : 'rgba(148,163,184,0.15)'}`, background: isDel ? 'rgba(239,68,68,0.1)' : 'rgba(15,23,42,0.4)', color: isDel ? '#ef4444' : '#475569' }}>{isDel ? 'DEL?' : '✕'}</button>
-                          </td>
-                        </tr>
+                          )}
+                          <button onClick={() => onDelete(e.id)}
+                            style={{ padding: '2px 5px', borderRadius: 3, fontSize: 7, cursor: 'pointer',
+                              border: '1px solid rgba(148,163,184,0.1)', background: 'transparent', color: '#475569' }}>✕</button>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </>
+              )}
 
-              {settled.length >= 20 && <CalibrationChart buckets={computeCalibrationBuckets(journal)} />}
+              {/* Analysis toggle */}
+              {settled.length >= 5 && (
+                <div style={{ marginTop: 12, borderRadius: 8,
+                  border: '1px solid rgba(148,163,184,0.12)', background: 'rgba(15,23,42,0.3)' }}>
+                  <div onClick={() => setAnalysisOpen(o => !o)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '8px 12px', cursor: 'pointer' }}>
+                    <span style={{ fontFamily: mono, fontWeight: 700, fontSize: 9, color: '#94a3b8', letterSpacing: 1 }}>
+                      ACCURACY ANALYSIS
+                    </span>
+                    <span style={{ fontSize: 9, color: '#475569' }}>{analysisOpen ? '▲' : '▼'}</span>
+                  </div>
+                  {analysisOpen && stats && (
+                    <div style={{ padding: '0 12px 12px' }}>
+                      <CalibrationAnalysis stats={stats} />
+                    </div>
+                  )}
+                  {analysisOpen && !stats && (
+                    <div style={{ padding: '12px', fontSize: 9, color: '#475569', fontFamily: mono }}>
+                      Need at least 5 settled plays for analysis.
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -2069,19 +2317,19 @@ function NBASimulator() {
     localStorage.setItem(SESSION_KEY, JSON.stringify({ playerName, numSims, stats, comboLines, bankroll, unitSize, kellyFraction, cvWindow, parlayOdds }));
   }, [playerName, numSims, stats, comboLines, bankroll, unitSize, kellyFraction, cvWindow, parlayOdds]);
 
-  // ── Bet Journal state ──────────────────────────────────────────────
-  const [journal,             setJournal]             = useState(() => loadJournal());
-  const [journalOpen,         setJournalOpen]         = useState(false);
-  const [journalFilter,       setJournalFilter]       = useState('all');
-  const [logBetDraft,         setLogBetDraft]         = useState(null);
-  const [editingBet,          setEditingBet]          = useState(null);
-  const [journalCsvCopied,    setJournalCsvCopied]    = useState(false);
+  // ── Model Accuracy / Calibration state ─────────────────────────────
+  const [calibration,         setCalibration]         = useState(() => loadCalibration());
+  const [calibrationOpen,     setCalibrationOpen]     = useState(false);
+  const [batchTracked,        setBatchTracked]        = useState(() => new Set());
+  const [closingFetching,     setClosingFetching]     = useState(false);
+  const [closingFetchMsg,     setClosingFetchMsg]     = useState(null);
+  const [calibrationCsvCopied,setCalibrationCsvCopied]= useState(false);
   // ── Projection Uncertainty state ───────────────────────────────────
   const [projUncertaintyMode, setProjUncertaintyMode] = useState(false);
 
   React.useEffect(() => {
-    localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal));
-  }, [journal]);
+    localStorage.setItem(CALIBRATION_KEY, JSON.stringify(calibration));
+  }, [calibration]);
 
   const handleFetchLines = useCallback(async () => {
     if (!oddsApiKey.trim()) { setOddsError('Enter your Odds API key first.'); setShowOddsPanel(true); return; }
@@ -2415,58 +2663,136 @@ function NBASimulator() {
     setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
   }, [stats, comboLines, numSims, kellyFraction]);
 
-  // ── Bet Journal Handlers ─────────────────────────────────────────────
-  const handleConfirmLogBet = useCallback((draft) => {
-    const entry = {
-      id:        draft.betId || generateBetId(),
-      loggedAt:  new Date().toISOString(),
-      gameDate:  draft.gameDate || new Date().toISOString().slice(0, 10),
-      player:    draft.player || '',
-      stat:      draft.stat || '',
-      statLabel: draft.statLabel || '',
-      side:      draft.side,
-      propLine:  draft.propLine,
-      bookOdds:  draft.bookOdds,
-      bookName:  draft.bookName || '',
-      modelProb: draft.modelProb,
-      fairOdds:  draft.fairOdds,
-      edgePct:   draft.edgePct,
-      stake:     draft.stake || null,
-      status:    'open',
-      closingLine:  null,
-      closingOdds:  null,
-      clv:          null,
-      result:       null,
-      pnl:          null,
-      notes:        draft.notes || '',
-    };
-    setJournal(prev => {
-      const next = [entry, ...prev];
+  // ── Calibration Handlers ─────────────────────────────────────────────
+  // Toggle a single betId in/out of the batchTracked selection set
+  const handleToggleTrack = useCallback((betId) => {
+    setBatchTracked(prev => {
+      const next = new Set(prev);
+      if (next.has(betId)) next.delete(betId); else next.add(betId);
+      return next;
+    });
+  }, []);
+
+  // Convert all selected batch rows into calibration tracker entries and reset selection
+  const handleTrackSelected = useCallback(() => {
+    if (!batchResults || batchTracked.size === 0) return;
+    const bank = parseFloat(bankroll) || 0;
+    const unit = parseFloat(unitSize) || 20;
+    const newEntries = [];
+    batchResults.forEach(r => {
+      if (!batchTracked.has(r.betId)) return;
+      const kFull  = calcKelly(r.modelProb, r.bookOdds) || 0;
+      const kStake = bank > 0 ? Math.round(bank * kFull * kellyFraction * 100) / 100 : null;
+      newEntries.push({
+        id:           r.betId,
+        loggedAt:     new Date().toISOString(),
+        player:       r.player,
+        stat:         r.stat,
+        statLabel:    r.statLabel,
+        side:         r.side,
+        propLine:     r.propLine,
+        bookOdds:     r.bookOdds,
+        modelProb:    r.modelProb,
+        fairOdds:     r.side === 'OVER'
+                        ? (parseFloat(r.fairOverOdds)  || null)
+                        : (parseFloat(r.fairUnderOdds) || null),
+        edgePct:      r.edge,
+        edgeLabel:    r.edgeLabel,
+        kellyStake:   kStake,
+        unitStake:    unit,
+        eventId:      r.eventId      ?? null,
+        commenceTime: r.commenceTime ?? null,
+        result:       null,
+        closingOdds:  null,
+        closingLine:  null,
+      });
+    });
+    if (newEntries.length === 0) return;
+    setCalibration(prev => {
+      const existingIds = new Set(prev.map(e => e.id));
+      const fresh = newEntries.filter(e => !existingIds.has(e.id));
+      const next = [...fresh, ...prev];
       if (JSON.stringify(next).length > 4 * 1024 * 1024) {
-        alert('Journal approaching storage limit. Export and clear some entries first.');
+        alert('Calibration log approaching storage limit. Export and clear some entries first.');
         return prev;
       }
       return next;
     });
-    setLogBetDraft(null);
+    setBatchTracked(new Set());
+    setCalibrationOpen(true);
+  }, [batchResults, batchTracked, bankroll, unitSize, kellyFraction]);
+
+  // Mark result on a calibration entry
+  const handleSetResult = useCallback((id, result) => {
+    setCalibration(prev => prev.map(e => e.id !== id ? e : { ...e, result }));
   }, []);
 
-  const handleCloseOutBet = useCallback((id, updates) => {
-    setJournal(prev => prev.map(e => {
-      if (e.id !== id) return e;
-      const clv = updates.closingOdds ? calcCLV(e.bookOdds, updates.closingOdds) : null;
-      const pnl = updates.result      ? calcPnL(e.stake, e.bookOdds, updates.result) : null;
-      return {
-        ...e, ...updates, clv, pnl,
-        status: updates.result === 'void' ? 'void' : updates.result ? 'closed' : e.status,
-      };
-    }));
-    setEditingBet(null);
+  // Fetch closing odds via Odds API historical endpoint for all open tracked entries with eventIds
+  const handleFetchClosingOdds = useCallback(async () => {
+    if (!oddsApiKey) return;
+    setClosingFetching(true);
+    setClosingFetchMsg(null);
+    const openEntries = calibration.filter(e => !e.result && e.eventId && e.commenceTime);
+    const uniqueEventIds = [...new Set(openEntries.map(e => e.eventId))];
+    let updated = 0;
+    let apiReqLeft = null;
+    for (const eventId of uniqueEventIds) {
+      const sample = openEntries.find(e => e.eventId === eventId);
+      const resp = await fetchHistoricalProps(oddsApiKey, eventId, sample.commenceTime);
+      if (!resp) continue;
+      apiReqLeft = resp.remainingRequests;
+      // Update all calibration entries for this event
+      setCalibration(prev => {
+        let didUpdate = false;
+        const next = prev.map(e => {
+          if (e.eventId !== eventId || e.result) return e;
+          const normName = normalizeOddsName(e.player);
+          const closing  = extractClosingOdds(resp.bookmakers, normName, e.stat, e.side.toLowerCase(), selectedBooks);
+          if (!closing) return e;
+          didUpdate = true;
+          updated++;
+          return { ...e, closingOdds: closing.closingOdds, closingLine: closing.closingLine };
+        });
+        return didUpdate ? next : prev;
+      });
+    }
+    setClosingFetching(false);
+    setClosingFetchMsg(
+      `Updated ${updated} entr${updated === 1 ? 'y' : 'ies'}${apiReqLeft != null ? ` · ${apiReqLeft} API req remaining` : ''}`
+    );
+  }, [calibration, oddsApiKey, selectedBooks]);
+
+  // Delete a calibration entry
+  const handleDeleteCalibration = useCallback((id) => {
+    setCalibration(prev => prev.filter(e => e.id !== id));
   }, []);
 
-  const handleDeleteBet = useCallback((id) => {
-    setJournal(prev => prev.filter(e => e.id !== id));
-  }, []);
+  // Export calibration log as CSV → clipboard
+  const handleExportCalibration = useCallback(() => {
+    const headers = [
+      'ID','Logged At','Player','Stat','Side','Line','Book Odds',
+      'Model Prob%','Fair Odds','Edge%','Edge Label',
+      'Kelly Stake $','Unit Stake $','Event ID',
+      'Result','Closing Odds','Closing Line'
+    ];
+    const esc = v => { const s = String(v ?? ''); return (s.includes(',') || s.includes('"')) ? `"${s.replace(/"/g,'""')}"` : s; };
+    const rows = calibration.map(e => [
+      e.id, e.loggedAt, e.player, e.statLabel || e.stat, e.side, e.propLine,
+      fmtOdds(e.bookOdds),
+      e.modelProb != null ? (e.modelProb * 100).toFixed(1) : '',
+      fmtOdds(e.fairOdds),
+      e.edgePct != null ? e.edgePct.toFixed(1) : '',
+      e.edgeLabel || '', e.kellyStake ?? '', e.unitStake ?? '',
+      e.eventId || '', e.result || '',
+      e.closingOdds ? fmtOdds(e.closingOdds) : '',
+      e.closingLine ?? '',
+    ]);
+    const csv = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
+    navigator.clipboard.writeText(csv).then(() => {
+      setCalibrationCsvCopied(true);
+      setTimeout(() => setCalibrationCsvCopied(false), 2000);
+    });
+  }, [calibration]);
 
   // ── Batch EV Hunt ───────────────────────────────────────────────────
   // Loops all ETR projections that have odds, runs 10k sims each (parametric only —
@@ -2558,6 +2884,8 @@ function NBASimulator() {
             fairUnderOdds,
             gamesAvailable: cvData?.games_available ?? null,
             betId: Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
+            eventId:      gameCtx?.eventId     ?? null,
+            commenceTime: gameCtx?.commenceTime ?? null,
           });
         });
       });
@@ -2925,26 +3253,30 @@ function NBASimulator() {
                       setTimeout(() => setBatchCsvCopied(false), 2000);
                     });
                   }}
+                  tracked={batchTracked}
+                  onToggleTrack={handleToggleTrack}
+                  onTrackSelected={handleTrackSelected}
                 />
               )}
             </div>
           )}
         </div>
 
-        {/* Bet Journal */}
-        <JournalPanel
-          journal={journal}
-          open={journalOpen}
-          onToggle={() => setJournalOpen(o => !o)}
-          filter={journalFilter}
-          setFilter={setJournalFilter}
-          onEdit={setEditingBet}
-          onDelete={handleDeleteBet}
-          onExport={() => {
-            navigator.clipboard.writeText(buildJournalCSV(journal))
-              .then(() => { setJournalCsvCopied(true); setTimeout(() => setJournalCsvCopied(false), 2000); });
-          }}
-          csvCopied={journalCsvCopied}
+        {/* Model Accuracy / Calibration Tracker */}
+        <CalibrationPanel
+          log={calibration}
+          open={calibrationOpen}
+          onToggle={() => setCalibrationOpen(o => !o)}
+          onSetResult={handleSetResult}
+          onFetchClosing={handleFetchClosingOdds}
+          closingFetching={closingFetching}
+          closingFetchMsg={closingFetchMsg}
+          onDelete={handleDeleteCalibration}
+          onExport={handleExportCalibration}
+          csvCopied={calibrationCsvCopied}
+          unitSize={unitSize}
+          bankroll={bankroll}
+          kellyFraction={kellyFraction}
         />
 
         {/* Player + Config */}
@@ -3766,21 +4098,6 @@ function NBASimulator() {
         )}
       </div>
 
-      {/* Bet Journal Modals */}
-      {logBetDraft && (
-        <LogBetModal
-          draft={logBetDraft}
-          onConfirm={handleConfirmLogBet}
-          onCancel={() => setLogBetDraft(null)}
-        />
-      )}
-      {editingBet && (
-        <CloseOutModal
-          bet={editingBet}
-          onSave={(updates) => handleCloseOutBet(editingBet.id, updates)}
-          onCancel={() => setEditingBet(null)}
-        />
-      )}
     </div>
   );
 }
