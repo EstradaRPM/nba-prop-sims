@@ -2794,7 +2794,46 @@ function NBASimulator() {
     });
   }, [calibration]);
 
-  // ── Batch EV Hunt ───────────────────────────────────────────────────
+  // Wire single-player sim "LOG BET" button → calibration tracker.
+  // Looks up eventId/commenceTime from gameData via the player's team in projections.
+  const handleLogBetToCalibration = useCallback((data) => {
+    const playerTeam = projections?.find(p => p.name === playerName)?.team?.toUpperCase();
+    const gameCtx    = (playerTeam && gameData?.[playerTeam]) || null;
+    const bank  = parseFloat(bankroll) || 0;
+    const unit  = parseFloat(unitSize) || 20;
+    const kFull = calcKelly(data.modelProb, data.bookOdds) || 0;
+    const entry = {
+      id:           data.betId || generateBetId(),
+      loggedAt:     new Date().toISOString(),
+      player:       data.player,
+      stat:         data.stat,
+      statLabel:    data.statLabel,
+      side:         (data.side || '').toUpperCase(),
+      propLine:     data.propLine,
+      bookOdds:     data.bookOdds,
+      modelProb:    data.modelProb,
+      fairOdds:     data.fairOdds != null ? parseFloat(data.fairOdds) || null : null,
+      edgePct:      data.edgePct,
+      edgeLabel:    getEdgeLabel(data.edgePct),
+      kellyStake:   bank > 0 ? Math.round(bank * kFull * kellyFraction * 100) / 100 : null,
+      unitStake:    unit,
+      eventId:      gameCtx?.eventId      ?? null,
+      commenceTime: gameCtx?.commenceTime ?? null,
+      result:       null,
+      closingOdds:  null,
+      closingLine:  null,
+    };
+    setCalibration(prev => {
+      if (prev.some(e => e.id === entry.id)) return prev; // deduplicate
+      const next = [entry, ...prev];
+      if (JSON.stringify(next).length > 4 * 1024 * 1024) {
+        alert('Calibration log approaching storage limit. Export and clear some entries first.');
+        return prev;
+      }
+      return next;
+    });
+    setCalibrationOpen(true);
+  }, [projections, playerName, gameData, bankroll, unitSize, kellyFraction]);
   // Loops all ETR projections that have odds, runs 10k sims each (parametric only —
   // no KDE raw data in batch), and accumulates a flat ranked edge list.
   // Zero additional API calls — all data is already in state.
@@ -4035,8 +4074,8 @@ function NBASimulator() {
                     kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode}
                     ciOver={results.stats[key].ciOver} ciUnder={results.stats[key].ciUnder}
                     projUncertaintyMode={projUncertaintyMode}
-                    onLogBetOver={(data) => setLogBetDraft({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdOver, fairOdds: results.stats[key].fairOverOdds, gameDate: new Date().toISOString().slice(0, 10) })}
-                    onLogBetUnder={(data) => setLogBetDraft({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdUnder, fairOdds: results.stats[key].fairUnderOdds, gameDate: new Date().toISOString().slice(0, 10) })}
+                    onLogBetOver={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdOver, fairOdds: results.stats[key].fairOverOdds })}
+                    onLogBetUnder={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdUnder, fairOdds: results.stats[key].fairUnderOdds })}
                   />
                   <LadderTable
                     statKey={key}
@@ -4061,8 +4100,8 @@ function NBASimulator() {
                     portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
                     distModel={results.combos[key].distModel}
                     kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode}
-                    onLogBetOver={(data) => setLogBetDraft({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdOver, fairOdds: results.combos[key].fairOverOdds, gameDate: new Date().toISOString().slice(0, 10) })}
-                    onLogBetUnder={(data) => setLogBetDraft({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdUnder, fairOdds: results.combos[key].fairUnderOdds, gameDate: new Date().toISOString().slice(0, 10) })}
+                    onLogBetOver={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdOver, fairOdds: results.combos[key].fairOverOdds })}
+                    onLogBetUnder={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdUnder, fairOdds: results.combos[key].fairUnderOdds })}
                   />
                   <LadderTable
                     statKey={key}
