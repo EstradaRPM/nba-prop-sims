@@ -4,6 +4,17 @@
 
 This is a **single-file, browser-based NBA prop betting simulator** built as a static SPA. It uses Monte Carlo simulation to model player stat distributions, calculate over/under probabilities, compute edge vs. book odds, and provide Kelly Criterion stake sizing. The entire application lives in `index.html` — there is no build step, no bundler, and no backend.
 
+### Projection Source — ETR (Establish The Run)
+
+Player projections are sourced from **ETR (Establish The Run)**, a paid service (~$220/mo). ETR projections are already:
+- **Game-context adjusted** — opponent defensive rating, pace, game total, spread
+- **Injury adjusted** — teammate absences, lineup changes
+- **Opponent adjusted** — specific matchup difficulty
+
+**CRITICAL: Never suggest adjusting ETR projection means based on game total, spread, opponent, pace, home/away, back-to-back, or any other contextual factor. All such adjustments are already embedded in the ETR number. Doing so would double-count adjustments that ETR has already made and corrupt the model's mean input.**
+
+The ETR projection is treated as the best available estimate of the player's expected value (arithmetic mean) for that specific game. The simulator's job is to model the distribution of outcomes *around* that projection using empirical CV data — not to second-guess the projection itself.
+
 ---
 
 ## Repository Structure
