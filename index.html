@@ -467,9 +467,10 @@ function getAltLines(key, mean) {
   const m = parseFloat(mean) || 0;
   if (m <= 0) return [];
   if (key === 'pts') {
-    const center = Math.round(m / 5) * 5;
+    // 2.5pt intervals (books offer alt PTS lines at 2.5pt steps; 5pt was too sparse)
+    const center = Math.round(m / 2.5) * 2.5;
     const lines = [];
-    for (let l = Math.max(5, center - 15); l <= center + 20; l += 5) lines.push(l - 0.5);
+    for (let l = Math.max(2.5, center - 15); l <= center + 17.5; l += 2.5) lines.push(parseFloat((l - 0.5).toFixed(1)));
     return lines;
   }
   if (key === 'stl' || key === 'blk') {
@@ -1280,7 +1281,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
             </div>
             {ciOver && projUncertaintyMode && (
               <div style={{ fontSize: 7, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginTop: 1 }}>
-                ±{((ciOver.hi - ciOver.lo) / 2 * 100).toFixed(1)}pp
+                95% CI ±{((ciOver.hi - ciOver.lo) / 2 * 100).toFixed(1)}pp
               </div>
             )}
           </div>
@@ -1305,7 +1306,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
             </div>
             {ciUnder && projUncertaintyMode && (
               <div style={{ fontSize: 7, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginTop: 1 }}>
-                ±{((ciUnder.hi - ciUnder.lo) / 2 * 100).toFixed(1)}pp
+                95% CI ±{((ciUnder.hi - ciUnder.lo) / 2 * 100).toFixed(1)}pp
               </div>
             )}
           </div>
@@ -1328,7 +1329,7 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
   if (rungs.length === 0) return null;
 
   const interval =
-    statKey === 'pts'                                           ? '5pt'   :
+    statKey === 'pts'                                           ? '2.5pt' :
     (statKey === 'pra' || statKey === 'pr' || statKey === 'pa') ? '2.5pt' :
     statKey === 'sb'                                            ? '0.5pt' : '1pt';
   const primaryLineNum = parseFloat(primaryLine);
@@ -2042,6 +2043,17 @@ function computeCalibrationStats(entries) {
     };
   };
 
+  // Wilson score 95% CI for a proportion: handles small-n buckets correctly.
+  // Returns { lo, hi } — tighter than normal approx at extremes, avoids negative bounds.
+  const wilsonCI = (wins, n, z = 1.96) => {
+    if (n === 0) return null;
+    const p = wins / n;
+    const denom = 1 + z * z / n;
+    const center = (p + z * z / (2 * n)) / denom;
+    const margin = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom;
+    return { lo: Math.max(0, center - margin), hi: Math.min(1, center + margin) };
+  };
+
   // By probability bucket (finer than before)
   const probBuckets = [
     { label: '<45%',   min: 0,    max: 0.45 },
@@ -2052,7 +2064,20 @@ function computeCalibrationStats(entries) {
     { label: '65-70',  min: 0.65, max: 0.70 },
     { label: '70-75',  min: 0.70, max: 0.75 },
     { label: '75%+',   min: 0.75, max: 1.01 },
-  ].map(b => ({ ...b, ...groupStats(wl.filter(e => e.modelProb >= b.min && e.modelProb < b.max)) }));
+  ].map(b => {
+    const grp = groupStats(wl.filter(e => e.modelProb >= b.min && e.modelProb < b.max));
+    const wins = grp.n != null ? Math.round(grp.hitRate * grp.n) : 0;
+    const ci = grp.n != null ? wilsonCI(wins, grp.n) : null;
+    return { ...b, ...grp, wilsonCI: ci };
+  });
+
+  // Expected Calibration Error (ECE): weighted mean absolute deviation of hit rate from model prob.
+  // Lower is better. A perfectly calibrated model has ECE = 0.
+  const calibratedBuckets = probBuckets.filter(b => b.n > 0 && b.hitRate != null && b.modelAvg != null);
+  const totalN = calibratedBuckets.reduce((s, b) => s + b.n, 0);
+  const ece = totalN > 0
+    ? calibratedBuckets.reduce((s, b) => s + b.n * Math.abs(b.hitRate - b.modelAvg), 0) / totalN
+    : null;
 
   // By stat
   const allStats = ['pts','reb','ast','stl','blk','threes'];
@@ -2116,6 +2141,7 @@ function computeCalibrationStats(entries) {
     avgModelProb, actualRate,
     overall: computeROI(wl),
     probBuckets,
+    ece,
     byStat,
     bySide,
     byEdge,
@@ -2207,7 +2233,7 @@ function CalibrationAnalysis({ stats: s }) {
       </div>
 
       {/* Prob calibration */}
-      <SectionHeader>PROBABILITY CALIBRATION</SectionHeader>
+      <SectionHeader>PROBABILITY CALIBRATION{s.ece != null ? ` — ECE: ${(s.ece * 100).toFixed(1)}pp` : ''}</SectionHeader>
       {s.probBuckets.map(b => b.n > 0 && (
         <div key={b.label} style={{ display: 'grid', gridTemplateColumns: '80px 32px 1fr 50px', gap: '0 6px',
           alignItems: 'center', padding: '3px 0', borderBottom: '1px solid rgba(148,163,184,0.04)' }}>
@@ -2219,6 +2245,15 @@ function CalibrationAnalysis({ stats: s }) {
             {b.hitRate != null && <div style={{ position: 'absolute', left: 0, top: '20%', height: '60%',
               width: `${b.hitRate * 100}%`,
               background: hitColor(b.hitRate), borderRadius: 2, opacity: 0.85 }} />}
+            {/* Wilson 95% CI whiskers — shows how reliable the hit rate is given sample size */}
+            {b.wilsonCI != null && (
+              <>
+                <div style={{ position: 'absolute', left: `${b.wilsonCI.lo * 100}%`, top: '10%', height: '80%',
+                  width: 1, background: 'rgba(248,250,252,0.5)' }} />
+                <div style={{ position: 'absolute', left: `${b.wilsonCI.hi * 100}%`, top: '10%', height: '80%',
+                  width: 1, background: 'rgba(248,250,252,0.5)' }} />
+              </>
+            )}
           </div>
           <span style={{ fontSize: 9, fontWeight: 700, color: hitColor(b.hitRate), fontFamily: mono, textAlign: 'right' }}>
             {b.hitRate != null ? (b.hitRate * 100).toFixed(0) + '%' : '—'}
@@ -2228,6 +2263,7 @@ function CalibrationAnalysis({ stats: s }) {
       <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 7, color: '#475569', fontFamily: "'Outfit', sans-serif" }}>
         <span><span style={{ color: '#6366f1' }}>▬</span> predicted</span>
         <span><span style={{ color: '#4ade80' }}>▬</span> actual</span>
+        <span><span style={{ color: 'rgba(248,250,252,0.5)' }}>│</span> 95% CI</span>
       </div>
 
       {/* By stat */}
@@ -2524,6 +2560,7 @@ function NBASimulator() {
   const [prDirectCv,  setPrDirectCv]  = useState(null);
   const [paDirectCv,  setPaDirectCv]  = useState(null);
   const [raDirectCv,  setRaDirectCv]  = useState(null);
+  const [sbDirectCv,  setSbDirectCv]  = useState(null);
   const [ptsRawData, setPtsRawData] = useState(null); // { rawScores: number[], historicalMean: number } | null
   const [rebRawData, setRebRawData] = useState(null);
   const [astRawData, setAstRawData] = useState(null);
@@ -2590,7 +2627,17 @@ function NBASimulator() {
   const [projUncertaintyMode, setProjUncertaintyMode] = useState(false);
 
   React.useEffect(() => {
-    localStorage.setItem(CALIBRATION_KEY, JSON.stringify(calibration));
+    try {
+      const serialized = JSON.stringify(calibration);
+      // Warn if calibration journal is approaching localStorage limits (~5MB typical).
+      // localStorage throws QuotaExceededError silently in some browsers; proactive check prevents data loss.
+      if (serialized.length > 3_000_000) {
+        console.warn('[NBA Sim] Calibration journal is large (' + (serialized.length / 1e6).toFixed(1) + ' MB). Consider exporting to CSV and clearing old entries.');
+      }
+      localStorage.setItem(CALIBRATION_KEY, serialized);
+    } catch (e) {
+      console.error('[NBA Sim] localStorage quota exceeded — calibration not saved. Export to CSV and clear old entries.', e);
+    }
   }, [calibration]);
 
   const handleFetchLines = useCallback(async () => {
@@ -2740,6 +2787,7 @@ function NBASimulator() {
     setComboDirectCv('pr',  setPrDirectCv);
     setComboDirectCv('pa',  setPaDirectCv);
     setComboDirectCv('ra',  setRaDirectCv);
+    setComboDirectCv('sb',  setSbDirectCv);
     // pts/reb/ast raw: load historical game scores for KDE hybrid sampler.
     // In auto-blend mode, prefer the season window (most data) since the KDE
     // sampler already applies LAMBDA=0.9 recency decay internally — using a
@@ -2791,7 +2839,7 @@ function NBASimulator() {
     if (!p) return;
     setPlayerName(p.name);
     setCvLoadStatus(null);
-    setPraDirectCv(null);
+    setPraDirectCv(null); setPrDirectCv(null); setPaDirectCv(null); setRaDirectCv(null); setSbDirectCv(null);
     setPtsRawData(null);
     setRebRawData(null);
     setAstRawData(null);
@@ -2851,7 +2899,7 @@ function NBASimulator() {
     });
     setResults(null);
     setCsvData(null);
-    setPraDirectCv(null);
+    setPraDirectCv(null); setPrDirectCv(null); setPaDirectCv(null); setRaDirectCv(null); setSbDirectCv(null);
     setPtsRawData(null);
     setRebRawData(null);
     setAstRawData(null);
@@ -2933,7 +2981,7 @@ function NBASimulator() {
         // independence assumption error from summing separately-drawn component distributions.
         // The empirical combo CV already encodes real within-game correlations (pts/reb/ast
         // all move together with minutes). Falls back to element-wise sum when CV unavailable.
-        const directCvMap = { pra: praDirectCv, pr: prDirectCv, pa: paDirectCv, ra: raDirectCv };
+        const directCvMap = { pra: praDirectCv, pr: prDirectCv, pa: paDirectCv, ra: raDirectCv, sb: sbDirectCv };
         const directCv = directCvMap[key];
         if (directCv != null) {
           const meanCombo = parts.reduce((sum, k) => sum + (parseFloat(stats[k]?.mean) || 0), 0);
@@ -3819,6 +3867,7 @@ function NBASimulator() {
                   prDirectCv  != null && 'PR',
                   paDirectCv  != null && 'PA',
                   raDirectCv  != null && 'RA',
+                  sbDirectCv  != null && 'SB',
                 ].filter(Boolean);
                 const label = cvLoadStatus === "found_auto" ? "AUTO BLEND ✓" : "CV LOADED ✓";
                 const color = cvLoadStatus === "found_auto" ? "#a78bfa" : "#22c55e";
@@ -4340,7 +4389,7 @@ function NBASimulator() {
                               </span>
                               {parlayEdge != null && (
                                 <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
-                                  · edge {parlayEdge >= 0 ? "+" : ""}{parlayEdge.toFixed(1)}%
+                                  · raw edge {parlayEdge >= 0 ? "+" : ""}{parlayEdge.toFixed(1)}%
                                 </span>
                               )}
                               {parlayKelly != null && parlayKelly > 0 && (

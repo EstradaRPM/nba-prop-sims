@@ -188,7 +188,7 @@ All components use **inline styles** (no CSS classes, no styled-components).
 | `cvWindow` | string | Active CV window: `"auto"` (default), `"last5"`, `"last10"`, `"last20"`, `"season"` |
 | `cvDatabase` | object \| null | Parsed `cv_data.json` players map; fetched on mount |
 | `ptsRawData` / `rebRawData` / `astRawData` | object \| null | `{ rawScores, historicalMean }` for KDE sampler; loaded by `handleLoadCv` |
-| `praDirectCv` / `prDirectCv` / `paDirectCv` / `raDirectCv` | number \| null | Blended effective combo CV; used for direct log-normal combo simulation |
+| `praDirectCv` / `prDirectCv` / `paDirectCv` / `raDirectCv` / `sbDirectCv` | number \| null | Blended effective combo CV; used for direct log-normal combo simulation |
 | `calibration` | array | Bet journal entries persisted to `localStorage` under `nbaSimCalibration` |
 | `calibrationOpen` | boolean | Toggles `CalibrationPanel` visibility |
 | `projUncertaintyMode` | boolean | Enables 50-chunk projection uncertainty sampling (μ ~ N(ETR, σ_proj)) |
@@ -392,6 +392,41 @@ Commit messages should be descriptive (e.g., `Add correlation banner for PRA sig
 ---
 
 ## Recent Changes
+
+### 2026-03-15 — Bug Fixes & Sharp Improvements
+
+**SB Combo Direct CV (bug fix)**:
+- `sb` (STL+BLK) combo was never using empirical CV from `cv_data.json` — it always fell back to element-wise summation of separately-drawn STL and BLK distributions.
+- Added `sbDirectCv` state and `setComboDirectCv('sb', setSbDirectCv)` call in `handleLoadCv`. SB now correctly uses the empirical combo CV (which captures within-game STL/BLK correlation) whenever available.
+- Added `sb: sbDirectCv` to `directCvMap` in `handleSimulate`.
+- Added `SB` to the CV status badge display.
+
+**Stale Combo CV state (bug fix)**:
+- When selecting a new player from projections or clearing the player, only `praDirectCv` was being reset to `null` — `prDirectCv`, `paDirectCv`, `raDirectCv` (and now `sbDirectCv`) would persist from the previous player.
+- Fixed both `handleSelectProjection` and `handleClearPlayer` to reset all five combo CVs on player change.
+
+**PTS Alt Line Ladder: 2.5pt intervals (improvement)**:
+- Changed `getAltLines('pts', ...)` from 5pt intervals to 2.5pt intervals, matching actual sportsbook alt line offerings.
+- Center rounding updated to nearest 2.5. Range remains ±~15pt from projection center.
+- Ladder interval badge updated from `5pt` → `2.5pt`.
+
+**Parlay edge label (clarity fix)**:
+- The 3-leg correlated signal parlay edge was computed via raw `americanToProb()` while individual stat edges use vig-free probability. Added `"raw edge"` prefix to the parlay edge display to prevent misleading apple-to-oranges comparisons.
+
+**Calibration: Wilson 95% CI + ECE metric (improvement)**:
+- Added `wilsonCI(wins, n)` helper using Wilson score interval (correct for small n; avoids negative bounds from normal approx).
+- Each probability calibration bucket now renders two white whisker lines at the 95% CI bounds. This tells the user whether their hit rate deviation from model is statistically significant given sample size.
+- Added Expected Calibration Error (ECE) — weighted mean absolute deviation of hit rate from model probability across all occupied buckets — displayed in the section header. ECE near 0% = well-calibrated; higher = systematic over/under-confidence.
+- Added `95% CI` legend entry to calibration chart.
+
+**localStorage overflow protection (improvement)**:
+- The calibration journal effect now wraps `localStorage.setItem` in a try/catch to catch `QuotaExceededError`.
+- Also warns via `console.warn` if the serialized journal exceeds 3 MB (approaching the typical 5 MB browser limit).
+
+**Projection uncertainty CI label (clarity fix)**:
+- Changed `±Xpp` label on OVER/UNDER boxes to `95% CI ±Xpp` when projection uncertainty mode is active.
+
+---
 
 ### 2026-03-15 — Sharp Betting Features: Discrete Counts, Sensitivity, CV Divergence, NegBin r
 
