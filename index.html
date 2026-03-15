@@ -1098,7 +1098,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
 }
 
 // ── Alt Line Ladder ──────────────────────────────────────────────────
-function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) {
+function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, overOdds = null, underOdds = null }) {
   if (!simValues || simValues.length === 0) return null;
   const rungs = getAltLines(statKey, mean);
   if (rungs.length === 0) return null;
@@ -1108,6 +1108,26 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
     (statKey === 'pra' || statKey === 'pr' || statKey === 'pa') ? '2.5pt' :
     statKey === 'sb'                                            ? '0.5pt' : '1pt';
   const primaryLineNum = parseFloat(primaryLine);
+
+  // Vig-free book implied probs for primary line (used when primary rung matches book line).
+  // Alt lines without book odds default to -110/-110 (50% vig-free each side) as reference.
+  const hasOver  = overOdds  != null && overOdds  !== "" && !isNaN(parseFloat(overOdds));
+  const hasUnder = underOdds != null && underOdds !== "" && !isNaN(parseFloat(underOdds));
+  const vfBook = (hasOver && hasUnder) ? vigFreeProb(parseFloat(overOdds), parseFloat(underOdds)) : null;
+
+  // Edge at each rung: vs actual book (primary line only) or vs -110 reference (alt lines).
+  // -110 vig-free = 50% each side, so edge = modelProb - 0.50.
+  const computeEdge = (rung, modelOver, modelUnder) => {
+    const isPrimary = !isNaN(primaryLineNum) && Math.abs(rung - primaryLineNum) < 0.01;
+    if (isPrimary && vfBook) {
+      // Use actual book vig-free probs for primary rung
+      return { overEdge: (modelOver - vfBook.over) * 100, underEdge: (modelUnder - vfBook.under) * 100, vsRef: false };
+    }
+    // Reference: -110/-110 → 50% vig-free each side
+    return { overEdge: (modelOver - 0.50) * 100, underEdge: (modelUnder - 0.50) * 100, vsRef: true };
+  };
+
+  const edgeColor = (e) => e >= 3 ? "#22c55e" : e >= 1 ? "#86efac" : e >= -1 ? "#64748b" : "#ef4444";
 
   return (
     <div style={{ marginBottom: 8, marginTop: -4 }}>
@@ -1124,6 +1144,11 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
         <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
           {open ? "▲" : "▼"} ALT LINES · {interval} intervals
         </span>
+        {open && (
+          <span style={{ fontSize: 7, color: "#334155", fontFamily: "'JetBrains Mono', monospace", marginLeft: "auto" }}>
+            EDGE vs {(hasOver && hasUnder) ? "book" : "-110"} · primary line highlighted
+          </span>
+        )}
       </div>
 
       {/* Ladder table */}
@@ -1135,11 +1160,11 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
         }}>
           {/* Column headers */}
           <div style={{
-            display: "grid", gridTemplateColumns: "60px 1fr 80px 1fr 80px",
+            display: "grid", gridTemplateColumns: "55px 1fr 68px 1fr 68px 60px",
             padding: "4px 10px", borderBottom: "1px solid rgba(148,163,184,0.20)",
           }}>
-            {["LINE", "OVER %", "FAIR", "UNDER %", "FAIR"].map((h, i) => (
-              <div key={i} style={{ fontSize: 7, fontWeight: 700, color: "#475569", fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.8, textAlign: i === 0 ? "left" : "center" }}>
+            {["LINE", "OVER %", "FAIR", "UNDER %", "FAIR", "EDGE"].map((h, i) => (
+              <div key={i} style={{ fontSize: 7, fontWeight: 700, color: i === 5 ? "#6366f1" : "#475569", fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.8, textAlign: i === 0 ? "left" : "center" }}>
                 {h}
               </div>
             ))}
@@ -1152,15 +1177,19 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
             const isPrimary = !isNaN(primaryLineNum) && Math.abs(rung - primaryLineNum) < 0.01;
             const overColor  = getProbColor(p.over);
             const underColor = getProbColor(p.under);
+            const { overEdge, underEdge, vsRef } = computeEdge(rung, p.over, p.under);
+            const bestEdge = Math.max(overEdge, underEdge);
+            const bestSideLabel = overEdge >= underEdge ? "O" : "U";
+            const isGoodEdge = bestEdge >= 1;
             return (
               <div
                 key={rung}
                 style={{
-                  display: "grid", gridTemplateColumns: "60px 1fr 80px 1fr 80px",
+                  display: "grid", gridTemplateColumns: "55px 1fr 68px 1fr 68px 60px",
                   padding: "4px 10px", alignItems: "center",
-                  backgroundColor: isPrimary ? "rgba(99,102,241,0.10)" : "transparent",
+                  backgroundColor: isPrimary ? "rgba(99,102,241,0.10)" : isGoodEdge ? "rgba(34,197,94,0.03)" : "transparent",
                   borderBottom: "1px solid rgba(148,163,184,0.04)",
-                  borderLeft: isPrimary ? "2px solid rgba(99,102,241,0.5)" : "2px solid transparent",
+                  borderLeft: isPrimary ? "2px solid rgba(99,102,241,0.5)" : isGoodEdge ? "2px solid rgba(34,197,94,0.2)" : "2px solid transparent",
                 }}
               >
                 <div style={{ fontSize: 11, fontWeight: isPrimary ? 700 : 500, color: isPrimary ? "#a5b4fc" : "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
@@ -1177,6 +1206,14 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle }) 
                 </div>
                 <div style={{ textAlign: "center", fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
                   {probToAmerican(p.under)}
+                </div>
+                <div style={{ textAlign: "center", fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: edgeColor(bestEdge) }}>
+                    {bestEdge >= 0 ? "+" : ""}{bestEdge.toFixed(1)}%
+                  </span>
+                  <span style={{ fontSize: 7, color: "#475569", display: "block" }}>
+                    {bestSideLabel}{vsRef && !isPrimary ? "·-110" : ""}
+                  </span>
                 </div>
               </div>
             );
@@ -2258,7 +2295,7 @@ function NBASimulator() {
   const [ladderMode, setLadderMode] = useState(false);
   const [cvDatabase, setCvDatabase] = useState(null);
   const [cvGeneratedAt, setCvGeneratedAt] = useState(null);
-  const [cvWindow, setCvWindow] = useState(() => loadSession().cvWindow ?? "last20");
+  const [cvWindow, setCvWindow] = useState(() => loadSession().cvWindow ?? "auto");
   const [praDirectCv, setPraDirectCv] = useState(null);
   const [prDirectCv,  setPrDirectCv]  = useState(null);
   const [paDirectCv,  setPaDirectCv]  = useState(null);
@@ -2406,16 +2443,38 @@ function NBASimulator() {
       return;
     }
     const win = cvWindow;
-    const cvMin = playerData.cv_minutes?.[win]; // null if data predates cv_minutes field
+    const isAuto = win === 'auto';
+
+    // ── Auto-blend helpers ─────────────────────────────────────────────
+    // Weights: sample-size × recency multiplier. last5 is noisiest but most
+    // predictive; season is stable but may lag role changes. Blending gives
+    // principled weight to all windows, reducing both bias and variance vs.
+    // picking a single window manually.
+    const BLEND_N = { last5: 5, last10: 10, last20: 20, season: playerData.games_available || 30 };
+    const BLEND_R = { last5: 3.0, last10: 2.0, last20: 1.5, season: 1.0 };
+    const blendCv = (cvByWindow) => {
+      let wSum = 0, wVal = 0;
+      ['last5', 'last10', 'last20', 'season'].forEach(w => {
+        const v = cvByWindow?.[w];
+        if (v == null) return;
+        const weight = BLEND_N[w] * BLEND_R[w];
+        wSum += weight; wVal += weight * v;
+      });
+      return wSum > 0 ? wVal / wSum : null;
+    };
+
+    // Minutes CV — blended or single window
+    const cvMinRaw = isAuto ? blendCv(playerData.cv_minutes) : playerData.cv_minutes?.[win];
+
     setStats(prev => {
       const updated = { ...prev };
       STAT_CONFIG.forEach(({ key }) => {
-        const cvPer36 = playerData.cv?.[key]?.[win];
+        const cvPer36 = isAuto ? blendCv(playerData.cv?.[key]) : playerData.cv?.[key]?.[win];
         if (cvPer36 == null) return;
         // Combine per-36 rate variance with minutes variance when available.
         // If cv_minutes absent (stale data), use per-36 CV alone — still far better than hardcoded ratios.
-        const effectiveCV = (cvMin != null)
-          ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMin ** 2) * 10) / 10
+        const effectiveCV = (cvMinRaw != null)
+          ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
           : Math.round(cvPer36 * 10) / 10;
         const m = parseFloat(prev[key].mean);
         const std = m > 0 ? Math.round(m * (effectiveCV / 100) * 10) / 10 : 0;
@@ -2427,10 +2486,10 @@ function NBASimulator() {
     // Direct simulation uses the empirical combo CV (which already encodes within-game
     // correlations between component stats) rather than summing independently-drawn distributions.
     const setComboDirectCv = (comboKey, setter) => {
-      const cvPer36 = playerData.cv?.[comboKey]?.[win];
+      const cvPer36 = isAuto ? blendCv(playerData.cv?.[comboKey]) : playerData.cv?.[comboKey]?.[win];
       if (cvPer36 != null) {
-        const effectiveCV = (cvMin != null)
-          ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMin ** 2) * 10) / 10
+        const effectiveCV = (cvMinRaw != null)
+          ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
           : Math.round(cvPer36 * 10) / 10;
         setter(effectiveCV);
       } else {
@@ -2441,10 +2500,16 @@ function NBASimulator() {
     setComboDirectCv('pr',  setPrDirectCv);
     setComboDirectCv('pa',  setPaDirectCv);
     setComboDirectCv('ra',  setRaDirectCv);
-    // pts/reb/ast raw: load historical game scores for KDE hybrid sampler
+    // pts/reb/ast raw: load historical game scores for KDE hybrid sampler.
+    // In auto-blend mode, prefer the season window (most data) since the KDE
+    // sampler already applies LAMBDA=0.9 recency decay internally — using a
+    // larger raw dataset gives better bandwidth estimation without sacrificing recency.
+    const kdeWin = isAuto
+      ? (['season', 'last20', 'last10', 'last5'].find(w => (playerData['pts_raw']?.[w]?.length ?? 0) >= 5) || 'last20')
+      : win;
     const loadRawData = (rawKey, meanKey, setter) => {
-      const scores = playerData[rawKey]?.[win];
-      const hMean  = playerData[meanKey]?.[win];
+      const scores = playerData[rawKey]?.[kdeWin];
+      const hMean  = playerData[meanKey]?.[kdeWin];
       if (scores != null && hMean != null && scores.length >= 5) {
         setter({ rawScores: scores, historicalMean: hMean });
       } else {
@@ -2454,7 +2519,7 @@ function NBASimulator() {
     loadRawData('pts_raw', 'pts_mean_raw', setPtsRawData);
     loadRawData('reb_raw', 'reb_mean_raw', setRebRawData);
     loadRawData('ast_raw', 'ast_mean_raw', setAstRawData);
-    setCvLoadStatus(cvMin != null ? 'found' : 'found_partial');
+    setCvLoadStatus(isAuto ? 'found_auto' : cvMinRaw != null ? 'found' : 'found_partial');
   }, [cvDatabase, cvWindow, playerName]);
 
   const handleParseProjections = useCallback((textOverride) => {
@@ -3475,7 +3540,8 @@ function NBASimulator() {
           {cvDatabase && (
             <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
               <select value={cvWindow} onChange={e => { setCvWindow(e.target.value); setCvLoadStatus(null); }}
-                style={{ ...inputStyle, flex: "0 0 auto", width: 84, fontSize: 11 }}>
+                style={{ ...inputStyle, flex: "0 0 auto", width: 90, fontSize: 11 }}>
+                <option value="auto">Auto Blend</option>
                 <option value="last5">Last 5</option>
                 <option value="last10">Last 10</option>
                 <option value="last20">Last 20</option>
@@ -3489,16 +3555,18 @@ function NBASimulator() {
               }}>
                 LOAD CV
               </button>
-              {cvLoadStatus === "found" && (() => {
+              {(cvLoadStatus === "found" || cvLoadStatus === "found_auto") && (() => {
                 const directCombos = [
                   praDirectCv != null && 'PRA',
                   prDirectCv  != null && 'PR',
                   paDirectCv  != null && 'PA',
                   raDirectCv  != null && 'RA',
                 ].filter(Boolean);
+                const label = cvLoadStatus === "found_auto" ? "AUTO BLEND ✓" : "CV LOADED ✓";
+                const color = cvLoadStatus === "found_auto" ? "#a78bfa" : "#22c55e";
                 return (
-                  <span style={{ fontSize: 10, color: "#22c55e", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
-                    CV LOADED ✓{directCombos.length > 0 ? ` + ${directCombos.join('/')} direct` : ''}
+                  <span style={{ fontSize: 10, color, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                    {label}{directCombos.length > 0 ? ` + ${directCombos.join('/')} direct` : ''}
                   </span>
                 );
               })()}
@@ -4084,6 +4152,8 @@ function NBASimulator() {
                     primaryLine={results.stats[key].propLine}
                     open={!!ladderOpen[key]}
                     onToggle={() => setLadderOpen(prev => ({ ...prev, [key]: !prev[key] }))}
+                    overOdds={results.stats[key].overOdds}
+                    underOdds={results.stats[key].underOdds}
                   />
                 </div>
               ) : null
@@ -4110,6 +4180,8 @@ function NBASimulator() {
                     primaryLine={results.combos[key].propLine}
                     open={!!ladderOpen[key]}
                     onToggle={() => setLadderOpen(prev => ({ ...prev, [key]: !prev[key] }))}
+                    overOdds={results.combos[key].overOdds}
+                    underOdds={results.combos[key].underOdds}
                   />
                 </div>
               ) : null
