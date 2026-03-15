@@ -64,11 +64,14 @@ NAME_OVERRIDES: dict[str, str] = {
 def normalize_name(name: str) -> str:
     """
     Normalize a player name for consistent cross-source matching.
-    Strips whitespace and applies NFD unicode normalization.
-    Both this script and the JS simulator apply the same normalization
-    before using names as join keys.
+    Strips whitespace, applies NFD decomposition, then removes all combining
+    diacritical marks (Unicode category Mn). This makes "Jokić" == "Jokic",
+    which is robust to API sources that omit accents and to users who type
+    either form. Both this script and the JS simulator apply the same
+    normalization before using names as join keys.
     """
-    return unicodedata.normalize("NFD", name.strip())
+    nfd = unicodedata.normalize("NFD", name.strip())
+    return "".join(c for c in nfd if unicodedata.category(c) != "Mn")
 
 
 def parse_minutes(min_str) -> float:
