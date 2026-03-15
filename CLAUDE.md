@@ -98,7 +98,32 @@ Core simulation logic. No external dependencies.
 - **`getEdgeLabel(edge)`** — Maps edge to `STRONG / SOLID / MARGINAL / NO EDGE`
 - **`getProbColor(prob)`** — Maps raw probability to hex color
 
-### 3. Std Dev Estimation & Config (`index.html:129–154`)
+### 3. CV Auto-Blend & Std Dev Estimation
+
+**CV Window Selection** — controlled by `cvWindow` state (default: `"auto"`).
+
+Options: `"auto"` (default), `"last5"`, `"last10"`, `"last20"`, `"season"`.
+
+In **Auto Blend** mode, `handleLoadCv()` blends CV values across all four windows using a weighted average:
+
+```
+weight_i = sample_size_i × recency_multiplier_i
+
+last5:   n=5,              recency=3.0  → weight=15
+last10:  n=10,             recency=2.0  → weight=20
+last20:  n=20,             recency=1.5  → weight=30
+season:  n=games_available, recency=1.0  → weight=N_games
+```
+
+`blendedCV = Σ(weight_i × CV_i) / Σ(weight_i)` — only non-null windows contribute.
+
+Applies to: individual stat CVs, minutes CV (`cv_minutes`), and all combo CVs (`pra`, `pr`, `pa`, `ra`, `sb`). The effective CV is then computed with the Pythagorean combination as usual: `effectiveCV = sqrt(blendedCvPer36² + blendedCvMin²)`.
+
+**KDE raw data in auto mode** — uses the largest available window (season → last20 → last10 → last5) since `simulateStatKDE` already applies `LAMBDA=0.9` recency decay internally. More data improves kernel bandwidth estimation without sacrificing recency accuracy.
+
+**Status badge**: single-window loads show "CV LOADED ✓" (green); auto-blend shows "AUTO BLEND ✓" (purple).
+
+### 4. Std Dev Estimation & Config
 
 **`STD_RATIOS`** — Hardcoded CV (coefficient of variation) per stat type:
 
@@ -122,21 +147,24 @@ Core simulation logic. No external dependencies.
 - `ra` = REB + AST
 - `sb` = STL + BLK
 
-### 4. UI Components (`index.html:156–316`)
+### 5. UI Components
 
 All components use **inline styles** (no CSS classes, no styled-components).
 
 - **`DistBar`** — 40-bucket histogram rendered as `<div>` bars. Bars left of the prop line are red; bars right are green. Renders up to 5,000 sample points. White vertical line marks the prop line. Min/max range is computed from the same 5,000 samples used for bucketing (not a separate 500-sample slice).
-- **`EdgeBox`** — Displays book implied probability, vig-free edge percentage (primary), raw edge (secondary note), true EV% (`modelProb × decimalOdds − 1`), edge label, and ¼Kelly stake. Accepts `otherSideOdds` prop; when provided, normalizes both sides to compute vig-free book probability. Only renders if book odds are provided and edge > 0. EV% and Edge% are both shown: edge% is the probability surplus over vig-free book implied; EV% is per-dollar financial expectation which accounts for payout size.
+- **`EdgeBox`** — Displays book implied probability, vig-free edge percentage (primary), raw edge (secondary note), true EV% (`modelProb × decimalOdds − 1`), edge label, and ¼Kelly stake. Accepts `otherSideOdds` prop; when provided, normalizes both sides to compute vig-free book probability. Only renders if book odds are provided and edge > 0. EV% and Edge% are both shown: edge% is the probability surplus over vig-free book implied; EV% is per-dollar financial expectation which accounts for payout size. Has a `onLogBet` prop that renders a "+ LOG BET" button (edge ≥ 1.5% only) wiring into the calibration journal.
 - **`ResultRow`** — Full result card per stat: shows the distribution histogram, OVER/UNDER probability boxes, `EdgeBox` for each side, a best-side badge if edge ≥ 2%, and a distribution model badge (KDE/Gamma/LogNormal/NegBin/Poisson/Direct/Summed) indicating the active sampling method.
+- **`LadderTable`** — Collapsible alt-line table rendered below each `ResultRow`. Shows model Over%, Under%, and fair odds at stat-specific line intervals (5pt for pts, 2.5pt for PRA combos, 1pt for reb/ast/stl/blk/threes, 0.5pt for sb). Accepts `overOdds`/`underOdds` props. **EDGE column**: primary line rung shows vig-free edge vs actual book odds; all other rungs show edge vs −110/−110 reference (50% vig-free). Rows with ≥1% positive edge receive a subtle green left border. `getAltLines(key, mean)` generates the rung array dynamically from the ETR mean.
+- **`CalibrationPanel`** — Full bet journal UI: lists logged picks with outcome recording (won/lost/push), closing odds fetch via Odds API historical endpoint, CLV display, ROI by edge bucket, and CSV export. Opened via a toggle button in the main header.
+- **`CalibrationAnalysis`** — Nested within `CalibrationPanel`. Renders calibration curve bucketing picks by model probability and comparing predicted vs. actual hit rates, plus overall win%, ROI (Kelly-weighted and unit-weighted), and P&L.
 - **`DIST_MODEL_STYLE`** — Color palette map for distribution model badges: KDE=cyan, Gamma=amber, LogNormal=blue, NegBin=purple, Poisson=orange, Direct=teal, Summed=slate.
 
-### 5. CSV Export (`index.html:318–349`)
+### 6. CSV Export
 
 `buildCSV(playerName, numSims, statResults, comboResults, timestamp, bankroll)` generates a CSV string with columns:
 `Timestamp, Date, Player, Stat, Projection, Std Dev, SD Method, CV %, Prop Line, Book Over Odds, Book Under Odds, Model Over %, Model Under %, Fair Over Odds, Fair Under Odds, Over Edge %, Under Edge %, Best Side, Best Edge %, Edge Rating, Quarter Kelly %, Stake $, Simulations`
 
-### 6. Main App Component (`index.html:354–954`)
+### 7. Main App Component
 
 `NBASimulator` is the single root React component. Key state:
 
@@ -150,6 +178,14 @@ All components use **inline styles** (no CSS classes, no styled-components).
 | `bankroll` | string | Optional dollar bankroll for Kelly stake display |
 | `simTime` | number | Last simulation duration in milliseconds |
 | `parlayOdds` | object | `{ over: string, under: string }` — book parlay odds inputs for correlated signal banner |
+| `cvWindow` | string | Active CV window: `"auto"` (default), `"last5"`, `"last10"`, `"last20"`, `"season"` |
+| `cvDatabase` | object \| null | Parsed `cv_data.json` players map; fetched on mount |
+| `ptsRawData` / `rebRawData` / `astRawData` | object \| null | `{ rawScores, historicalMean }` for KDE sampler; loaded by `handleLoadCv` |
+| `praDirectCv` / `prDirectCv` / `paDirectCv` / `raDirectCv` | number \| null | Blended effective combo CV; used for direct log-normal combo simulation |
+| `calibration` | array | Bet journal entries persisted to `localStorage` under `nbaSimCalibration` |
+| `calibrationOpen` | boolean | Toggles `CalibrationPanel` visibility |
+| `projUncertaintyMode` | boolean | Enables 50-chunk projection uncertainty sampling (μ ~ N(ETR, σ_proj)) |
+| `ladderOpen` | object | `{ [statOrComboKey]: boolean }` — tracks open/closed state of each `LadderTable` |
 
 **Std Dev modes per stat** (controlled by `mode` field):
 - `"auto"` — Computed as `estimateStdDev(key, mean)` using `STD_RATIOS`
@@ -312,6 +348,75 @@ The simulator fetches this URL on load and degrades gracefully if the fetch fail
 
 ## Git Branch
 
-Active development branch: `claude/claude-md-mmmj6bvckghzkqfb-JpeTp`
+Most recent development branch: `claude/improve-betting-math-model-RJyH5`
 
 Commit messages should be descriptive (e.g., `Add correlation banner for PRA signals`, not `Update index.html`).
+
+---
+
+## Recent Changes
+
+### 2026-03-15 — CV Auto-Blend + Alt Line Edge Column
+
+**CV Auto-Blend** (`handleLoadCv` in `NBASimulator`):
+- Replaced single-window manual selection with weighted blend across all four windows. `cvWindow` defaults to `"auto"`.
+- Blend weight = `sample_size × recency_multiplier` (last5=3×, last10=2×, last20=1.5×, season=1×).
+- Applies to individual stat CVs, minutes CV, and all combo CVs. Minutes CV blended separately; Pythagorean combination applied after.
+- KDE raw data in auto mode uses largest available window (season preferred) since `simulateStatKDE` has built-in `LAMBDA=0.9` recency decay.
+- Manual window override still available via dropdown.
+
+**Alt Line Edge Column** (`LadderTable`):
+- `LadderTable` now accepts `overOdds`/`underOdds` props, passed from both the stat and combo render sites.
+- New EDGE column (6th column, purple header) shows best-side edge at each rung.
+- Primary line rung: uses actual vig-free book edge when both sides entered.
+- All other rungs: edge vs −110/−110 reference (50% vig-free), labeled "·-110".
+- Rows with ≥1% positive edge get a subtle green left border.
+- Grid updated from `60px 1fr 80px 1fr 80px` → `55px 1fr 68px 1fr 68px 60px`.
+
+**Bet Journal / Calibration** (pre-existing, fully implemented):
+- `CalibrationPanel`, `CalibrationAnalysis`, `computeCalibrationStats` were already built.
+- Tracks picks via "+ LOG BET" in `EdgeBox`, records outcomes (won/lost/push), computes calibration curves and ROI.
+- Closing odds fetch via Odds API historical endpoint. CSV export available.
+- Persisted to `localStorage` under key `nbaSimCalibration`.
+
+---
+
+## Potential Future Upgrades
+
+The following are candidate improvements ranked loosely by expected impact. **This list is for orientation only** — re-analyze current state and actual gaps at the start of each new branch rather than treating this as a fixed roadmap.
+
+### High Leverage
+
+**Discrete count probability table for STL / BLK / 3PM**
+Show `P(X=0)`, `P(X=1)`, `P(X=2)`, `P(X≥3)` directly from the existing `Float64Array`. On 0.5-line integer props, these exact probabilities are more decision-relevant than a continuous histogram. Zero additional simulation cost.
+
+**CV window divergence alert**
+When the auto-blend's constituent windows disagree significantly (e.g., last5 CV > 1.5× season CV), surface a warning flag indicating a potential role/usage change that might make the season-anchored ETR projection less reliable. Helps the user know when to weight their own judgment higher.
+
+**Projection sensitivity panel**
+Show model over% at ±5%, ±10% shifts in the ETR mean. Answers "how much does my edge depend on ETR being exactly right?" — directly quantifies model robustness without extra simulation (just re-call `calcProbability` on existing `Float64Array` at shifted implied lines).
+
+### Medium Leverage
+
+**Edge ladder with actual alt line odds**
+Currently the EDGE column shows vs -110 for non-primary rungs. A UX addition: let the user paste in a book's full alt line table (or enter odds for any specific rung) to get true edge at that alt line, not just a reference estimate.
+
+**NegBin dispersion display**
+Show the computed `r` (dispersion parameter) in the distribution model badge or a tooltip for STL/BLK/3PM when NegBin is active. Gives the user visibility into how overdispersed the model is treating the stat vs. Poisson baseline.
+
+**Batch simulation enhancements**
+The existing batch mode runs multiple players. Possible additions: sortable edge table with filter by stat type, min edge threshold, or game total band; export filtered slate to CSV in one click.
+
+**Session comparison mode**
+Run two scenarios for the same player (e.g., different ETR projections) and display results side-by-side. Useful when ETR updates intraday or when comparing your own projection against ETR.
+
+### Lower Priority / Exploratory
+
+**Closing line value (CLV) tracking**
+The calibration journal already has infrastructure to fetch closing odds. Full CLV analysis (opening edge vs. closing edge drift) would require consistent logging of opening odds at pick time — the data model supports it but the workflow isn't enforced.
+
+**Position/role-based prior CVs**
+`STD_RATIOS` are global league averages. Segmenting by position or role (starter vs. bench) could tighten the parametric fallback for players without sufficient CV data.
+
+**Multi-book odds arbitrage alert**
+When book odds are entered, compute if any two books' lines create a no-vig arbitrage. Primarily educational but useful for understanding market inefficiency.
