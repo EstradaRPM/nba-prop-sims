@@ -385,13 +385,28 @@ The simulator fetches this URL on load and degrades gracefully if the fetch fail
 
 ## Git Branch
 
-Most recent development branch: `claude/plan-code-improvements-PoC5Z`
+Most recent development branch: `claude/add-combo-props-fetch-k7ZPN`
 
 Commit messages should be descriptive (e.g., `Add correlation banner for PRA signals`, not `Update index.html`).
 
 ---
 
 ## Recent Changes
+
+### 2026-03-16 — Combo Prop Line Auto-Population + Stale State Bug Fix
+
+**Combo prop lines auto-computed from Odds API component sums (improvement)**:
+- When Odds API data is loaded and a player is selected, combo prop lines (PRA, PR, PA, RA, SB) are now automatically computed by summing the already-fetched component lines — zero additional API calls.
+- Example: if the Odds API returns pts=24.5, reb=7.5, ast=6.5, PRA auto-fills as 38.5. The sum lands on the sportsbook 0.5 grid since all component lines are already on that grid.
+- Combo odds are intentionally left blank — auto-defaulting to -110 would cause EdgeBox to display misleading edge before the user confirms the actual market price.
+- Only populates a combo if ALL component stats have lines in the Odds API response; partial data silently skips that combo.
+- Position-based filtering (e.g., PR for F/C only, PA for Gs only) was evaluated and rejected — sportsbooks offer all combo markets for all positions, the sum is valid regardless, and adding position inference adds complexity with no practical benefit.
+
+**Stale combo lines on player switch (bug fix)**:
+- `handleSelectProjection` never reset `comboLines` when switching players, so lines from the previous player persisted into the new player's session. `handleClearPlayer` was already correct.
+- Fixed by resetting all combo lines to empty at the start of `handleSelectProjection`, before any re-population logic runs.
+
+---
 
 ### 2026-03-15 — Bug Fixes & Sharp Improvements
 
