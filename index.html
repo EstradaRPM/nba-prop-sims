@@ -743,6 +743,100 @@ async function fetchEventProps(apiKey, eventId) {
   return { bookmakers: data.bookmakers || [], remainingRequests: r.headers.get('x-requests-remaining') };
 }
 
+// ── ESPN Public API (no key required, CORS-open) ─────────────────────
+// Convert a UTC ISO commence_time → YYYYMMDD in Eastern Time (UTC-5 safe offset)
+// NBA games tip off no earlier than 12:30pm ET, so subtracting 5h always lands on the correct ET date.
+function commenceTimeToEspnDate(isoStr) {
+  const d = new Date(Date.parse(isoStr) - 5 * 3600 * 1000);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dy = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}${m}${dy}`;
+}
+
+// Returns array of { id, completed, homeTeam, awayTeam } for a given YYYYMMDD date.
+async function fetchEspnScoreboard(dateStr) {
+  try {
+    const url = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${dateStr}`;
+    const r = await fetch(url);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return (data.events || []).map(ev => ({
+      id: ev.id,
+      completed: ev.status?.type?.completed ?? false,
+      state: ev.status?.type?.state ?? 'pre',
+      homeTeam: ev.competitions?.[0]?.competitors?.find(c => c.homeAway === 'home')?.team?.displayName ?? '',
+      awayTeam: ev.competitions?.[0]?.competitors?.find(c => c.homeAway === 'away')?.team?.displayName ?? '',
+    }));
+  } catch { return []; }
+}
+
+// Returns array of { playerName, pts, reb, ast, stl, blk, threes } from ESPN box score.
+async function fetchEspnBoxScore(espnEventId) {
+  try {
+    const url = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=${espnEventId}`;
+    const r = await fetch(url);
+    if (!r.ok) return [];
+    const data = await r.json();
+    const players = [];
+    (data.boxscore?.players ?? []).forEach(teamBlock => {
+      (teamBlock.statistics ?? []).forEach(statBlock => {
+        const names = statBlock.names ?? statBlock.labels ?? [];
+        // Find column indices by header name
+        const idx = (label) => names.findIndex(n => n === label);
+        const iMin  = idx('MIN');
+        const iPts  = idx('PTS');
+        const iReb  = idx('REB');
+        const iAst  = idx('AST');
+        const iStl  = idx('STL');
+        const iBlk  = idx('BLK');
+        const i3pt  = idx('3PT');  // "2-6" format → first number is 3PM
+        (statBlock.athletes ?? []).forEach(a => {
+          if (!a.athlete || !a.stats) return;
+          const st = a.stats;
+          // Skip DNP rows (stats array is empty or has 'DNP')
+          if (!st.length || st[0] === 'DNP' || st[0] === 'DND') return;
+          const parse = (i) => i >= 0 && i < st.length ? (parseFloat(st[i]) || 0) : 0;
+          const parse3pt = () => {
+            if (i3pt < 0 || i3pt >= st.length) return 0;
+            const made = parseInt((st[i3pt] || '0').split('-')[0], 10);
+            return isNaN(made) ? 0 : made;
+          };
+          players.push({
+            playerName: a.athlete.displayName ?? '',
+            shortName:  a.athlete.shortName ?? '',
+            pts:    parse(iPts),
+            reb:    parse(iReb),
+            ast:    parse(iAst),
+            stl:    parse(iStl),
+            blk:    parse(iBlk),
+            threes: parse3pt(),
+          });
+        });
+      });
+    });
+    return players;
+  } catch { return []; }
+}
+
+// Resolve actual stat value for an entry's stat key (handles combo keys).
+function resolveActualStat(statKey, playerRow) {
+  switch (statKey) {
+    case 'pts':    return playerRow.pts;
+    case 'reb':    return playerRow.reb;
+    case 'ast':    return playerRow.ast;
+    case 'stl':    return playerRow.stl;
+    case 'blk':    return playerRow.blk;
+    case 'threes': return playerRow.threes;
+    case 'pra':    return playerRow.pts + playerRow.reb + playerRow.ast;
+    case 'pr':     return playerRow.pts + playerRow.reb;
+    case 'pa':     return playerRow.pts + playerRow.ast;
+    case 'ra':     return playerRow.reb + playerRow.ast;
+    case 'sb':     return playerRow.stl + playerRow.blk;
+    default:       return null;
+  }
+}
+
 // Builds { normalizedPlayerName → { pts: { line, overOdds, underOdds, overBook, underBook, allBooks[] }, ... } }
 function buildOddsIndex(allPropsData, selectedBooks) {
   const index = {};
@@ -2336,15 +2430,17 @@ function CalibrationAnalysis({ stats: s }) {
 function CalibrationPanel({
   log, open, onToggle,
   onSetResult, onFetchClosing, closingFetching, closingFetchMsg,
+  onAutoSettle, autoSettleFetching, autoSettleMsg,
   onDelete, onExport, csvCopied,
   unitSize, bankroll, kellyFraction,
 }) {
   const [analysisOpen, setAnalysisOpen] = React.useState(false);
   const mono = "'JetBrains Mono', monospace";
 
-  const open_entries   = log.filter(e => !e.result);
-  const settled        = log.filter(e => e.result === 'won' || e.result === 'lost' || e.result === 'push');
-  const canFetchClose  = log.some(e => e.eventId && e.commenceTime && e.closingOdds == null);
+  const open_entries      = log.filter(e => !e.result);
+  const settled           = log.filter(e => e.result === 'won' || e.result === 'lost' || e.result === 'push');
+  const canFetchClose     = log.some(e => e.eventId && e.commenceTime && e.closingOdds == null);
+  const canAutoSettle     = open_entries.some(e => e.commenceTime);
 
   const stats = React.useMemo(() => computeCalibrationStats(log), [log]);
 
@@ -2381,6 +2477,14 @@ function CalibrationPanel({
             <>
               {/* Action bar */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                {canAutoSettle && (
+                  <button onClick={onAutoSettle} disabled={autoSettleFetching}
+                    style={{ padding: '5px 12px', borderRadius: 5, border: '1px solid rgba(34,197,94,0.4)',
+                      background: 'rgba(34,197,94,0.08)', color: autoSettleFetching ? '#475569' : '#4ade80',
+                      fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: autoSettleFetching ? 'default' : 'pointer', letterSpacing: 0.8 }}>
+                    {autoSettleFetching ? 'CHECKING…' : '⟳ CHECK RESULTS'}
+                  </button>
+                )}
                 {canFetchClose && (
                   <button onClick={onFetchClosing} disabled={closingFetching}
                     style={{ padding: '5px 12px', borderRadius: 5, border: '1px solid rgba(99,102,241,0.4)',
@@ -2389,7 +2493,10 @@ function CalibrationPanel({
                     {closingFetching ? 'FETCHING…' : 'FETCH CLOSING ODDS'}
                   </button>
                 )}
-                {closingFetchMsg && (
+                {autoSettleMsg && (
+                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>{autoSettleMsg}</span>
+                )}
+                {!autoSettleMsg && closingFetchMsg && (
                   <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>{closingFetchMsg}</span>
                 )}
                 <button onClick={onExport}
@@ -2622,6 +2729,8 @@ function NBASimulator() {
   const [batchTracked,        setBatchTracked]        = useState(() => new Set());
   const [closingFetching,     setClosingFetching]     = useState(false);
   const [closingFetchMsg,     setClosingFetchMsg]     = useState(null);
+  const [autoSettleFetching,  setAutoSettleFetching]  = useState(false);
+  const [autoSettleMsg,       setAutoSettleMsg]       = useState(null);
   const [calibrationCsvCopied,setCalibrationCsvCopied]= useState(false);
   // ── Projection Uncertainty state ───────────────────────────────────
   const [projUncertaintyMode, setProjUncertaintyMode] = useState(false);
@@ -3139,6 +3248,98 @@ function NBASimulator() {
       `Updated ${updated} entr${updated === 1 ? 'y' : 'ies'}${noDataNote}${apiReqLeft != null ? ` · ${apiReqLeft} API req remaining` : ''}`
     );
   }, [calibration, oddsApiKey, selectedBooks]);
+
+  // Auto-settle open calibration entries by fetching ESPN box scores for completed games.
+  // Only settles entries with commenceTime stored (requires Odds API game data at log time).
+  // Games still in progress are skipped; entries without commenceTime are skipped.
+  const handleAutoSettle = useCallback(async () => {
+    const openEntries = calibration.filter(e => !e.result && e.commenceTime);
+    if (openEntries.length === 0) {
+      setAutoSettleMsg('No open entries with game context. Bets must be logged while Odds API data is loaded.');
+      return;
+    }
+    setAutoSettleFetching(true);
+    setAutoSettleMsg(null);
+
+    // Group open entries by ESPN date string (ET date)
+    const byDate = {};
+    openEntries.forEach(e => {
+      const dateStr = commenceTimeToEspnDate(e.commenceTime);
+      if (!byDate[dateStr]) byDate[dateStr] = [];
+      byDate[dateStr].push(e);
+    });
+
+    let settled = 0, skippedLive = 0, skippedNoMatch = 0;
+    const updates = {}; // id → 'won' | 'lost' | 'push'
+
+    for (const [dateStr, entries] of Object.entries(byDate)) {
+      const games = await fetchEspnScoreboard(dateStr);
+      const completedGames = games.filter(g => g.completed);
+      if (completedGames.length === 0) {
+        // Check if any games are in progress for informative message
+        const liveGames = games.filter(g => g.state === 'in');
+        skippedLive += liveGames.length > 0 ? entries.length : 0;
+        continue;
+      }
+
+      // Fetch box scores for all completed games on this date in parallel
+      const boxScores = await Promise.all(
+        completedGames.map(g => fetchEspnBoxScore(g.id).then(players => ({ gameId: g.id, players })))
+      );
+
+      // Merge all players from all box scores into one lookup (playerName → row)
+      // Use the largest set if a player somehow appears in multiple games (shouldn't happen)
+      const playerIndex = {};
+      boxScores.forEach(({ players }) => {
+        players.forEach(p => {
+          const norm = normalizeOddsName(p.playerName);
+          if (!playerIndex[norm]) playerIndex[norm] = p;
+        });
+      });
+
+      // Match each open entry to a player row
+      entries.forEach(entry => {
+        const normTarget = normalizeOddsName(entry.player);
+
+        // Exact match first, then fuzzy fallback using bigramSimilarity
+        let row = playerIndex[normTarget];
+        if (!row) {
+          let bestScore = 0, bestKey = null;
+          Object.keys(playerIndex).forEach(k => {
+            const s = bigramSimilarity(k, normTarget);
+            if (s > bestScore) { bestScore = s; bestKey = k; }
+          });
+          if (bestScore >= 0.72) row = playerIndex[bestKey];
+        }
+
+        if (!row) { skippedNoMatch++; return; }
+
+        const actual = resolveActualStat(entry.stat, row);
+        if (actual === null) { skippedNoMatch++; return; }
+
+        const line = parseFloat(entry.propLine);
+        let result;
+        if (actual === line)               result = 'push';
+        else if (entry.side === 'OVER')    result = actual > line ? 'won' : 'lost';
+        else                               result = actual < line ? 'won' : 'lost';
+
+        updates[entry.id] = { result, actualStat: actual };
+        settled++;
+      });
+    }
+
+    if (settled > 0) {
+      setCalibration(prev => prev.map(e =>
+        updates[e.id] ? { ...e, result: updates[e.id].result, actualStat: updates[e.id].actualStat } : e
+      ));
+    }
+
+    setAutoSettleFetching(false);
+    const parts = [`${settled} settled`];
+    if (skippedLive > 0)    parts.push(`${skippedLive} game(s) still live`);
+    if (skippedNoMatch > 0) parts.push(`${skippedNoMatch} no box score match`);
+    setAutoSettleMsg(parts.join(' · '));
+  }, [calibration]);
 
   // Delete a calibration entry
   const handleDeleteCalibration = useCallback((id) => {
@@ -3688,6 +3889,9 @@ function NBASimulator() {
           onFetchClosing={handleFetchClosingOdds}
           closingFetching={closingFetching}
           closingFetchMsg={closingFetchMsg}
+          onAutoSettle={handleAutoSettle}
+          autoSettleFetching={autoSettleFetching}
+          autoSettleMsg={autoSettleMsg}
           onDelete={handleDeleteCalibration}
           onExport={handleExportCalibration}
           csvCopied={calibrationCsvCopied}
