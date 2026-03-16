@@ -1555,7 +1555,7 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
 function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinEdge,
   statFilter, setStatFilter, positiveOnly, setPositiveOnly,
   bankroll, onExport, csvData, csvCopied, onCopyCsv,
-  tracked, onToggleTrack, onTrackSelected }) {
+  tracked, onToggleTrack, onTrackSelected, onLogAll, batchLogMsg }) {
   const { useMemo } = React;
 
   const filtered = useMemo(() => {
@@ -1675,7 +1675,13 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          {batchLogMsg && (
+            <span style={{ fontSize: 9, color: '#94a3b8',
+              fontFamily: "'JetBrains Mono', monospace" }}>
+              {batchLogMsg}
+            </span>
+          )}
           {trackedCount > 0 && onTrackSelected && (
             <button onClick={onTrackSelected}
               style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(245,158,11,0.4)',
@@ -1683,6 +1689,16 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
                 fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
                 cursor: 'pointer' }}>
               + TRACK {trackedCount}
+            </button>
+          )}
+          {onLogAll && (
+            <button onClick={() => onLogAll(3)}
+              style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(168,85,247,0.4)',
+                background: 'rgba(168,85,247,0.12)', color: '#c084fc',
+                fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
+                cursor: 'pointer' }}
+              title="Log all rows ≥ 3% edge. Skips any player/stat/side/line already recorded today.">
+              LOG ALL ≥3%
             </button>
           )}
           <button onClick={onExport}
@@ -2735,6 +2751,7 @@ function NBASimulator() {
   const [calibration,         setCalibration]         = useState(() => loadCalibration());
   const [calibrationOpen,     setCalibrationOpen]     = useState(false);
   const [batchTracked,        setBatchTracked]        = useState(() => new Set());
+  const [batchLogMsg,         setBatchLogMsg]         = useState(null);
   const [closingFetching,     setClosingFetching]     = useState(false);
   const [closingFetchMsg,     setClosingFetchMsg]     = useState(null);
   const [autoSettleFetching,  setAutoSettleFetching]  = useState(false);
@@ -3239,6 +3256,84 @@ function NBASimulator() {
     setBatchTracked(new Set());
     setCalibrationOpen(true);
   }, [batchResults, batchTracked, bankroll, unitSize, kellyFraction]);
+
+  // Batch-log all rows >= threshold% edge, deduplicating by player+stat+side+line per game date.
+  // Same bet at drifted odds (-110 → -115) is skipped — odds don't affect model calibration.
+  // A line move (24.5 → 25.0) produces a different key and is logged as a new calibration event.
+  const handleLogAllAboveThreshold = useCallback((threshold = 3) => {
+    if (!batchResults) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const bank  = parseFloat(bankroll) || 0;
+    const unit  = parseFloat(unitSize) || 20;
+
+    // Semantic keys from entries already recorded today
+    const existingKeys = new Set(
+      calibration
+        .filter(e => (e.loggedAt || '').slice(0, 10) === today)
+        .map(e => `${e.player}|${e.stat}|${e.side}|${e.propLine}`)
+    );
+
+    const candidates = batchResults.filter(r => typeof r.edge === 'number' && r.edge >= threshold);
+    let skipped = 0;
+    const newEntries = [];
+    const seenThisRun = new Set(); // intra-batch dedup: same player+stat+side+line twice in one batch
+
+    for (const r of candidates) {
+      const key = `${r.player}|${r.stat}|${r.side}|${r.propLine}`;
+      if (existingKeys.has(key) || seenThisRun.has(key)) { skipped++; continue; }
+      seenThisRun.add(key);
+      const kFull  = calcKelly(r.modelProb, r.bookOdds) || 0;
+      const kStake = bank > 0 ? Math.round(bank * kFull * kellyFraction * 100) / 100 : null;
+      newEntries.push({
+        id:               r.betId,
+        loggedAt:         new Date().toISOString(),
+        player:           r.player,
+        stat:             r.stat,
+        statLabel:        r.statLabel,
+        side:             r.side,
+        propLine:         r.propLine,
+        bookOdds:         r.bookOdds,
+        modelProb:        r.modelProb,
+        fairOdds:         r.side === 'OVER' ? (parseFloat(r.fairOverOdds)  || null)
+                                             : (parseFloat(r.fairUnderOdds) || null),
+        edgePct:          r.edge,
+        edgeLabel:        r.edgeLabel,
+        kellyStake:       kStake,
+        unitStake:        unit,
+        eventId:          r.eventId          ?? null,
+        commenceTime:     r.commenceTime      ?? null,
+        result:           null,
+        closingOdds:      null,
+        closingLine:      null,
+        projection:       r.projection        ?? null,
+        distModel:        null,
+        cvValue:          null,
+        gamesAvailable:   r.gamesAvailable    ?? null,
+        gameTotal:        r.gameTotal         ?? null,
+        spread:           r.spread            ?? null,
+        otherSideOdds:    r.otherSideOdds     ?? null,
+        projectedMinutes: r.projectedMinutes  ?? null,
+      });
+    }
+
+    const msg = newEntries.length === 0
+      ? `All ${skipped} already recorded today`
+      : `Logged ${newEntries.length}${skipped > 0 ? ` | Skipped ${skipped} (already today)` : ''}`;
+
+    if (newEntries.length > 0) {
+      setCalibration(prev => {
+        const next = [...newEntries, ...prev];
+        if (JSON.stringify(next).length > 4 * 1024 * 1024) {
+          alert('Calibration log approaching storage limit. Export and clear some entries first.');
+          return prev;
+        }
+        return next;
+      });
+      setCalibrationOpen(true);
+    }
+    setBatchLogMsg(msg);
+    setTimeout(() => setBatchLogMsg(null), 5000);
+  }, [batchResults, calibration, bankroll, unitSize, kellyFraction]);
 
   // Mark result on a calibration entry
   const handleSetResult = useCallback((id, result) => {
@@ -3940,6 +4035,8 @@ function NBASimulator() {
                   tracked={batchTracked}
                   onToggleTrack={handleToggleTrack}
                   onTrackSelected={handleTrackSelected}
+                  onLogAll={handleLogAllAboveThreshold}
+                  batchLogMsg={batchLogMsg}
                 />
               )}
             </div>
