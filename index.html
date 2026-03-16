@@ -2952,6 +2952,12 @@ function NBASimulator() {
     setPtsRawData(null);
     setRebRawData(null);
     setAstRawData(null);
+    // Clear stale combo lines from previous player — will re-populate from component sums below if oddsData is loaded
+    setComboLines(() => {
+      const init = {};
+      COMBO_CONFIG.forEach(({ key }) => { init[key] = { line: "", overOdds: "", underOdds: "" }; });
+      return init;
+    });
     setStats(prev => {
       const updated = { ...prev };
       ['pts', 'reb', 'ast', 'stl', 'blk', 'threes'].forEach(key => {
@@ -2985,6 +2991,21 @@ function NBASimulator() {
             if (o.overOdds  != null) patch.overOdds  = String(Math.round(o.overOdds));
             if (o.underOdds != null) patch.underOdds = String(Math.round(o.underOdds));
             if (Object.keys(patch).length > 0) next[key] = { ...next[key], ...patch };
+          });
+          return next;
+        });
+        // Auto-populate combo prop lines from component sums — zero additional API calls.
+        // Component lines are already on the 0.5 grid so the sum lands on a valid line.
+        // Odds are intentionally left blank: defaulting to -110 would show fake edge before
+        // the user has confirmed the actual market price.
+        setComboLines(() => {
+          const next = {};
+          COMBO_CONFIG.forEach(({ key }) => { next[key] = { line: "", overOdds: "", underOdds: "" }; });
+          COMBO_CONFIG.forEach(({ key, parts }) => {
+            if (!parts.every(pk => playerOdds[pk]?.line != null)) return;
+            const sum = parts.reduce((s, pk) => s + playerOdds[pk].line, 0);
+            if (sum <= 0) return;
+            next[key] = { line: String(Math.round(sum * 2) / 2), overOdds: "", underOdds: "" };
           });
           return next;
         });
