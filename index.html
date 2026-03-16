@@ -1269,7 +1269,7 @@ function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfoli
       {onLogBet && edge >= 1.5 && (
         <div style={{ marginTop: 5, paddingTop: 5, borderTop: "1px solid rgba(148,163,184,0.08)" }}>
           <button
-            onClick={() => onLogBet({ side, modelProb, bookOdds, fairOdds: probToAmerican(modelProb), edgePct: edge, stake: stakeAmt })}
+            onClick={() => onLogBet({ side, modelProb, bookOdds, otherSideOdds: otherSideOdds ?? null, fairOdds: probToAmerican(modelProb), edgePct: edge, stake: stakeAmt })}
             style={{ width: "100%", padding: "4px 0", borderRadius: 4, fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: "pointer", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
             + LOG BET
           </button>
@@ -3215,12 +3215,14 @@ function NBASimulator() {
         closingOdds:    null,
         closingLine:    null,
         // Model metadata (batch already computes these — pass them through)
-        projection:     r.projection     ?? null,
-        distModel:      null,  // batch uses parametric only (no KDE); distModel not tracked per-row
-        cvValue:        null,  // batch CV is embedded in modelProb; not stored separately
-        gamesAvailable: r.gamesAvailable ?? null,
-        gameTotal:      r.gameTotal      ?? null,
-        spread:         r.spread         ?? null,
+        projection:       r.projection       ?? null,
+        distModel:        null,  // batch uses parametric only (no KDE); distModel not tracked per-row
+        cvValue:          null,  // batch CV is embedded in modelProb; not stored separately
+        gamesAvailable:   r.gamesAvailable   ?? null,
+        gameTotal:        r.gameTotal        ?? null,
+        spread:           r.spread           ?? null,
+        otherSideOdds:    r.otherSideOdds    ?? null,
+        projectedMinutes: r.projectedMinutes ?? null,
       });
     });
     if (newEntries.length === 0) return;
@@ -3391,7 +3393,7 @@ function NBASimulator() {
       'Result','Closing Odds','Closing Line',
       // Model metadata for calibration analysis
       'Game Start','Projection','CV%','Dist Model','Games (CV)',
-      'Game Total','Spread'
+      'Game Total','Spread','Other Side Odds','Proj Minutes'
     ];
     const esc = v => { const s = String(v ?? ''); return (s.includes(',') || s.includes('"')) ? `"${s.replace(/"/g,'""')}"` : s; };
     const rows = calibration.map(e => [
@@ -3412,6 +3414,8 @@ function NBASimulator() {
       e.gamesAvailable ?? '',
       e.gameTotal ?? '',
       e.spread != null ? e.spread : '',
+      e.otherSideOdds != null ? fmtOdds(e.otherSideOdds) : '',
+      e.projectedMinutes != null ? e.projectedMinutes : '',
     ]);
     const csv = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
     navigator.clipboard.writeText(csv).then(() => {
@@ -3428,9 +3432,10 @@ function NBASimulator() {
     const bank  = parseFloat(bankroll) || 0;
     const unit  = parseFloat(unitSize) || 20;
     const kFull = calcKelly(data.modelProb, data.bookOdds) || 0;
-    // Look up CV sample size from database (key matches Python NFD-normalize convention)
+    // Look up CV sample size and ETR projected minutes from database/projections
     const cvKey = playerName.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const gamesAvailable = cvDatabase?.[cvKey]?.games_available ?? null;
+    const projectedMinutes = parseFloat(projections?.find(p => p.name === playerName)?.min) || null;
     const entry = {
       id:             data.betId || generateBetId(),
       loggedAt:       new Date().toISOString(),
@@ -3452,12 +3457,14 @@ function NBASimulator() {
       closingOdds:    null,
       closingLine:    null,
       // Model metadata — needed for post-hoc calibration segmentation
-      projection:     data.projection     ?? null,
-      distModel:      data.distModel      ?? null,
-      cvValue:        data.cvValue        ?? null,
-      gamesAvailable: gamesAvailable,
-      gameTotal:      gameCtx?.total      ?? null,
-      spread:         gameCtx?.spread     ?? null,
+      projection:       data.projection     ?? null,
+      distModel:        data.distModel      ?? null,
+      cvValue:          data.cvValue        ?? null,
+      gamesAvailable:   gamesAvailable,
+      gameTotal:        gameCtx?.total      ?? null,
+      spread:           gameCtx?.spread     ?? null,
+      otherSideOdds:    data.otherSideOdds  ?? null,
+      projectedMinutes: projectedMinutes,
     };
     setCalibration(prev => {
       if (prev.some(e => e.id === entry.id)) return prev; // deduplicate
@@ -3546,6 +3553,7 @@ function NBASimulator() {
             propLine:  parseFloat(s.propLine),
             side:      side.toUpperCase(),
             bookOdds,
+            otherSideOdds: parseFloat(otherRawOdds) || null,
             bookProb,
             modelProb,
             edge,
@@ -3554,7 +3562,8 @@ function NBASimulator() {
             gameTotal: gameCtx?.total ?? null,
             spread:    gameCtx?.spread ?? null,
             // Backtest / CLV tracking columns
-            projection:     projValue,
+            projection:       projValue,
+            projectedMinutes: parseFloat(p.min) || null,
             fairOverOdds,
             fairUnderOdds,
             gamesAvailable: cvData?.games_available ?? null,
