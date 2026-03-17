@@ -310,11 +310,8 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
             // Build a scaled KDE model for this perturbed mean
             const scaledModel = { ...kdeModel, scale: kdeModel.wMean > 0 ? mu_i / kdeModel.wMean : kdeModel.scale };
             for (let j = 0; j < n_c; j++) chunk[j] = sampleSingleKDE(scaledModel);
-          } else if (key === 'pts' || key === 'ast') {
-            // Gamma is better calibrated than log-normal for near-mean lines (pts validated;
-            // ast shares the same rationale — right-skewed count stat but with lower skewness
-            // than log-normal implies, and Gamma's median-mean gap is ~half of log-normal's
-            // at typical CVs, avoiding the structural under-bias log-normal creates).
+          } else if (key === 'pts' || key === 'ast' || key === 'reb') {
+            // Gamma for pts, ast, and reb — same rationale as the non-uncertainty path.
             const cvP = cvMode && cvValue ? parseFloat(cvValue) : STD_RATIOS[key] * 100;
             chunk = simulateStatGamma(mu_i, cvP, n_c);
           } else {
@@ -366,11 +363,13 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
           return;
         }
       }
-      if (key === 'pts' || key === 'ast') {
-        // Gamma for both pts and ast: reduces the structural under-bias that log-normal
+      if (key === 'pts' || key === 'ast' || key === 'reb') {
+        // Gamma for pts, ast, and reb: reduces the structural under-bias that log-normal
         // creates when lines fall at or near the mean (log-normal median < mean by ~σ²/2,
         // producing P(under) ≈ 58% at CV=40% even at a fair 50/50 line).
         // Gamma at the same CV gives P(under) ≈ 53%, much closer to the true 50%.
+        // Reb shares the same rationale as pts/ast — right-skewed count stat where
+        // log-normal's excess skewness creates the same near-mean bias.
         const cvPct = cvMode && cvValue ? parseFloat(cvValue) : STD_RATIOS[key] * 100;
         simResults[key] = simulateStatGamma(mean, cvPct, numSims);
       } else {
@@ -2025,23 +2024,41 @@ function parseETRProjections(text) {
 // ── Batch Sim: Build Stats Object Per Player ─────────────────────────
 // Pure function — no state access. Builds the stats object runSimulation() expects,
 // from a projection row + oddsData entry + cvDatabase entry.
-// CV replicates handleLoadCv's sqrt(cvPer36² + cvMin²) effective CV formula.
-// KDE raw data is intentionally omitted — batch uses parametric fallback for speed.
+// Uses the same auto-blend CV logic as handleLoadCv (weighted across all 4 windows)
+// and extracts KDE raw data arrays for pts/reb/ast — giving batch the same accuracy
+// as individual simulation instead of falling back to parametric-only.
+// Returns { stats, ptsRawData, rebRawData, astRawData }.
 function buildPlayerStatsForSim(projection, playerOdds, cvData) {
-  const CV_WINDOW = 'last20';
+  // Auto-blend weights — identical to handleLoadCv
+  const BLEND_N = { last5: 5, last10: 10, last20: 20, season: cvData?.games_available || 30 };
+  const BLEND_R = { last5: 3.0, last10: 2.0, last20: 1.5, season: 1.0 };
+  const blendCv = (cvByWindow) => {
+    let wSum = 0, wVal = 0;
+    ['last5', 'last10', 'last20', 'season'].forEach(w => {
+      const v = cvByWindow?.[w];
+      if (v == null) return;
+      const weight = BLEND_N[w] * BLEND_R[w];
+      wSum += weight; wVal += weight * v;
+    });
+    return wSum > 0 ? wVal / wSum : null;
+  };
+
+  const cvMinRaw = blendCv(cvData?.cv_minutes);
+
   const stats = {};
   STAT_CONFIG.forEach(({ key }) => {
     const mean = parseFloat(projection[key]) || 0;
     const oddsEntry = playerOdds?.[key];
     let cvMode = false, cvValue = '';
-    if (cvData?.cv?.[key]?.[CV_WINDOW] != null && mean > 0) {
-      const cvPer36 = cvData.cv[key][CV_WINDOW];
-      const cvMin   = cvData.cv_minutes?.[CV_WINDOW] ?? null;
-      const effective = cvMin != null
-        ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMin ** 2) * 10) / 10
-        : Math.round(cvPer36 * 10) / 10;
-      cvMode = true;
-      cvValue = String(effective);
+    if (cvData?.cv?.[key] != null && mean > 0) {
+      const cvPer36 = blendCv(cvData.cv[key]);
+      if (cvPer36 != null) {
+        const effective = cvMinRaw != null
+          ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
+          : Math.round(cvPer36 * 10) / 10;
+        cvMode = true;
+        cvValue = String(effective);
+      }
     }
     const stdDev = cvMode
       ? Math.round(mean * (parseFloat(cvValue) / 100) * 10) / 10
@@ -2057,7 +2074,26 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
       stdOverride: false,
     };
   });
-  return stats;
+
+  // KDE raw data — use largest available window (same logic as handleLoadCv auto mode).
+  // simulateStatKDE applies LAMBDA=0.9 recency decay internally so more data = better
+  // bandwidth estimation without sacrificing recency accuracy.
+  const kdeWin = ['season', 'last20', 'last10', 'last5']
+    .find(w => (cvData?.['pts_raw']?.[w]?.length ?? 0) >= 5) || 'last20';
+  const loadRaw = (rawKey, meanKey) => {
+    const scores = cvData?.[rawKey]?.[kdeWin];
+    const hMean  = cvData?.[meanKey]?.[kdeWin];
+    return (scores != null && hMean != null && scores.length >= 5)
+      ? { rawScores: scores, historicalMean: hMean }
+      : null;
+  };
+
+  return {
+    stats,
+    ptsRawData: loadRaw('pts_raw', 'pts_mean_raw'),
+    rebRawData: loadRaw('reb_raw', 'reb_mean_raw'),
+    astRawData: loadRaw('ast_raw', 'ast_mean_raw'),
+  };
 }
 
 // ── Calibration Tracker ──────────────────────────────────────────────
@@ -3233,7 +3269,7 @@ function NBASimulator() {
         closingLine:    null,
         // Model metadata (batch already computes these — pass them through)
         projection:       r.projection       ?? null,
-        distModel:        null,  // batch uses parametric only (no KDE); distModel not tracked per-row
+        distModel:        null,  // distModel not tracked per batch row (KDE vs Gamma varies by data availability)
         cvValue:          null,  // batch CV is embedded in modelProb; not stored separately
         gamesAvailable:   r.gamesAvailable   ?? null,
         gameTotal:        r.gameTotal        ?? null,
@@ -3609,11 +3645,12 @@ function NBASimulator() {
       const cvData = cvDatabase?.[cvKey];
       const gameCtx = gameData?.[p.team?.toUpperCase()] || null;
 
-      // Build stats object — reuses the exact same CV formula as handleLoadCv
-      const statsForSim = buildPlayerStatsForSim(p, playerOdds, cvData);
+      // Build stats object with auto-blend CV and KDE raw data (pts/reb/ast)
+      const { stats: statsForSim, ptsRawData: bPts, rebRawData: bReb, astRawData: bAst } =
+        buildPlayerStatsForSim(p, playerOdds, cvData);
 
-      // runSimulation with null raw data → safe parametric fallback (confirmed ~line 202-215)
-      const simResults = runSimulation(statsForSim, BATCH_SIMS, null, null, null);
+      // Pass raw data so KDE runs for pts/reb/ast — same path as individual simulation
+      const simResults = runSimulation(statsForSim, BATCH_SIMS, bPts, bReb, bAst);
 
       STAT_CONFIG.forEach(({ key, label }) => {
         const s = statsForSim[key];
