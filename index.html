@@ -2258,6 +2258,25 @@ function computeCalibrationStats(entries) {
     { label: '>+100',          filter: e => e.bookOdds > 100 },
   ].map(b => ({ label: b.label, ...groupStats(wl.filter(b.filter)) }));
 
+  // By game total (O/U) — track whether high-pace vs. low-pace slates hit differently
+  const totalBuckets = [
+    { label: '<220',    filter: e => e.gameTotal != null && e.gameTotal < 220 },
+    { label: '220–229', filter: e => e.gameTotal != null && e.gameTotal >= 220 && e.gameTotal < 230 },
+    { label: '230–239', filter: e => e.gameTotal != null && e.gameTotal >= 230 && e.gameTotal < 240 },
+    { label: '240+',    filter: e => e.gameTotal != null && e.gameTotal >= 240 },
+  ].map(b => ({ label: b.label, ...groupStats(wl.filter(b.filter)) }));
+  const totalWithData = wl.filter(e => e.gameTotal != null).length;
+
+  // By spread magnitude — track whether lopsided games hurt prop model accuracy
+  // Uses absolute value so direction (fav/dog) doesn't matter; only competitiveness does.
+  const spreadBuckets = [
+    { label: '0–3.5',  filter: e => e.spread != null && Math.abs(e.spread) <= 3.5 },
+    { label: '4–7',    filter: e => e.spread != null && Math.abs(e.spread) > 3.5 && Math.abs(e.spread) <= 7 },
+    { label: '8–11.5', filter: e => e.spread != null && Math.abs(e.spread) > 7   && Math.abs(e.spread) <= 11.5 },
+    { label: '12+',    filter: e => e.spread != null && Math.abs(e.spread) > 11.5 },
+  ].map(b => ({ label: b.label, ...groupStats(wl.filter(b.filter)) }));
+  const spreadWithData = wl.filter(e => e.spread != null).length;
+
   // CLV analysis (only entries with closing odds)
   const withCLV = settled.filter(e => e.closingOdds != null && e.result !== 'push');
   const clvData = withCLV.length > 0 ? (() => {
@@ -2300,6 +2319,8 @@ function computeCalibrationStats(entries) {
     bySide,
     byEdge,
     oddsBuckets,
+    totalBuckets,    totalWithData,
+    spreadBuckets,   spreadWithData,
     clvData,
     trend,
   };
@@ -2443,6 +2464,52 @@ function CalibrationAnalysis({ stats: s }) {
       {s.oddsBuckets.map(b => b.n > 0 && (
         <GroupRow key={b.label} label={b.label} g={b} />
       ))}
+
+      {/* By game total */}
+      <SectionHeader>
+        BY GAME TOTAL (O/U)
+        {s.totalWithData < (s.wins + s.losses) && s.totalWithData > 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+            — {s.totalWithData} of {s.wins + s.losses} entries have O/U data
+          </span>
+        )}
+        {s.totalWithData === 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+            — no O/U data yet (requires Odds API game context)
+          </span>
+        )}
+      </SectionHeader>
+      {s.totalBuckets.map(b => b.n > 0 && (
+        <GroupRow key={b.label} label={b.label} g={b} />
+      ))}
+      {s.totalWithData === 0 && (
+        <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
+          Game totals are captured from Odds API when logging batch picks. Single-player logs without Odds API context will not have this field.
+        </div>
+      )}
+
+      {/* By spread magnitude */}
+      <SectionHeader>
+        BY SPREAD (magnitude)
+        {s.spreadWithData < (s.wins + s.losses) && s.spreadWithData > 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+            — {s.spreadWithData} of {s.wins + s.losses} entries have spread data
+          </span>
+        )}
+        {s.spreadWithData === 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+            — no spread data yet (requires Odds API game context)
+          </span>
+        )}
+      </SectionHeader>
+      {s.spreadBuckets.map(b => b.n > 0 && (
+        <GroupRow key={b.label} label={b.label} g={b} />
+      ))}
+      {s.spreadWithData === 0 && (
+        <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
+          Spread magnitude is captured from Odds API when logging batch picks. Buckets represent game competitiveness regardless of which team the player is on.
+        </div>
+      )}
 
       {/* CLV */}
       {s.clvData && (
