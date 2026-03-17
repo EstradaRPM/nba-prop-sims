@@ -2250,7 +2250,7 @@ function computeCalibrationStats(entries) {
     byEdge[lbl] = groupStats(wl.filter(e => e.edgeLabel === lbl));
   });
 
-  // By odds bucket — <-120 split into 4 sub-brackets to identify efficiency cliff
+  // By odds bucket — both tails split into 4 sub-brackets each to identify efficiency cliffs
   const oddsBuckets = [
     { label: '≤-176',          filter: e => e.bookOdds <= -176 },
     { label: '-175 to -151',   filter: e => e.bookOdds >= -175 && e.bookOdds <= -151 },
@@ -2258,7 +2258,10 @@ function computeCalibrationStats(entries) {
     { label: '-135 to -121',   filter: e => e.bookOdds >= -135 && e.bookOdds <= -121 },
     { label: '-120 to -106',   filter: e => e.bookOdds >= -120 && e.bookOdds <= -106 },
     { label: '-105 to +100',   filter: e => e.bookOdds >= -105 && e.bookOdds <= 100  },
-    { label: '>+100',          filter: e => e.bookOdds > 100 },
+    { label: '+101 to +125',   filter: e => e.bookOdds >= 101  && e.bookOdds <= 125  },
+    { label: '+126 to +150',   filter: e => e.bookOdds >= 126  && e.bookOdds <= 150  },
+    { label: '+151 to +175',   filter: e => e.bookOdds >= 151  && e.bookOdds <= 175  },
+    { label: '≥+176',          filter: e => e.bookOdds >= 176 },
   ].map(b => ({ label: b.label, ...groupStats(wl.filter(b.filter)) }));
 
   // By game total (O/U) — track whether high-pace vs. low-pace slates hit differently
