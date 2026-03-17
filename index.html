@@ -2250,9 +2250,12 @@ function computeCalibrationStats(entries) {
     byEdge[lbl] = groupStats(wl.filter(e => e.edgeLabel === lbl));
   });
 
-  // By odds bucket
+  // By odds bucket — <-120 split into 4 sub-brackets to identify efficiency cliff
   const oddsBuckets = [
-    { label: '<-120',          filter: e => e.bookOdds < -120 },
+    { label: '≤-176',          filter: e => e.bookOdds <= -176 },
+    { label: '-175 to -151',   filter: e => e.bookOdds >= -175 && e.bookOdds <= -151 },
+    { label: '-150 to -136',   filter: e => e.bookOdds >= -150 && e.bookOdds <= -136 },
+    { label: '-135 to -121',   filter: e => e.bookOdds >= -135 && e.bookOdds <= -121 },
     { label: '-120 to -106',   filter: e => e.bookOdds >= -120 && e.bookOdds <= -106 },
     { label: '-105 to +100',   filter: e => e.bookOdds >= -105 && e.bookOdds <= 100  },
     { label: '>+100',          filter: e => e.bookOdds > 100 },
