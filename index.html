@@ -2277,6 +2277,25 @@ function computeCalibrationStats(entries) {
   ].map(b => ({ label: b.label, ...groupStats(wl.filter(b.filter)) }));
   const spreadWithData = wl.filter(e => e.spread != null).length;
 
+  // By time before game start — segments when the bet was placed relative to tip-off
+  // Uses commenceTime (from Odds API context) and loggedAt (ISO timestamp of log action).
+  // Entries without commenceTime are excluded from buckets; timeWithData tracks coverage.
+  const getMinsBefore = e => {
+    if (!e.commenceTime || !e.loggedAt) return null;
+    const diff = new Date(e.commenceTime) - new Date(e.loggedAt);
+    return diff / 60000; // milliseconds → minutes
+  };
+  const timeBuckets = [
+    { label: '>3h',    min: 180,  max: Infinity },
+    { label: '1–3h',   min: 60,   max: 180 },
+    { label: '30–60m', min: 30,   max: 60 },
+    { label: '<30m',   min: -Infinity, max: 30 },
+  ].map(b => {
+    const mins = e => { const m = getMinsBefore(e); return m !== null && m >= b.min && m < b.max; };
+    return { label: b.label, ...groupStats(wl.filter(mins)) };
+  });
+  const timeWithData = wl.filter(e => getMinsBefore(e) !== null).length;
+
   // CLV analysis (only entries with closing odds)
   const withCLV = settled.filter(e => e.closingOdds != null && e.result !== 'push');
   const clvData = withCLV.length > 0 ? (() => {
@@ -2321,6 +2340,7 @@ function computeCalibrationStats(entries) {
     oddsBuckets,
     totalBuckets,    totalWithData,
     spreadBuckets,   spreadWithData,
+    timeBuckets,     timeWithData,
     clvData,
     trend,
   };
@@ -2331,6 +2351,12 @@ function CalibrationAnalysis({ stats: s }) {
   if (!s) return null;
   const mono = "'JetBrains Mono', monospace";
 
+  const ALL_SECTIONS = ['overall','calibration','stat','side','edge','odds','total','spread','time','clv','trend'];
+  const [openSections, setOpenSections] = React.useState(() =>
+    Object.fromEntries(ALL_SECTIONS.map(k => [k, true]))
+  );
+  const toggle = id => setOpenSections(prev => ({ ...prev, [id]: !prev[id] }));
+
   const hitColor  = r => r == null ? '#64748b' : r >= 0.55 ? '#22c55e' : r >= 0.48 ? '#4ade80' : r >= 0.42 ? '#f59e0b' : '#ef4444';
   const roiColor  = v => v == null ? '#64748b' : v >= 5 ? '#22c55e' : v >= 0 ? '#4ade80' : v >= -5 ? '#f59e0b' : '#ef4444';
   const diffColor = (actual, model) => {
@@ -2339,11 +2365,15 @@ function CalibrationAnalysis({ stats: s }) {
     return d > 0.03 ? '#22c55e' : d > -0.03 ? '#94a3b8' : '#ef4444';
   };
 
-  const SectionHeader = ({ children }) => (
-    <div style={{ fontSize: 8, fontWeight: 700, color: '#64748b', fontFamily: mono,
-      letterSpacing: 1.2, marginBottom: 6, marginTop: 14, borderBottom: '1px solid rgba(148,163,184,0.1)',
-      paddingBottom: 3 }}>
-      {children}
+  const SectionHeader = ({ id, children }) => (
+    <div onClick={() => toggle(id)}
+      style={{ fontSize: 8, fontWeight: 700, color: '#64748b', fontFamily: mono,
+        letterSpacing: 1.2, marginBottom: openSections[id] ? 6 : 0, marginTop: 14,
+        borderBottom: '1px solid rgba(148,163,184,0.1)', paddingBottom: 3,
+        cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        userSelect: 'none' }}>
+      <span>{children}</span>
+      <span style={{ fontSize: 7, opacity: 0.45, marginLeft: 6 }}>{openSections[id] ? '▲' : '▼'}</span>
     </div>
   );
 
@@ -2389,84 +2419,92 @@ function CalibrationAnalysis({ stats: s }) {
       </div>
 
       {/* Overall */}
-      <SectionHeader>OVERALL</SectionHeader>
-      <GroupRow label="All plays" g={{ n: s.wins + s.losses, hitRate: s.actualRate, modelAvg: s.avgModelProb,
-        unitROI: s.overall.unitROI }} />
-      <div style={{ display: 'flex', gap: 16, marginTop: 6, flexWrap: 'wrap' }}>
-        {[
-          { label: '1U ROI',    val: s.overall.unitROI  != null ? (s.overall.unitROI  >= 0 ? '+' : '') + s.overall.unitROI.toFixed(1)  + '%' : '—', color: roiColor(s.overall.unitROI)  },
-          { label: '¼K ROI',   val: s.overall.kellyROI != null ? (s.overall.kellyROI >= 0 ? '+' : '') + s.overall.kellyROI.toFixed(1) + '%' : '—', color: roiColor(s.overall.kellyROI) },
-          { label: '1U P&L',   val: s.overall.unitPnL  != null ? (s.overall.unitPnL  >= 0 ? '+$' : '-$') + Math.abs(s.overall.unitPnL).toFixed(0)  : '—', color: roiColor(s.overall.unitPnL)  },
-          { label: '¼K P&L',  val: s.overall.kellyPnL != null ? (s.overall.kellyPnL >= 0 ? '+$' : '-$') + Math.abs(s.overall.kellyPnL).toFixed(0) : '—', color: roiColor(s.overall.kellyPnL) },
-          { label: 'W-L-P',    val: `${s.wins}-${s.losses}-${s.pushes}`, color: '#94a3b8' },
-        ].map(({ label, val, color }) => (
-          <div key={label} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 5, padding: '5px 10px' }}>
-            <div style={{ fontSize: 7, color: '#475569', fontFamily: mono, marginBottom: 2 }}>{label}</div>
-            <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: mono }}>{val}</div>
+      <SectionHeader id="overall">OVERALL</SectionHeader>
+      {openSections.overall && (
+        <>
+          <GroupRow label="All plays" g={{ n: s.wins + s.losses, hitRate: s.actualRate, modelAvg: s.avgModelProb,
+            unitROI: s.overall.unitROI }} />
+          <div style={{ display: 'flex', gap: 16, marginTop: 6, flexWrap: 'wrap' }}>
+            {[
+              { label: '1U ROI',    val: s.overall.unitROI  != null ? (s.overall.unitROI  >= 0 ? '+' : '') + s.overall.unitROI.toFixed(1)  + '%' : '—', color: roiColor(s.overall.unitROI)  },
+              { label: '¼K ROI',   val: s.overall.kellyROI != null ? (s.overall.kellyROI >= 0 ? '+' : '') + s.overall.kellyROI.toFixed(1) + '%' : '—', color: roiColor(s.overall.kellyROI) },
+              { label: '1U P&L',   val: s.overall.unitPnL  != null ? (s.overall.unitPnL  >= 0 ? '+$' : '-$') + Math.abs(s.overall.unitPnL).toFixed(0)  : '—', color: roiColor(s.overall.unitPnL)  },
+              { label: '¼K P&L',  val: s.overall.kellyPnL != null ? (s.overall.kellyPnL >= 0 ? '+$' : '-$') + Math.abs(s.overall.kellyPnL).toFixed(0) : '—', color: roiColor(s.overall.kellyPnL) },
+              { label: 'W-L-P',    val: `${s.wins}-${s.losses}-${s.pushes}`, color: '#94a3b8' },
+            ].map(({ label, val, color }) => (
+              <div key={label} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 5, padding: '5px 10px' }}>
+                <div style={{ fontSize: 7, color: '#475569', fontFamily: mono, marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: mono }}>{val}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
 
       {/* Prob calibration */}
-      <SectionHeader>PROBABILITY CALIBRATION{s.ece != null ? ` — ECE: ${(s.ece * 100).toFixed(1)}pp` : ''}</SectionHeader>
-      {s.probBuckets.map(b => b.n > 0 && (
-        <div key={b.label} style={{ display: 'grid', gridTemplateColumns: '80px 32px 1fr 50px', gap: '0 6px',
-          alignItems: 'center', padding: '3px 0', borderBottom: '1px solid rgba(148,163,184,0.04)' }}>
-          <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: mono }}>{b.label}</span>
-          <span style={{ fontSize: 8, color: '#475569', fontFamily: mono, textAlign: 'right' }}>{b.n}</span>
-          <div style={{ position: 'relative', height: 10 }}>
-            <div style={{ position: 'absolute', left: 0, top: 0, height: '100%',
-              width: `${(b.modelAvg || 0) * 100}%`, background: 'rgba(99,102,241,0.4)', borderRadius: 2 }} />
-            {b.hitRate != null && <div style={{ position: 'absolute', left: 0, top: '20%', height: '60%',
-              width: `${b.hitRate * 100}%`,
-              background: hitColor(b.hitRate), borderRadius: 2, opacity: 0.85 }} />}
-            {/* Wilson 95% CI whiskers — shows how reliable the hit rate is given sample size */}
-            {b.wilsonCI != null && (
-              <>
-                <div style={{ position: 'absolute', left: `${b.wilsonCI.lo * 100}%`, top: '10%', height: '80%',
-                  width: 1, background: 'rgba(248,250,252,0.5)' }} />
-                <div style={{ position: 'absolute', left: `${b.wilsonCI.hi * 100}%`, top: '10%', height: '80%',
-                  width: 1, background: 'rgba(248,250,252,0.5)' }} />
-              </>
-            )}
+      <SectionHeader id="calibration">PROBABILITY CALIBRATION{s.ece != null ? ` — ECE: ${(s.ece * 100).toFixed(1)}pp` : ''}</SectionHeader>
+      {openSections.calibration && (
+        <>
+          {s.probBuckets.map(b => b.n > 0 && (
+            <div key={b.label} style={{ display: 'grid', gridTemplateColumns: '80px 32px 1fr 50px', gap: '0 6px',
+              alignItems: 'center', padding: '3px 0', borderBottom: '1px solid rgba(148,163,184,0.04)' }}>
+              <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: mono }}>{b.label}</span>
+              <span style={{ fontSize: 8, color: '#475569', fontFamily: mono, textAlign: 'right' }}>{b.n}</span>
+              <div style={{ position: 'relative', height: 10 }}>
+                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%',
+                  width: `${(b.modelAvg || 0) * 100}%`, background: 'rgba(99,102,241,0.4)', borderRadius: 2 }} />
+                {b.hitRate != null && <div style={{ position: 'absolute', left: 0, top: '20%', height: '60%',
+                  width: `${b.hitRate * 100}%`,
+                  background: hitColor(b.hitRate), borderRadius: 2, opacity: 0.85 }} />}
+                {/* Wilson 95% CI whiskers — shows how reliable the hit rate is given sample size */}
+                {b.wilsonCI != null && (
+                  <>
+                    <div style={{ position: 'absolute', left: `${b.wilsonCI.lo * 100}%`, top: '10%', height: '80%',
+                      width: 1, background: 'rgba(248,250,252,0.5)' }} />
+                    <div style={{ position: 'absolute', left: `${b.wilsonCI.hi * 100}%`, top: '10%', height: '80%',
+                      width: 1, background: 'rgba(248,250,252,0.5)' }} />
+                  </>
+                )}
+              </div>
+              <span style={{ fontSize: 9, fontWeight: 700, color: hitColor(b.hitRate), fontFamily: mono, textAlign: 'right' }}>
+                {b.hitRate != null ? (b.hitRate * 100).toFixed(0) + '%' : '—'}
+              </span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 7, color: '#475569', fontFamily: "'Outfit', sans-serif" }}>
+            <span><span style={{ color: '#6366f1' }}>▬</span> predicted</span>
+            <span><span style={{ color: '#4ade80' }}>▬</span> actual</span>
+            <span><span style={{ color: 'rgba(248,250,252,0.5)' }}>│</span> 95% CI</span>
           </div>
-          <span style={{ fontSize: 9, fontWeight: 700, color: hitColor(b.hitRate), fontFamily: mono, textAlign: 'right' }}>
-            {b.hitRate != null ? (b.hitRate * 100).toFixed(0) + '%' : '—'}
-          </span>
-        </div>
-      ))}
-      <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 7, color: '#475569', fontFamily: "'Outfit', sans-serif" }}>
-        <span><span style={{ color: '#6366f1' }}>▬</span> predicted</span>
-        <span><span style={{ color: '#4ade80' }}>▬</span> actual</span>
-        <span><span style={{ color: 'rgba(248,250,252,0.5)' }}>│</span> 95% CI</span>
-      </div>
+        </>
+      )}
 
       {/* By stat */}
-      <SectionHeader>BY STAT</SectionHeader>
-      {Object.entries(s.byStat).map(([stat, g]) => g && (
+      <SectionHeader id="stat">BY STAT</SectionHeader>
+      {openSections.stat && Object.entries(s.byStat).map(([stat, g]) => g && (
         <GroupRow key={stat} label={stat.toUpperCase()} g={g} />
       ))}
 
       {/* By side */}
-      <SectionHeader>BY SIDE</SectionHeader>
-      {Object.entries(s.bySide).map(([side, g]) => g && (
+      <SectionHeader id="side">BY SIDE</SectionHeader>
+      {openSections.side && Object.entries(s.bySide).map(([side, g]) => g && (
         <GroupRow key={side} label={side} g={g} />
       ))}
 
       {/* By edge tier */}
-      <SectionHeader>BY EDGE RATING</SectionHeader>
-      {Object.entries(s.byEdge).map(([lbl, g]) => g && (
+      <SectionHeader id="edge">BY EDGE RATING</SectionHeader>
+      {openSections.edge && Object.entries(s.byEdge).map(([lbl, g]) => g && (
         <GroupRow key={lbl} label={lbl} g={g} />
       ))}
 
       {/* By odds bucket */}
-      <SectionHeader>BY BOOK ODDS</SectionHeader>
-      {s.oddsBuckets.map(b => b.n > 0 && (
+      <SectionHeader id="odds">BY BOOK ODDS</SectionHeader>
+      {openSections.odds && s.oddsBuckets.map(b => b.n > 0 && (
         <GroupRow key={b.label} label={b.label} g={b} />
       ))}
 
       {/* By game total */}
-      <SectionHeader>
+      <SectionHeader id="total">
         BY GAME TOTAL (O/U)
         {s.totalWithData < (s.wins + s.losses) && s.totalWithData > 0 && (
           <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
@@ -2479,17 +2517,21 @@ function CalibrationAnalysis({ stats: s }) {
           </span>
         )}
       </SectionHeader>
-      {s.totalBuckets.map(b => b.n > 0 && (
-        <GroupRow key={b.label} label={b.label} g={b} />
-      ))}
-      {s.totalWithData === 0 && (
-        <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
-          Game totals are captured from Odds API when logging batch picks. Single-player logs without Odds API context will not have this field.
-        </div>
+      {openSections.total && (
+        <>
+          {s.totalBuckets.map(b => b.n > 0 && (
+            <GroupRow key={b.label} label={b.label} g={b} />
+          ))}
+          {s.totalWithData === 0 && (
+            <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
+              Game totals are captured from Odds API when logging batch picks. Single-player logs without Odds API context will not have this field.
+            </div>
+          )}
+        </>
       )}
 
       {/* By spread magnitude */}
-      <SectionHeader>
+      <SectionHeader id="spread">
         BY SPREAD (magnitude)
         {s.spreadWithData < (s.wins + s.losses) && s.spreadWithData > 0 && (
           <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
@@ -2502,51 +2544,88 @@ function CalibrationAnalysis({ stats: s }) {
           </span>
         )}
       </SectionHeader>
-      {s.spreadBuckets.map(b => b.n > 0 && (
-        <GroupRow key={b.label} label={b.label} g={b} />
-      ))}
-      {s.spreadWithData === 0 && (
-        <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
-          Spread magnitude is captured from Odds API when logging batch picks. Buckets represent game competitiveness regardless of which team the player is on.
-        </div>
+      {openSections.spread && (
+        <>
+          {s.spreadBuckets.map(b => b.n > 0 && (
+            <GroupRow key={b.label} label={b.label} g={b} />
+          ))}
+          {s.spreadWithData === 0 && (
+            <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
+              Spread magnitude is captured from Odds API when logging batch picks. Buckets represent game competitiveness regardless of which team the player is on.
+            </div>
+          )}
+        </>
+      )}
+
+      {/* By time before tip-off */}
+      <SectionHeader id="time">
+        BY TIME BEFORE TIP-OFF
+        {s.timeWithData < (s.wins + s.losses) && s.timeWithData > 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+            — {s.timeWithData} of {s.wins + s.losses} entries have game context
+          </span>
+        )}
+        {s.timeWithData === 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+            — no game context yet (requires Odds API commence time)
+          </span>
+        )}
+      </SectionHeader>
+      {openSections.time && (
+        <>
+          {s.timeBuckets.map(b => b.n > 0 && (
+            <GroupRow key={b.label} label={b.label} g={b} />
+          ))}
+          {s.timeWithData === 0 && (
+            <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
+              Time splits require <code>commenceTime</code> logged via Odds API game context. Bets logged without game context are excluded from these buckets.
+            </div>
+          )}
+        </>
       )}
 
       {/* CLV */}
       {s.clvData && (
         <>
-          <SectionHeader>CLOSING LINE VALUE</SectionHeader>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Avg CLV', val: s.clvData.avgCLV != null ? (s.clvData.avgCLV >= 0 ? '+' : '') + s.clvData.avgCLV.toFixed(1) + '%' : '—', color: roiColor(s.clvData.avgCLV) },
-              { label: `+CLV Hit% (n=${s.clvData.posN})`, val: s.clvData.posClvHitRate != null ? (s.clvData.posClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.posClvHitRate) },
-              { label: `−CLV Hit% (n=${s.clvData.negN})`, val: s.clvData.negClvHitRate != null ? (s.clvData.negClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.negClvHitRate) },
-            ].map(({ label, val, color }) => (
-              <div key={label} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 5, padding: '5px 10px' }}>
-                <div style={{ fontSize: 7, color: '#475569', fontFamily: mono, marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: mono }}>{val}</div>
-              </div>
-            ))}
-          </div>
+          <SectionHeader id="clv">CLOSING LINE VALUE</SectionHeader>
+          {openSections.clv && (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Avg CLV', val: s.clvData.avgCLV != null ? (s.clvData.avgCLV >= 0 ? '+' : '') + s.clvData.avgCLV.toFixed(1) + '%' : '—', color: roiColor(s.clvData.avgCLV) },
+                { label: `+CLV Hit% (n=${s.clvData.posN})`, val: s.clvData.posClvHitRate != null ? (s.clvData.posClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.posClvHitRate) },
+                { label: `−CLV Hit% (n=${s.clvData.negN})`, val: s.clvData.negClvHitRate != null ? (s.clvData.negClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.negClvHitRate) },
+              ].map(({ label, val, color }) => (
+                <div key={label} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 5, padding: '5px 10px' }}>
+                  <div style={{ fontSize: 7, color: '#475569', fontFamily: mono, marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: mono }}>{val}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 
       {/* Rolling trend mini-chart */}
       {s.trend && s.trend.length > 0 && (
         <>
-          <SectionHeader>ROLLING 10-PLAY HIT RATE</SectionHeader>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 40 }}>
-            {s.trend.map((pt, i) => {
-              const h = Math.max(4, pt.rate * 100);
-              const c = pt.rate >= 0.55 ? '#22c55e' : pt.rate >= 0.45 ? '#64748b' : '#ef4444';
-              return (
-                <div key={i} title={`${(pt.rate * 100).toFixed(0)}%`}
-                  style={{ flex: 1, height: `${h}%`, backgroundColor: c, borderRadius: '1px 1px 0 0', minWidth: 3 }} />
-              );
-            })}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 7, color: '#475569', fontFamily: mono, marginTop: 2 }}>
-            <span>oldest</span><span>50% line</span><span>most recent</span>
-          </div>
+          <SectionHeader id="trend">ROLLING 10-PLAY HIT RATE</SectionHeader>
+          {openSections.trend && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 40 }}>
+                {s.trend.map((pt, i) => {
+                  const h = Math.max(4, pt.rate * 100);
+                  const c = pt.rate >= 0.55 ? '#22c55e' : pt.rate >= 0.45 ? '#64748b' : '#ef4444';
+                  return (
+                    <div key={i} title={`${(pt.rate * 100).toFixed(0)}%`}
+                      style={{ flex: 1, height: `${h}%`, backgroundColor: c, borderRadius: '1px 1px 0 0', minWidth: 3 }} />
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 7, color: '#475569', fontFamily: mono, marginTop: 2 }}>
+                <span>oldest</span><span>50% line</span><span>most recent</span>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
