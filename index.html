@@ -3531,7 +3531,7 @@ function NBASimulator() {
     setSimTime(Math.round(performance.now() - t0));
     setSimTimestamp(ts);
     setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
-  }, [stats, comboLines, numSims, kellyFraction]);
+  }, [stats, comboLines, numSims, kellyFraction, ptsRawData, rebRawData, astRawData, projUncertaintyMode, praDirectCv, prDirectCv, paDirectCv, raDirectCv, sbDirectCv]);
 
   // ── Calibration Handlers ─────────────────────────────────────────────
   // Toggle a single betId in/out of the batchTracked selection set
@@ -3988,11 +3988,11 @@ function NBASimulator() {
       return STAT_CONFIG.some(({ key }) => playerOdds[key]?.line != null);
     });
 
-    setBatchProgress({ current: 0, total: eligible.length });
-    const allRows = [];
     const BATCH_SIMS = 10000;
     const MIN_BATCH_GAMES = 10; // require ≥10 CV-db games to trust the distribution shape
     const BATCH_PROJ_FLOORS = { pts: 6, reb: 2, ast: 1.5, stl: 0.5, blk: 0.3, threes: 0.5 };
+    setBatchProgress({ current: 0, total: eligible.length });
+    const allRows = [];
 
     for (let i = 0; i < eligible.length; i++) {
       const p = eligible[i];
@@ -4113,6 +4113,17 @@ function NBASimulator() {
     return STAT_CONFIG.some(({ key }) => stats[key].propLine !== "") ||
            COMBO_CONFIG.some(({ key }) => comboLines[key].line !== "");
   }, [stats, comboLines]);
+
+  // Memoize odds coverage per player — avoids O(N²) findFuzzyOddsMatch on every render
+  const playerHasOddsMap = useMemo(() => {
+    if (!oddsData || !projections) return {};
+    const map = {};
+    for (const p of projections) {
+      const nm = normalizeOddsName(p.name);
+      map[p.name] = !!(oddsData[nm] || findFuzzyOddsMatch(oddsData, nm));
+    }
+    return map;
+  }, [projections, oddsData]);
 
   const inputStyle = {
     backgroundColor: "rgba(15,23,42,0.8)", border: "1px solid rgba(148,163,184,0.2)",
@@ -4250,12 +4261,7 @@ function NBASimulator() {
               >
                 <option value="">— Select player from slate —</option>
                 {projections.map(p => {
-                  // Coverage dot: check if this player has any odds loaded
-                  let hasOdds = false;
-                  if (oddsData) {
-                    const nm = normalizeOddsName(p.name);
-                    hasOdds = !!(oddsData[nm] || findFuzzyOddsMatch(oddsData, nm));
-                  }
+                  const hasOdds = !!playerHasOddsMap[p.name];
                   const hasMeta = p.pos || p.team;
                   return (
                     <option key={p.name} value={p.name}>
