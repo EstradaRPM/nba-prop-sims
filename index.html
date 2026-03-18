@@ -2233,8 +2233,8 @@ function computeCalibrationStats(entries) {
     ? calibratedBuckets.reduce((s, b) => s + b.n * Math.abs(b.hitRate - b.modelAvg), 0) / totalN
     : null;
 
-  // By stat
-  const allStats = ['pts','reb','ast','stl','blk','threes'];
+  // By stat (individual + combo)
+  const allStats = ['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb'];
   const byStat = {};
   allStats.forEach(s => { byStat[s] = groupStats(wl.filter(e => e.stat === s)); });
 
@@ -2369,19 +2369,24 @@ function computeCalibrationStats(entries) {
     { label: '> +1σ (UNDER)',    min:  1.0,      max: Infinity },
   ].map(b => {
     const grp = groupStats(wl.filter(e => {
-      if (e.projection == null || e.propLine == null || !e.cvValue) return false;
-      const std = e.projection * (e.cvValue / 100);
-      if (std <= 0) return false;
+      if (e.projection == null || e.propLine == null) return false;
+      // Prefer directly-stored std; fall back to cvValue-derived estimate for legacy entries
+      const std = e.std ?? (e.cvValue ? e.projection * (e.cvValue / 100) : null);
+      if (!std || std <= 0) return false;
       const sigma = (parseFloat(e.propLine) - e.projection) / std;
       return sigma >= b.min && sigma < b.max;
     }));
     return { label: b.label, ...(grp || {}) };
   });
-  const lineGapWithData = wl.filter(e => e.projection != null && e.propLine != null && e.cvValue).length;
+  const lineGapWithData = wl.filter(e => {
+    if (e.projection == null || e.propLine == null) return false;
+    const std = e.std ?? (e.cvValue ? e.projection * (e.cvValue / 100) : null);
+    return std != null && std > 0;
+  }).length;
 
-  // Stat × Direction cross-tab — e.g. PTS OVER vs PTS UNDER
+  // Stat × Direction cross-tab — e.g. PTS OVER vs PTS UNDER (individual + combo)
   const statSideRows = [];
-  ['pts','reb','ast','stl','blk','threes'].forEach(stat => {
+  ['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb'].forEach(stat => {
     ['OVER','UNDER'].forEach(side => {
       const grp = groupStats(wl.filter(e => e.stat === stat && e.side === side));
       if (grp) statSideRows.push({ label: `${stat.toUpperCase()} ${side}`, stat, side, ...grp });
@@ -3493,6 +3498,7 @@ function NBASimulator() {
           overOdds: comboLines[key].overOdds,
           underOdds: comboLines[key].underOdds,
           mean: comboMean,
+          std: directCv != null ? meanCombo * (directCv / 100) : null,
           distModel: directCv != null ? 'Direct' : 'Summed',
           sensitivity: comboSensitivity,
           betIdOver:     generateBetId(),
@@ -3571,8 +3577,9 @@ function NBASimulator() {
         closingLine:    null,
         // Model metadata (batch already computes these — pass them through)
         projection:       r.projection       ?? null,
-        distModel:        null,  // distModel not tracked per batch row (KDE vs Gamma varies by data availability)
+        distModel:        r.distModel        ?? null,
         cvValue:          null,  // batch CV is embedded in modelProb; not stored separately
+        std:              r.std              ?? null,
         gamesAvailable:   r.gamesAvailable   ?? null,
         gameTotal:        r.gameTotal        ?? null,
         spread:           r.spread           ?? null,
@@ -3644,8 +3651,9 @@ function NBASimulator() {
         closingOdds:      null,
         closingLine:      null,
         projection:       r.projection        ?? null,
-        distModel:        null,
+        distModel:        r.distModel         ?? null,
         cvValue:          null,
+        std:              r.std               ?? null,
         gamesAvailable:   r.gamesAvailable    ?? null,
         gameTotal:        r.gameTotal         ?? null,
         spread:           r.spread            ?? null,
@@ -3940,6 +3948,7 @@ function NBASimulator() {
       projection:       data.projection     ?? null,
       distModel:        data.distModel      ?? null,
       cvValue:          data.cvValue        ?? null,
+      std:              data.std            ?? null,
       gamesAvailable:   gamesAvailable,
       gameTotal:        gameCtx?.total      ?? null,
       spread:           gameCtx?.spread     ?? null,
@@ -4051,6 +4060,19 @@ function NBASimulator() {
             betId: Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
             eventId:      gameCtx?.eventId     ?? null,
             commenceTime: gameCtx?.commenceTime ?? null,
+            std: s.stdDev ?? null,
+            distModel: (() => {
+              if (POISSON_STATS.has(key)) {
+                const cv = s.cvValue ? s.cvValue / 100 : null;
+                const mean = s.mean;
+                if (cv && mean > 0) return cv > 1 / Math.sqrt(mean) ? 'NegBin' : 'Poisson';
+                return 'Poisson';
+              }
+              if (key === 'pts') return bPts != null ? 'KDE' : 'Gamma';
+              if (key === 'reb') return bReb != null ? 'KDE' : 'LogNormal';
+              if (key === 'ast') return bAst != null ? 'KDE' : 'LogNormal';
+              return 'LogNormal';
+            })(),
           });
         });
       });
@@ -5226,8 +5248,8 @@ function NBASimulator() {
                     sensitivity={results.stats[key].sensitivity ?? null}
                     negBinR={results.stats[key].negBinR ?? null}
                     divergence={cvDivergence[key] ?? null}
-                    onLogBetOver={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdOver, fairOdds: results.stats[key].fairOverOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null })}
-                    onLogBetUnder={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdUnder, fairOdds: results.stats[key].fairUnderOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null })}
+                    onLogBetOver={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdOver, fairOdds: results.stats[key].fairOverOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null })}
+                    onLogBetUnder={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdUnder, fairOdds: results.stats[key].fairUnderOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null })}
                   />
                   <LadderTable
                     statKey={key}
@@ -5255,8 +5277,8 @@ function NBASimulator() {
                     distModel={results.combos[key].distModel}
                     kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode}
                     sensitivity={results.combos[key].sensitivity ?? null}
-                    onLogBetOver={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdOver, fairOdds: results.combos[key].fairOverOdds, projection: parseFloat(results.combos[key].mean) || null, distModel: results.combos[key].distModel || null, cvValue: null })}
-                    onLogBetUnder={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdUnder, fairOdds: results.combos[key].fairUnderOdds, projection: parseFloat(results.combos[key].mean) || null, distModel: results.combos[key].distModel || null, cvValue: null })}
+                    onLogBetOver={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdOver, fairOdds: results.combos[key].fairOverOdds, projection: parseFloat(results.combos[key].mean) || null, distModel: results.combos[key].distModel || null, cvValue: null, std: results.combos[key].std ?? null })}
+                    onLogBetUnder={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdUnder, fairOdds: results.combos[key].fairUnderOdds, projection: parseFloat(results.combos[key].mean) || null, distModel: results.combos[key].distModel || null, cvValue: null, std: results.combos[key].std ?? null })}
                   />
                   <LadderTable
                     statKey={key}
