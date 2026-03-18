@@ -2334,6 +2334,60 @@ function computeCalibrationStats(entries) {
     return points;
   })() : null;
 
+  // By distribution model — separates KDE era (PTS/REB/AST post-3/17) from earlier batch math
+  const byDistModel = {};
+  ['KDE','LogNormal','NegBin','Poisson','Direct','Summed','Gamma'].forEach(m => {
+    const grp = groupStats(wl.filter(e => e.distModel === m));
+    if (grp) byDistModel[m] = grp;
+  });
+
+  // By projected minutes — bench variance leakage check
+  const minutesBuckets = [
+    { label: '<22 min',   filter: e => e.projectedMinutes != null && e.projectedMinutes < 22 },
+    { label: '22–28 min', filter: e => e.projectedMinutes != null && e.projectedMinutes >= 22 && e.projectedMinutes < 28 },
+    { label: '28–34 min', filter: e => e.projectedMinutes != null && e.projectedMinutes >= 28 && e.projectedMinutes < 34 },
+    { label: '34+ min',   filter: e => e.projectedMinutes != null && e.projectedMinutes >= 34 },
+  ].map(b => ({ label: b.label, ...groupStats(wl.filter(b.filter)) }));
+  const minutesWithData = wl.filter(e => e.projectedMinutes != null).length;
+
+  // By CV sample size — thin data bets are less reliable; gamesAvailable from cv_data.json
+  const cvSampleBuckets = [
+    { label: '<20 games',   filter: e => e.gamesAvailable != null && e.gamesAvailable < 20 },
+    { label: '20–35 games', filter: e => e.gamesAvailable != null && e.gamesAvailable >= 20 && e.gamesAvailable <= 35 },
+    { label: '36+ games',   filter: e => e.gamesAvailable != null && e.gamesAvailable > 35 },
+  ].map(b => ({ label: b.label, ...groupStats(wl.filter(b.filter)) }));
+  const cvSampleWithData = wl.filter(e => e.gamesAvailable != null).length;
+
+  // By line gap in sigma units: (propLine − projection) / (projection × cvValue/100)
+  // Negative = line below ETR (model leans OVER); Positive = line above ETR (model leans UNDER)
+  // Reveals whether model edge is real or just noise when book and ETR most disagree
+  const lineGapBuckets = [
+    { label: '< −1σ (OVER)',     min: -Infinity, max: -1.0 },
+    { label: '−1σ to −0.3σ',    min: -1.0,      max: -0.3 },
+    { label: '±0.3σ consensus',  min: -0.3,      max:  0.3 },
+    { label: '+0.3σ to +1σ',    min:  0.3,      max:  1.0 },
+    { label: '> +1σ (UNDER)',    min:  1.0,      max: Infinity },
+  ].map(b => {
+    const grp = groupStats(wl.filter(e => {
+      if (e.projection == null || e.propLine == null || !e.cvValue) return false;
+      const std = e.projection * (e.cvValue / 100);
+      if (std <= 0) return false;
+      const sigma = (parseFloat(e.propLine) - e.projection) / std;
+      return sigma >= b.min && sigma < b.max;
+    }));
+    return { label: b.label, ...(grp || {}) };
+  });
+  const lineGapWithData = wl.filter(e => e.projection != null && e.propLine != null && e.cvValue).length;
+
+  // Stat × Direction cross-tab — e.g. PTS OVER vs PTS UNDER
+  const statSideRows = [];
+  ['pts','reb','ast','stl','blk','threes'].forEach(stat => {
+    ['OVER','UNDER'].forEach(side => {
+      const grp = groupStats(wl.filter(e => e.stat === stat && e.side === side));
+      if (grp) statSideRows.push({ label: `${stat.toUpperCase()} ${side}`, stat, side, ...grp });
+    });
+  });
+
   return {
     total: settled.length, wins, losses, pushes,
     avgModelProb, actualRate,
@@ -2349,6 +2403,11 @@ function computeCalibrationStats(entries) {
     timeBuckets,     timeWithData,
     clvData,
     trend,
+    byDistModel,
+    minutesBuckets,  minutesWithData,
+    cvSampleBuckets, cvSampleWithData,
+    lineGapBuckets,  lineGapWithData,
+    statSideRows,
   };
 }
 
@@ -2357,7 +2416,7 @@ function CalibrationAnalysis({ stats: s }) {
   if (!s) return null;
   const mono = "'JetBrains Mono', monospace";
 
-  const ALL_SECTIONS = ['overall','calibration','stat','side','edge','odds','total','spread','time','clv','trend'];
+  const ALL_SECTIONS = ['overall','calibration','stat','statside','side','edge','odds','total','spread','time','clv','distmodel','minutes','cvsample','linegap','trend'];
   const [openSections, setOpenSections] = React.useState(() =>
     Object.fromEntries(ALL_SECTIONS.map(k => [k, true]))
   );
@@ -2611,6 +2670,87 @@ function CalibrationAnalysis({ stats: s }) {
         </>
       )}
 
+      {/* By stat × direction cross-tab */}
+      <SectionHeader id="statside">BY STAT × DIRECTION</SectionHeader>
+      {openSections.statside && s.statSideRows.map(row => (
+        <GroupRow key={row.label} label={row.label} g={row} />
+      ))}
+
+      {/* By dist model — KDE era vs prior batch math */}
+      <SectionHeader id="distmodel">BY DIST MODEL (ERA)</SectionHeader>
+      {openSections.distmodel && Object.entries(s.byDistModel).map(([m, g]) => g && (
+        <GroupRow key={m} label={m} g={g} />
+      ))}
+
+      {/* By projected minutes */}
+      <SectionHeader id="minutes">
+        BY PROJ MINUTES
+        {s.minutesWithData < (s.wins + s.losses) && s.minutesWithData > 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+            — {s.minutesWithData} of {s.wins + s.losses} entries have minutes data
+          </span>
+        )}
+        {s.minutesWithData === 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>— no minutes data yet</span>
+        )}
+      </SectionHeader>
+      {openSections.minutes && (
+        <>
+          {s.minutesBuckets.map(b => b.n > 0 && <GroupRow key={b.label} label={b.label} g={b} />)}
+          {s.minutesWithData === 0 && (
+            <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
+              Projected minutes are pulled from the ETR projections table at bet log time.
+            </div>
+          )}
+        </>
+      )}
+
+      {/* By CV sample size */}
+      <SectionHeader id="cvsample">
+        BY CV SAMPLE SIZE
+        {s.cvSampleWithData < (s.wins + s.losses) && s.cvSampleWithData > 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+            — {s.cvSampleWithData} of {s.wins + s.losses} entries have CV data
+          </span>
+        )}
+        {s.cvSampleWithData === 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>— no CV sample data yet</span>
+        )}
+      </SectionHeader>
+      {openSections.cvsample && (
+        <>
+          {s.cvSampleBuckets.map(b => b.n > 0 && <GroupRow key={b.label} label={b.label} g={b} />)}
+          {s.cvSampleWithData === 0 && (
+            <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
+              CV sample size (games_available) is pulled from cv_data.json when loading a player.
+            </div>
+          )}
+        </>
+      )}
+
+      {/* By line gap in sigma units */}
+      <SectionHeader id="linegap">
+        BY LINE GAP (σ)
+        {s.lineGapWithData < (s.wins + s.losses) && s.lineGapWithData > 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+            — {s.lineGapWithData} of {s.wins + s.losses} entries have projection + CV data
+          </span>
+        )}
+        {s.lineGapWithData === 0 && (
+          <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>— requires projection + CV value at log time</span>
+        )}
+      </SectionHeader>
+      {openSections.linegap && (
+        <>
+          {s.lineGapBuckets.map(b => b.n > 0 && <GroupRow key={b.label} label={b.label} g={b} />)}
+          {s.lineGapWithData === 0 && (
+            <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '4px 0', fontStyle: 'italic' }}>
+              Measures how far the prop line sits from the ETR projection in standard deviation units. Reveals whether model edge survives when book and ETR most disagree.
+            </div>
+          )}
+        </>
+      )}
+
       {/* Rolling trend mini-chart */}
       {s.trend && s.trend.length > 0 && (
         <>
@@ -2643,7 +2783,7 @@ function CalibrationPanel({
   log, open, onToggle,
   onSetResult, onFetchClosing, closingFetching, closingFetchMsg,
   onAutoSettle, autoSettleFetching, autoSettleMsg,
-  onDelete, onExport, csvCopied,
+  onDelete, onExport, csvCopied, onExportAnalysis, analysisCopied,
   unitSize, bankroll, kellyFraction,
 }) {
   const [analysisOpen, setAnalysisOpen] = React.useState(false);
@@ -2711,13 +2851,22 @@ function CalibrationPanel({
                 {!autoSettleMsg && closingFetchMsg && (
                   <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>{closingFetchMsg}</span>
                 )}
-                <button onClick={onExport}
-                  style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 5,
-                    border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(15,23,42,0.4)',
-                    color: csvCopied ? '#4ade80' : '#94a3b8', fontFamily: mono, fontWeight: 700, fontSize: 9,
-                    cursor: 'pointer' }}>
-                  {csvCopied ? '✓ COPIED' : 'EXPORT CSV'}
-                </button>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <button onClick={onExportAnalysis}
+                    style={{ padding: '5px 12px', borderRadius: 5,
+                      border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.08)',
+                      color: analysisCopied ? '#4ade80' : '#a5b4fc', fontFamily: mono, fontWeight: 700, fontSize: 9,
+                      cursor: 'pointer' }}>
+                    {analysisCopied ? '✓ COPIED' : 'EXPORT ANALYSIS'}
+                  </button>
+                  <button onClick={onExport}
+                    style={{ padding: '5px 12px', borderRadius: 5,
+                      border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(15,23,42,0.4)',
+                      color: csvCopied ? '#4ade80' : '#94a3b8', fontFamily: mono, fontWeight: 700, fontSize: 9,
+                      cursor: 'pointer' }}>
+                    {csvCopied ? '✓ COPIED' : 'EXPORT CSV'}
+                  </button>
+                </div>
               </div>
 
               {/* Open plays */}
@@ -2945,6 +3094,7 @@ function NBASimulator() {
   const [autoSettleFetching,  setAutoSettleFetching]  = useState(false);
   const [autoSettleMsg,       setAutoSettleMsg]       = useState(null);
   const [calibrationCsvCopied,setCalibrationCsvCopied]= useState(false);
+  const [analysisExportCopied, setAnalysisExportCopied] = useState(false);
   // ── Projection Uncertainty state ───────────────────────────────────
   const [projUncertaintyMode, setProjUncertaintyMode] = useState(false);
 
@@ -3707,6 +3857,53 @@ function NBASimulator() {
     });
   }, [calibration]);
 
+  // Export computed analysis breakdown tables as CSV → clipboard
+  // Each row is one segment/bucket: Section, Label, N, HIT%, MODEL%, DIFF, 1U ROI
+  const handleExportAnalysis = useCallback(() => {
+    const calStats = computeCalibrationStats(calibration);
+    if (!calStats) return;
+    const rows = [['Section','Label','N','HIT%','MODEL%','DIFF pp','1U ROI%']];
+    const addRows = (section, items) => {
+      items.forEach(item => {
+        if (!item || item.n == null) return;
+        const hitPct   = item.hitRate  != null ? (item.hitRate  * 100).toFixed(1) : '';
+        const modPct   = item.modelAvg != null ? (item.modelAvg * 100).toFixed(1) : '';
+        const diff     = item.hitRate  != null && item.modelAvg != null
+          ? ((item.hitRate - item.modelAvg) * 100).toFixed(1) : '';
+        const roi      = item.unitROI  != null ? item.unitROI.toFixed(1) : '';
+        rows.push([section, item.label ?? '', item.n, hitPct, modPct, diff, roi]);
+      });
+    };
+    const s = calStats;
+    // Overall
+    rows.push(['OVERALL','All plays', s.wins + s.losses,
+      s.actualRate   != null ? (s.actualRate   * 100).toFixed(1) : '',
+      s.avgModelProb != null ? (s.avgModelProb * 100).toFixed(1) : '',
+      (s.actualRate != null && s.avgModelProb != null)
+        ? (((s.actualRate - s.avgModelProb) * 100).toFixed(1)) : '',
+      s.overall.unitROI != null ? s.overall.unitROI.toFixed(1) : '',
+    ]);
+    addRows('PROB BUCKET', s.probBuckets);
+    addRows('BY STAT', Object.entries(s.byStat).map(([k, v]) => v ? { ...v, label: k.toUpperCase() } : null).filter(Boolean));
+    addRows('STAT × DIR', s.statSideRows);
+    addRows('BY SIDE', Object.entries(s.bySide).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+    addRows('BY EDGE', Object.entries(s.byEdge).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+    addRows('BY ODDS', s.oddsBuckets);
+    addRows('BY TOTAL', s.totalBuckets);
+    addRows('BY SPREAD', s.spreadBuckets);
+    addRows('BY TIME', s.timeBuckets);
+    addRows('DIST MODEL', Object.entries(s.byDistModel).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+    addRows('PROJ MIN', s.minutesBuckets);
+    addRows('CV SAMPLE', s.cvSampleBuckets);
+    addRows('LINE GAP σ', s.lineGapBuckets);
+    const esc = v => { const sv = String(v ?? ''); return (sv.includes(',') || sv.includes('"')) ? `"${sv.replace(/"/g,'""')}"` : sv; };
+    const csv = rows.map(r => r.map(esc).join(',')).join('\n');
+    navigator.clipboard.writeText(csv).then(() => {
+      setAnalysisExportCopied(true);
+      setTimeout(() => setAnalysisExportCopied(false), 2000);
+    });
+  }, [calibration]);
+
   // Wire single-player sim "LOG BET" button → calibration tracker.
   // Looks up eventId/commenceTime from gameData via the player's team in projections.
   const handleLogBetToCalibration = useCallback((data) => {
@@ -4247,6 +4444,8 @@ function NBASimulator() {
           onDelete={handleDeleteCalibration}
           onExport={handleExportCalibration}
           csvCopied={calibrationCsvCopied}
+          onExportAnalysis={handleExportAnalysis}
+          analysisCopied={analysisExportCopied}
           unitSize={unitSize}
           bankroll={bankroll}
           kellyFraction={kellyFraction}
