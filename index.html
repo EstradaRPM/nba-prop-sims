@@ -1589,8 +1589,10 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
     { key: 'edge',      label: 'EDGE%',    style: { width: 52,    textAlign: 'right'  } },
     { key: 'edgeLabel', label: 'RATING',   style: { width: 60,    textAlign: 'center' } },
     { key: 'kellyPct',  label: '¼K%',      style: { width: 42,    textAlign: 'right'  } },
-    { key: 'gameTotal', label: 'O/U',      style: { width: 40,    textAlign: 'right'  } },
-    { key: 'spread',    label: 'SPRD',     style: { width: 44,    textAlign: 'right'  } },
+    { key: 'gameTotal',  label: 'O/U',      style: { width: 40,    textAlign: 'right'  } },
+    { key: 'spread',     label: 'SPRD',     style: { width: 44,    textAlign: 'right'  } },
+    { key: 'projection', label: 'PROJ',     style: { width: 38,    textAlign: 'right'  } },
+    { key: 'distModel',  label: 'MODEL',    style: { width: 46,    textAlign: 'center' } },
   ];
 
   const hdrStyle = {
@@ -1756,7 +1758,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         />
       ) : (
       <div style={{ overflowX: 'auto', borderRadius: 6, border: '1px solid rgba(148,163,184,0.20)' }}>
-        <div style={{ minWidth: 580 }}>
+        <div style={{ minWidth: 680 }}>
           {/* Header */}
           <div style={{ display: 'flex' }}>
             {cols.map(c => (
@@ -1826,6 +1828,20 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
                   </div>
                   <div style={{ ...cellStyle, ...cols[12].style, color: '#64748b' }}>
                     {r.spread != null ? (r.spread > 0 ? '+' : '') + r.spread : '—'}
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[13].style, color: '#94a3b8' }}>
+                    {r.projection != null ? r.projection : '—'}
+                  </div>
+                  <div style={{ ...cellStyle, ...cols[14].style }}>
+                    {r.distModel ? (
+                      <span style={{
+                        fontSize: 8, fontWeight: 700,
+                        color: DIST_MODEL_STYLE[r.distModel]?.color ?? '#94a3b8',
+                        backgroundColor: `${DIST_MODEL_STYLE[r.distModel]?.color ?? '#94a3b8'}18`,
+                        border: `1px solid ${DIST_MODEL_STYLE[r.distModel]?.color ?? '#94a3b8'}30`,
+                        padding: '1px 4px', borderRadius: 3,
+                      }}>{r.distModel}</span>
+                    ) : '—'}
                   </div>
                 </div>
               );
@@ -2249,7 +2265,7 @@ function buildBatchCSV(batchResults, timestamp) {
     'Timestamp','Date','Player','Team','Stat','Line','Side',
     'Book Odds','Model%','Book%','Edge%','Edge Rating','¼Kelly%',
     'Game Total','Spread',
-    'Bet ID','ETR Projection','Model Fair Over','Model Fair Under','Games (CV)'
+    'Bet ID','ETR Projection','Dist Model','Model Fair Over','Model Fair Under','Games (CV)'
   ];
   const dateStr = new Date().toLocaleDateString('en-US');
   const escape = v => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g,'""')}"` : s; };
@@ -2262,6 +2278,7 @@ function buildBatchCSV(batchResults, timestamp) {
     r.gameTotal ?? '', r.spread != null ? r.spread : '',
     r.betId ?? '',
     r.projection != null ? r.projection.toFixed(1) : '',
+    r.distModel ?? '',
     r.fairOverOdds ?? '', r.fairUnderOdds ?? '',
     r.gamesAvailable ?? ''
   ]);
@@ -3712,27 +3729,33 @@ function NBASimulator() {
     setPtsRawData(null);
     setRebRawData(null);
     setAstRawData(null);
+    setCvDivergence({});
     // Clear stale combo lines from previous player — will re-populate from component sums below if oddsData is loaded
     setComboLines(() => {
       const init = {};
       COMBO_CONFIG.forEach(({ key }) => { init[key] = { line: "", overOdds: "", underOdds: "" }; });
       return init;
     });
+    // Full reset of all player-specific state — clears propLine, odds, CV, and std override
+    // from the previous player. This prevents stale CV/propLine from corrupting the new
+    // player's simulation, especially after a batch EV run populates cvMode across many players.
+    // oddsData setStats below re-populates propLine and odds from the API response.
     setStats(prev => {
       const updated = { ...prev };
       ['pts', 'reb', 'ast', 'stl', 'blk', 'threes'].forEach(key => {
-        const newMean = p[key];
-        const cur = prev[key];
-        if (cur.cvMode && cur.cvValue !== '') {
-          // Preserve CV mode: recalc std from existing CV × new mean
-          const cv = parseFloat(cur.cvValue);
-          const std = !isNaN(cv) && newMean > 0 ? Math.round(newMean * (cv / 100) * 10) / 10 : 0;
-          updated[key] = { ...cur, mean: String(newMean), stdDev: std };
-        } else if (!cur.stdOverride) {
-          updated[key] = { ...cur, mean: String(newMean), stdDev: estimateStdDev(key, newMean) };
-        } else {
-          updated[key] = { ...cur, mean: String(newMean) };
-        }
+        const newMean = p[key] ?? 0;
+        updated[key] = {
+          ...prev[key],
+          mean:        String(newMean),
+          stdDev:      estimateStdDev(key, newMean),
+          propLine:    "",
+          overOdds:    "",
+          underOdds:   "",
+          cvMode:      false,
+          cvValue:     "",
+          stdOverride: false,
+          projSD:      "",
+        };
       });
       return updated;
     });
