@@ -3180,12 +3180,12 @@ function CalibrationPanel({
                   <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>{closingFetchMsg}</span>
                 )}
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                  <button onClick={onExportAnalysis}
+                  <button onClick={() => onExportAnalysis(strategyLog)}
                     style={{ padding: '5px 12px', borderRadius: 5,
                       border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.08)',
                       color: analysisCopied ? '#4ade80' : '#a5b4fc', fontFamily: mono, fontWeight: 700, fontSize: 9,
                       cursor: 'pointer' }}>
-                    {analysisCopied ? '✓ COPIED' : 'EXPORT ANALYSIS'}
+                    {analysisCopied ? '✓ COPIED' : `EXPORT ${STRATEGY_LABELS[analysisStrategy]}`}
                   </button>
                   <button onClick={onExport}
                     style={{ padding: '5px 12px', borderRadius: 5,
@@ -4231,8 +4231,8 @@ function NBASimulator() {
 
   // Export computed analysis breakdown tables as CSV → clipboard
   // Each row is one segment/bucket: Section, Label, N, HIT%, MODEL%, DIFF, 1U ROI
-  const handleExportAnalysis = useCallback(() => {
-    const calStats = computeCalibrationStats(calibration);
+  const handleExportAnalysis = useCallback((logOverride) => {
+    const calStats = computeCalibrationStats(logOverride ?? calibration);
     if (!calStats) return;
     const rows = [['Section','Label','N','HIT%','MODEL%','DIFF pp','1U ROI%']];
     const addRows = (section, items) => {
