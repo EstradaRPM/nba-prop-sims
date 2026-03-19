@@ -1556,14 +1556,16 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   bankroll, onExport, csvData, csvCopied, onCopyCsv,
   tracked, onToggleTrack, onTrackSelected, onLogAll, batchLogMsg,
   viewMode, setViewMode, gameData }) {
-  const { useMemo } = React;
+  const { useMemo, useState } = React;
+  const [strategyB, setStrategyB] = useState(false);
 
   const filtered = useMemo(() => {
     return results
       .filter(r =>
         (!positiveOnly || r.edge > 0) &&
         r.edge >= minEdge &&
-        statFilter.has(r.stat)
+        statFilter.has(r.stat) &&
+        (!strategyB || STRATEGY_B_FILTER(r))
       )
       .sort((a, b) => {
         const mult = sortDir === 'desc' ? -1 : 1;
@@ -1572,7 +1574,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         if (typeof av === 'string') return mult * av.localeCompare(bv);
         return mult * (av - bv);
       });
-  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir]);
+  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB]);
 
   const trackedCount = tracked ? tracked.size : 0;
   const cols = [
@@ -1652,6 +1654,13 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           background: positiveOnly ? 'rgba(34,197,94,0.1)' : 'rgba(15,23,42,0.4)',
           color: positiveOnly ? '#4ade80' : '#475569',
         }}>+EV ONLY</button>
+        <button onClick={() => setStrategyB(b => !b)} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: strategyB ? '1px solid rgba(167,139,250,0.5)' : '1px solid rgba(148,163,184,0.15)',
+          background: strategyB ? 'rgba(167,139,250,0.15)' : 'rgba(15,23,42,0.4)',
+          color: strategyB ? '#a78bfa' : '#475569',
+        }}>STRATEGY B</button>
         {/* View mode toggle */}
         <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
           {[['list','≡ LIST'],['game','⬡ GAME']].map(([mode, label]) => (
@@ -1665,6 +1674,20 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           ))}
         </div>
       </div>
+
+      {/* Strategy B criteria chip */}
+      {strategyB && (
+        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
+          background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.15)',
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#a78bfa', letterSpacing: 0.5, fontWeight: 700 }}>
+            STRATEGY B
+          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
+            CV ≥ 36 games · OVER edge ≥ 5% · PTS edge ≥ 5% · exclude ≥+176 · −135 to −121 edge ≥ 5%
+          </span>
+        </div>
+      )}
 
       {/* Summary + export row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
@@ -3083,7 +3106,7 @@ function CalibrationAnalysis({ stats: s }) {
 // (5) -135 to -121 range — model overconfident by ~9pp, requires higher edge.
 // Edit thresholds here as more data confirms or revises the signals.
 const STRATEGY_B_FILTER = e => {
-  const edge  = e.edgePct       ?? 0;
+  const edge  = e.edgePct ?? e.edge ?? 0;  // calibration log uses edgePct; batch rows use edge
   const games = e.gamesAvailable ?? 0;
   const odds  = e.bookOdds       ?? 0;
   if (games < 36)                               return false;  // CV sample gate (Z≈2.3, n=333 below threshold)
