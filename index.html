@@ -1554,7 +1554,8 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
 function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinEdge,
   statFilter, setStatFilter, positiveOnly, setPositiveOnly,
   bankroll, onExport, csvData, csvCopied, onCopyCsv,
-  tracked, onToggleTrack, onTrackSelected, onLogAll, batchLogMsg }) {
+  tracked, onToggleTrack, onTrackSelected, onLogAll, batchLogMsg,
+  viewMode, setViewMode, gameData }) {
   const { useMemo } = React;
 
   const filtered = useMemo(() => {
@@ -1651,6 +1652,18 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           background: positiveOnly ? 'rgba(34,197,94,0.1)' : 'rgba(15,23,42,0.4)',
           color: positiveOnly ? '#4ade80' : '#475569',
         }}>+EV ONLY</button>
+        {/* View mode toggle */}
+        <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
+          {[['list','≡ LIST'],['game','⬡ GAME']].map(([mode, label]) => (
+            <button key={mode} onClick={() => setViewMode && setViewMode(mode)} style={{
+              padding: '2px 9px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+              fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+              border: viewMode === mode ? '1px solid rgba(99,102,241,0.6)' : '1px solid rgba(148,163,184,0.15)',
+              background: viewMode === mode ? 'rgba(99,102,241,0.18)' : 'rgba(15,23,42,0.4)',
+              color: viewMode === mode ? '#a5b4fc' : '#475569',
+            }}>{label}</button>
+          ))}
+        </div>
       </div>
 
       {/* Summary + export row */}
@@ -1710,7 +1723,15 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table or Game View */}
+      {viewMode === 'game' ? (
+        <GameSlateView
+          filtered={filtered}
+          gameData={gameData}
+          tracked={tracked}
+          onToggleTrack={onToggleTrack}
+        />
+      ) : (
       <div style={{ overflowX: 'auto', borderRadius: 6, border: '1px solid rgba(148,163,184,0.20)' }}>
         <div style={{ minWidth: 580 }}>
           {/* Header */}
@@ -1789,6 +1810,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           </div>
         </div>
       </div>
+      )}
 
       {/* CSV export section */}
       {csvData && (
@@ -1816,6 +1838,275 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
               boxSizing: 'border-box' }} />
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Game Slate View ───────────────────────────────────────────────────
+// Groups filtered batch rows by game, surfacing matchup context, directional
+// game-lean signals, and per-player multi-leg grouping.
+function GameSlateView({ filtered, gameData, tracked, onToggleTrack }) {
+  const { useMemo } = React;
+
+  function fmtTipTime(isoStr) {
+    if (!isoStr) return null;
+    try {
+      return new Date(isoStr).toLocaleTimeString('en-US', {
+        hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', hour12: true,
+      }) + ' ET';
+    } catch { return null; }
+  }
+
+  const gameGroups = useMemo(() => {
+    const groups = new Map();
+    filtered.forEach(r => {
+      const key = r.eventId || r.commenceTime || '__unknown__';
+      if (!groups.has(key)) {
+        const teamCtx = gameData?.[r.team?.toUpperCase()];
+        groups.set(key, {
+          key,
+          commenceTime: r.commenceTime,
+          gameTotal: r.gameTotal,
+          spread: r.spread,
+          homeTeam: teamCtx?.homeTeam ?? null,
+          awayTeam: teamCtx?.awayTeam ?? null,
+          rows: [],
+        });
+      }
+      groups.get(key).rows.push(r);
+    });
+
+    const result = [];
+    groups.forEach(g => {
+      // Directional signal: look at plays with meaningful edge (≥ 1.5%)
+      const qualPlays = g.rows.filter(r => r.edge >= 1.5);
+      const overCount  = qualPlays.filter(r => r.side === 'OVER').length;
+      const underCount = qualPlays.filter(r => r.side === 'UNDER').length;
+      const totalQual  = qualPlays.length;
+      let signal = null;
+      if (totalQual >= 3) {
+        const overFrac = overCount / totalQual;
+        if (overFrac >= 0.65) signal = 'OVER';
+        else if (overFrac <= 0.35) signal = 'UNDER';
+      }
+
+      // Group rows by player; sort each player's legs by edge desc
+      const playerMap = new Map();
+      g.rows.forEach(r => {
+        if (!playerMap.has(r.player)) playerMap.set(r.player, []);
+        playerMap.get(r.player).push(r);
+      });
+      const players = [...playerMap.entries()]
+        .map(([name, pRows]) => ({
+          name,
+          team: pRows[0].team,
+          rows: pRows.sort((a, b) => b.edge - a.edge),
+        }))
+        .sort((a, b) => b.rows[0].edge - a.rows[0].edge); // game-best-player first
+
+      // Build matchup string
+      let matchup;
+      if (g.awayTeam && g.homeTeam) {
+        matchup = `${g.awayTeam} @ ${g.homeTeam}`;
+      } else if (g.key === '__unknown__') {
+        matchup = 'Game Context Unavailable';
+      } else {
+        const teams = [...new Set(g.rows.map(r => r.team).filter(Boolean))];
+        matchup = teams.length >= 2 ? teams.join(' / ') : (teams[0] || 'Unknown');
+      }
+
+      result.push({ ...g, players, overCount, underCount, totalQual, signal, matchup });
+    });
+
+    result.sort((a, b) => {
+      if (!a.commenceTime && !b.commenceTime) return 0;
+      if (!a.commenceTime) return 1;
+      if (!b.commenceTime) return -1;
+      return new Date(a.commenceTime) - new Date(b.commenceTime);
+    });
+    return result;
+  }, [filtered, gameData]);
+
+  const cellSt = { fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: '2px 5px', whiteSpace: 'nowrap' };
+
+  if (gameGroups.length === 0) {
+    return (
+      <div style={{ padding: '20px', textAlign: 'center', fontSize: 10,
+        color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
+        No results match current filters
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {gameGroups.map(game => {
+        const tipTime = fmtTipTime(game.commenceTime);
+        const signalColor = game.signal === 'OVER' ? '#22c55e' : game.signal === 'UNDER' ? '#ef4444' : null;
+        const leanCount = game.signal === 'OVER' ? game.overCount : game.underCount;
+
+        return (
+          <div key={game.key} style={{
+            borderRadius: 8,
+            border: `1px solid ${signalColor ? signalColor + '30' : 'rgba(148,163,184,0.12)'}`,
+            backgroundColor: 'rgba(15,23,42,0.5)',
+            overflow: 'hidden',
+          }}>
+            {/* ── Game header ── */}
+            <div style={{
+              padding: '7px 12px',
+              backgroundColor: 'rgba(11,15,26,0.7)',
+              borderBottom: '1px solid rgba(148,163,184,0.08)',
+              display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0',
+                fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.3 }}>
+                {game.matchup}
+              </span>
+              {tipTime && (
+                <span style={{ fontSize: 9, color: '#475569',
+                  fontFamily: "'JetBrains Mono', monospace" }}>
+                  {tipTime}
+                </span>
+              )}
+              {game.gameTotal != null && (
+                <span style={{ fontSize: 9, color: '#94a3b8',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  background: 'rgba(148,163,184,0.07)',
+                  padding: '1px 5px', borderRadius: 3 }}>
+                  O/U {game.gameTotal}
+                </span>
+              )}
+              {game.spread != null && (
+                <span style={{ fontSize: 9, color: '#94a3b8',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  background: 'rgba(148,163,184,0.07)',
+                  padding: '1px 5px', borderRadius: 3 }}>
+                  {game.spread > 0 ? '+' : ''}{game.spread}
+                </span>
+              )}
+              <span style={{ fontSize: 9, color: '#475569',
+                fontFamily: "'JetBrains Mono', monospace" }}>
+                {game.rows.length} {game.rows.length === 1 ? 'play' : 'plays'}
+              </span>
+              {/* Directional lean badge */}
+              {game.signal && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, color: signalColor,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  background: `${signalColor}12`,
+                  border: `1px solid ${signalColor}35`,
+                  padding: '1px 6px', borderRadius: 3,
+                }}>
+                  ⚠ LEANS {game.signal} · {leanCount}/{game.totalQual}
+                </span>
+              )}
+            </div>
+
+            {/* ── Players within this game ── */}
+            <div style={{ padding: '4px 0' }}>
+              {game.players.map((player, pi) => (
+                <div key={player.name} style={{
+                  borderTop: pi > 0 ? '1px solid rgba(148,163,184,0.05)' : 'none',
+                  paddingTop: pi > 0 ? 4 : 0,
+                  paddingBottom: 2,
+                }}>
+                  {/* Player sub-header */}
+                  <div style={{
+                    padding: '3px 12px',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#cbd5e1',
+                      fontFamily: "'Outfit', sans-serif" }}>
+                      {player.name}
+                    </span>
+                    <span style={{ fontSize: 8, color: '#475569',
+                      fontFamily: "'JetBrains Mono', monospace" }}>
+                      {player.team}
+                    </span>
+                    {player.rows.length > 1 && (
+                      <span style={{
+                        fontSize: 8, color: '#818cf8',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        background: 'rgba(99,102,241,0.1)',
+                        border: '1px solid rgba(99,102,241,0.22)',
+                        padding: '0px 4px', borderRadius: 3,
+                      }}>
+                        {player.rows.length} legs
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Prop rows for this player */}
+                  {player.rows.map((r, ri) => {
+                    const edgeColor = getEdgeColor(r.edge);
+                    const isTracked = tracked && tracked.has(r.betId);
+                    return (
+                      <div key={ri} style={{
+                        display: 'flex', alignItems: 'center',
+                        padding: '2px 12px',
+                        borderLeft: `2px solid ${r.edge >= 5 ? '#22c55e44' : r.edge >= 3 ? '#22c55e22' : 'transparent'}`,
+                        backgroundColor: isTracked ? 'rgba(245,158,11,0.06)'
+                          : r.edge >= 5 ? 'rgba(34,197,94,0.05)'
+                          : r.edge >= 3 ? 'rgba(34,197,94,0.02)'
+                          : 'transparent',
+                      }}>
+                        {/* Track checkbox */}
+                        <div style={{ width: 18, flexShrink: 0, cursor: 'pointer', paddingRight: 2 }}
+                          onClick={() => onToggleTrack && onToggleTrack(r.betId)}>
+                          <div style={{
+                            width: 11, height: 11, borderRadius: 2,
+                            border: `1px solid ${isTracked ? 'rgba(245,158,11,0.8)' : 'rgba(148,163,184,0.22)'}`,
+                            background: isTracked ? 'rgba(245,158,11,0.7)' : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {isTracked && <span style={{ fontSize: 7, color: '#0b0f1a', fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                          </div>
+                        </div>
+                        {/* STAT */}
+                        <span style={{ ...cellSt, width: 30, color: '#64748b', fontSize: 9 }}>{r.statLabel}</span>
+                        {/* SIDE */}
+                        <span style={{ ...cellSt, width: 40, fontWeight: 700, fontSize: 9,
+                          color: r.side === 'OVER' ? '#4ade80' : '#f87171' }}>
+                          {r.side}
+                        </span>
+                        {/* LINE */}
+                        <span style={{ ...cellSt, width: 36, color: '#94a3b8', textAlign: 'right' }}>{r.propLine}</span>
+                        {/* ODDS */}
+                        <span style={{ ...cellSt, width: 44, color: '#64748b', textAlign: 'right' }}>{fmtOdds(r.bookOdds)}</span>
+                        {/* MODEL% */}
+                        <span style={{ ...cellSt, width: 50, color: getProbColor(r.modelProb), textAlign: 'right' }}>
+                          {(r.modelProb * 100).toFixed(1)}%
+                        </span>
+                        {/* EDGE */}
+                        <span style={{ ...cellSt, width: 50, color: edgeColor, fontWeight: 700, textAlign: 'right' }}>
+                          {r.edge >= 0 ? '+' : ''}{r.edge.toFixed(1)}%
+                        </span>
+                        {/* RATING badge */}
+                        <span style={{ ...cellSt, width: 64 }}>
+                          <span style={{
+                            fontSize: 8, color: edgeColor, fontWeight: 700,
+                            background: `${edgeColor}18`, border: `1px solid ${edgeColor}30`,
+                            padding: '1px 4px', borderRadius: 3,
+                          }}>
+                            {r.edgeLabel}
+                          </span>
+                        </span>
+                        {/* ¼K% */}
+                        {r.kellyPct > 0 && (
+                          <span style={{ ...cellSt, color: '#475569', fontSize: 9 }}>
+                            ¼K {r.kellyPct.toFixed(2)}%
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -3058,6 +3349,7 @@ function NBASimulator() {
   const [batchCsvData,      setBatchCsvData]       = useState(null);
   const [batchCsvCopied,    setBatchCsvCopied]     = useState(false);
   const [batchOpen,         setBatchOpen]          = useState(false);
+  const [batchViewMode,     setBatchViewMode]      = useState('list'); // 'list' | 'game'
   // Parlay odds inputs for correlated signal banner (3-leg PTS+REB+AST)
   const [parlayOdds, setParlayOdds] = useState(() => loadSession().parlayOdds ?? { over: "", under: "" });
 
@@ -4451,6 +4743,9 @@ function NBASimulator() {
                   onTrackSelected={handleTrackSelected}
                   onLogAll={handleLogAllAboveThreshold}
                   batchLogMsg={batchLogMsg}
+                  viewMode={batchViewMode}
+                  setViewMode={setBatchViewMode}
+                  gameData={gameData}
                 />
               )}
             </div>
