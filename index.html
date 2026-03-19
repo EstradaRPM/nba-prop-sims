@@ -3077,15 +3077,20 @@ function CalibrationAnalysis({ stats: s }) {
 // ── CalibrationPanel component ────────────────────────────────────────
 // ── Strategy Filter Definitions ─────────────────────────────────────
 // Strategy B criteria are based on calibration analysis of ~1,073 bets.
-// Three structural leaks identified: (1) OVER drag across all stats,
-// (2) PTS overconfidence regardless of direction, (3) CV sample < 36 games.
+// Five structural leaks identified: (1) OVER drag across all stats,
+// (2) PTS overconfidence regardless of direction, (3) CV sample < 36 games,
+// (4) ≥+176 odds — model systematically overestimates long-shot probability,
+// (5) -135 to -121 range — model overconfident by ~9pp, requires higher edge.
 // Edit thresholds here as more data confirms or revises the signals.
 const STRATEGY_B_FILTER = e => {
   const edge  = e.edgePct       ?? 0;
   const games = e.gamesAvailable ?? 0;
-  if (games < 36)                    return false;  // CV sample gate (Z≈2.3, n=333 below threshold)
-  if (e.side === 'OVER' && edge < 5) return false;  // OVER threshold raised: -5.7pp drag across all stats
-  if (e.stat === 'pts'  && edge < 5) return false;  // PTS gate: -7.2pp gap both sides (Z≈2.3, n=248)
+  const odds  = e.bookOdds       ?? 0;
+  if (games < 36)                               return false;  // CV sample gate (Z≈2.3, n=333 below threshold)
+  if (e.side === 'OVER' && edge < 5)            return false;  // OVER threshold raised: -5.7pp drag across all stats
+  if (e.stat === 'pts'  && edge < 5)            return false;  // PTS gate: -7.2pp gap both sides (Z≈2.3, n=248)
+  if (odds >= 176)                              return false;  // ≥+176 excluded: 25% hit rate, -29% ROI (both datasets)
+  if (odds >= -135 && odds <= -121 && edge < 5) return false;  // -135 to -121: -9.3pp overconfidence, raise edge gate
   return true;
 };
 
@@ -3324,7 +3329,7 @@ function CalibrationPanel({
                         STRATEGY B CRITERIA:
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        CV ≥ 36 games · OVER edge ≥ 5% · PTS edge ≥ 5% (both sides)
+                        CV ≥ 36 games · OVER edge ≥ 5% · PTS edge ≥ 5% · exclude ≥+176 · -135 to -121 edge ≥ 5%
                       </span>
                     </div>
                   )}
