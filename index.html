@@ -1156,7 +1156,7 @@ function DistBar({ simValues, propLine }) {
 // kellyFraction: 0.25=¼K, 0.333=⅓K, 0.5=½K, 1.0=Full K
 // unitSize: dollar value of 1 unit (e.g. 20 → $20/unit)
 // ladderMode: splits stake into 3 rungs (40/35/25% of total budget)
-function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfolioFactor = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false, onLogBet = null, side = null }) {
+function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfolioFactor = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false, onLogBet = null, side = null, historicalBias = null }) {
   const bookProbRaw = americanToProb(bookOdds);
   if (!bookProbRaw) return null;
   // Vig-free: normalize using both sides when available; fall back to raw otherwise
@@ -1265,6 +1265,13 @@ function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfoli
           )}
         </div>
       )}
+      {edge >= 1.5 && historicalBias && Math.abs(modelProb - historicalBias.hitRate) * 100 >= 10 && (
+        <div style={{ marginTop: 4, padding: "3px 6px", borderRadius: 3, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.22)" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: "#f59e0b" }}>
+            ⚠ HIST {(historicalBias.hitRate * 100).toFixed(0)}% HIT (n={historicalBias.n}) vs MODEL {(modelProb * 100).toFixed(0)}%
+          </span>
+        </div>
+      )}
       {onLogBet && edge >= 1.5 && (
         <div style={{ marginTop: 5, paddingTop: 5, borderTop: "1px solid rgba(148,163,184,0.08)" }}>
           <button
@@ -1289,7 +1296,7 @@ const DIST_MODEL_STYLE = {
   Summed:    { color: "#94a3b8", bg: "rgba(148,163,184,0.06)", border: "rgba(148,163,184,0.18)" },
 };
 
-function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null, distModel = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false, onLogBetOver = null, onLogBetUnder = null, ciOver = null, ciUnder = null, projUncertaintyMode = false, statKey = null, discreteDist = null, sensitivity = null, negBinR = null, divergence = null }) {
+function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null, distModel = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false, onLogBetOver = null, onLogBetUnder = null, ciOver = null, ciUnder = null, projUncertaintyMode = false, statKey = null, discreteDist = null, sensitivity = null, negBinR = null, divergence = null, historicalBiasOver = null, historicalBiasUnder = null }) {
   if (!prob) return null;
   const overPct = (prob.over * 100).toFixed(1);
   const underPct = (prob.under * 100).toFixed(1);
@@ -1386,7 +1393,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               </div>
             )}
           </div>
-          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} otherSideOdds={hasUnder ? parseFloat(underOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorOver} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetOver} side="over" /> : (
+          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} otherSideOdds={hasUnder ? parseFloat(underOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorOver} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetOver} side="over" historicalBias={historicalBiasOver} /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No over odds entered
             </div>
@@ -1411,7 +1418,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               </div>
             )}
           </div>
-          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} otherSideOdds={hasOver ? parseFloat(overOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetUnder} side="under" /> : (
+          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} otherSideOdds={hasOver ? parseFloat(overOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetUnder} side="under" historicalBias={historicalBiasUnder} /> : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No under odds entered
             </div>
@@ -3396,6 +3403,19 @@ function CalibrationPanel({
   );
 }
 
+// Returns { n, hitRate } if ≥minN settled bets exist for player/stat/side; else null
+function getHistoricalBias(calibration, player, stat, side, minN = 5) {
+  const settled = calibration.filter(e =>
+    e.player === player &&
+    e.stat === stat &&
+    e.side === side.toUpperCase() &&
+    (e.result === 'WON' || e.result === 'LOST')
+  );
+  if (settled.length < minN) return null;
+  const wins = settled.filter(e => e.result === 'WON').length;
+  return { n: settled.length, hitRate: wins / settled.length };
+}
+
 // ── Main App ────────────────────────────────────────────────────────
 function NBASimulator() {
   const [playerName, setPlayerName] = useState(() => loadSession().playerName ?? "Player Name");
@@ -3425,6 +3445,7 @@ function NBASimulator() {
     return init;
   });
   const [results, setResults] = useState(null);
+  const [resultsAreStale, setResultsAreStale] = useState(false);
   const [simTime, setSimTime] = useState(null);
   const [simTimestamp, setSimTimestamp] = useState(null);
   const [csvData, setCsvData] = useState(null);
@@ -3525,6 +3546,11 @@ function NBASimulator() {
       console.error('[NBA Sim] localStorage quota exceeded — calibration not saved. Export to CSV and clear old entries.', e);
     }
   }, [calibration]);
+
+  // Mark results stale whenever inputs change after a simulation has run
+  React.useEffect(() => {
+    if (results !== null) setResultsAreStale(true);
+  }, [stats, comboLines]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFetchLines = useCallback(async () => {
     if (!oddsApiKey.trim()) { setOddsError('Enter your Odds API key first.'); setShowOddsPanel(true); return; }
@@ -3946,6 +3972,7 @@ function NBASimulator() {
     setSimTime(Math.round(performance.now() - t0));
     setSimTimestamp(ts);
     setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
+    setResultsAreStale(false);
   }, [stats, comboLines, numSims, kellyFraction, ptsRawData, rebRawData, astRawData, projUncertaintyMode, praDirectCv, prDirectCv, paDirectCv, raDirectCv, sbDirectCv]);
 
   // ── Calibration Handlers ─────────────────────────────────────────────
@@ -5435,6 +5462,20 @@ function NBASimulator() {
               </span>
             </div>
 
+            {/* Stale results warning */}
+            {resultsAreStale && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 14px", marginBottom: 12, borderRadius: 6,
+                background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)",
+              }}>
+                <span style={{ fontSize: 14 }}>⚠</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#f59e0b", fontWeight: 700, letterSpacing: 0.5 }}>
+                  INPUTS CHANGED — RE-RUN SIMULATION TO REFRESH RESULTS
+                </span>
+              </div>
+            )}
+
             {/* Correlated Signal Detection + Parlay EV */}
             {(() => {
               const coreStats = ["pts", "reb", "ast"];
@@ -5502,11 +5543,6 @@ function NBASimulator() {
                   { simValues: sv.ast, propLine: pl.ast, side: direction },
                 ]) : null;
 
-                // Independent product (uncorrelated baseline)
-                const indep3 = hasAllSims
-                  ? results.stats.pts.prob[direction] * results.stats.reb.prob[direction] * results.stats.ast.prob[direction]
-                  : null;
-
                 // Book parlay odds + EV for 3-leg
                 const bookOddsVal = parseFloat(parlayOdds[direction]);
                 const hasBookOdds = !isNaN(bookOddsVal) && bookOddsVal !== 0;
@@ -5533,7 +5569,7 @@ function NBASimulator() {
                     {/* Header */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, color: accentColor, letterSpacing: 1 }}>
-                        ⚡ CORRELATED {dirLabel} SIGNAL — PTS + REB + AST
+                        ⚡ ALIGNED {dirLabel} SIGNAL — PTS + REB + AST
                       </div>
                       <div style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
                         {numSims.toLocaleString()} trials
@@ -5564,11 +5600,9 @@ function NBASimulator() {
                           <div style={{ fontSize: 12, color: mutedColor, fontFamily: "'JetBrains Mono', monospace" }}>
                             Fair: {probToAmerican(p3)}
                           </div>
-                          {indep3 != null && (
-                            <div style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
-                              indep: {(indep3 * 100).toFixed(1)}% ({probToAmerican(indep3)})
-                            </div>
-                          )}
+                          <div style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace", fontStyle: "italic" }}>
+                            assumes independence — samplers uncorrelated
+                          </div>
                         </div>
 
                         {/* Book odds input + EV */}
@@ -5654,8 +5688,10 @@ function NBASimulator() {
               return null;
             })()}
 
-            {STAT_CONFIG.map(({ key, label }, i) =>
-              results.stats[key] ? (
+            {STAT_CONFIG.map(({ key, label }, i) => {
+              const biasOver  = getHistoricalBias(calibration, playerName, key, 'over');
+              const biasUnder = getHistoricalBias(calibration, playerName, key, 'under');
+              return results.stats[key] ? (
                 <div key={key} className="result-row" style={{ animationDelay: `${i * 60}ms` }}>
                   <ResultRow label={label} prob={results.stats[key].prob}
                     propLine={results.stats[key].propLine} simValues={results.stats[key].simValues}
@@ -5672,8 +5708,10 @@ function NBASimulator() {
                     sensitivity={results.stats[key].sensitivity ?? null}
                     negBinR={results.stats[key].negBinR ?? null}
                     divergence={cvDivergence[key] ?? null}
-                    onLogBetOver={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdOver, fairOdds: results.stats[key].fairOverOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null })}
-                    onLogBetUnder={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdUnder, fairOdds: results.stats[key].fairUnderOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null })}
+                    onLogBetOver={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdOver, fairOdds: results.stats[key].fairOverOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null })}
+                    onLogBetUnder={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdUnder, fairOdds: results.stats[key].fairUnderOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null })}
+                    historicalBiasOver={biasOver}
+                    historicalBiasUnder={biasUnder}
                   />
                   <LadderTable
                     statKey={key}
@@ -5686,8 +5724,8 @@ function NBASimulator() {
                     underOdds={results.stats[key].underOdds}
                   />
                 </div>
-              ) : null
-            )}
+              ) : null;
+            })}
 
             {COMBO_CONFIG.map(({ key, label }, i) =>
               results.combos[key] ? (
@@ -5701,8 +5739,8 @@ function NBASimulator() {
                     distModel={results.combos[key].distModel}
                     kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode}
                     sensitivity={results.combos[key].sensitivity ?? null}
-                    onLogBetOver={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdOver, fairOdds: results.combos[key].fairOverOdds, projection: parseFloat(results.combos[key].mean) || null, distModel: results.combos[key].distModel || null, cvValue: null, std: results.combos[key].std ?? null })}
-                    onLogBetUnder={(data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdUnder, fairOdds: results.combos[key].fairUnderOdds, projection: parseFloat(results.combos[key].mean) || null, distModel: results.combos[key].distModel || null, cvValue: null, std: results.combos[key].std ?? null })}
+                    onLogBetOver={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdOver, fairOdds: results.combos[key].fairOverOdds, projection: parseFloat(results.combos[key].mean) || null, distModel: results.combos[key].distModel || null, cvValue: null, std: results.combos[key].std ?? null })}
+                    onLogBetUnder={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.combos[key].propLine), betId: results.combos[key].betIdUnder, fairOdds: results.combos[key].fairUnderOdds, projection: parseFloat(results.combos[key].mean) || null, distModel: results.combos[key].distModel || null, cvValue: null, std: results.combos[key].std ?? null })}
                   />
                   <LadderTable
                     statKey={key}
