@@ -294,8 +294,10 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
       let offset = 0;
       // Precompute KDE model for reuse across chunks (avoids O(n²) CDF rebuilding)
       const rawData = rawDataMap[key];
+      // PTS: same 1.25× variance inflation as the non-uncertainty path.
+      const kdeTargetStd_pu = key === 'pts' ? effectiveStd * 1.25 : effectiveStd;
       const kdeModel = (KDE_STATS.has(key) && rawData)
-        ? buildKDEModel(etrMean, rawData.rawScores, rawData.historicalMean, effectiveStd)
+        ? buildKDEModel(etrMean, rawData.rawScores, rawData.historicalMean, kdeTargetStd_pu)
         : null;
       const cvPct_nb = cvMode && cvValue ? parseFloat(cvValue) : null;
       for (let c = 0; c < CHUNKS && offset < numSims; c++) {
@@ -303,7 +305,14 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
         const n_c  = Math.min(chunkSize, numSims - offset);
         let chunk;
         if (POISSON_STATS.has(key)) {
-          chunk = (cvPct_nb > 0) ? simulateStatNegBin(mu_i, cvPct_nb, n_c) : simulateStatPoisson(mu_i, n_c);
+          // THREES: same r=2.0 minimum overdispersion floor as the non-uncertainty path.
+          if (key === 'threes' && mu_i > 0) {
+            const floorCv_pu = Math.sqrt(1 / mu_i + 0.5) * 100;
+            const effectiveCvPct_pu = Math.max(cvPct_nb || 0, floorCv_pu);
+            chunk = simulateStatNegBin(mu_i, effectiveCvPct_pu, n_c);
+          } else {
+            chunk = (cvPct_nb > 0) ? simulateStatNegBin(mu_i, cvPct_nb, n_c) : simulateStatPoisson(mu_i, n_c);
+          }
         } else if (KDE_STATS.has(key)) {
           if (kdeModel) {
             chunk = new Float64Array(n_c);
@@ -334,31 +343,46 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
 
     if (POISSON_STATS.has(key)) {
       const cvPct = cvMode && cvValue ? parseFloat(cvValue) : null;
-      simResults[key] = (cvPct > 0)
-        ? simulateStatNegBin(mean, cvPct, numSims)
-        : simulateStatPoisson(mean, numSims);
+      const mu = parseFloat(mean) || 0;
+      // THREES: enforce minimum NegBin overdispersion corresponding to r = 2.0, applied even
+      // when no CV data is loaded. Per-36 CV blending consistently underestimates game-level
+      // THREES variance — calibration data shows THREES OVER hits 10-15pp below Poisson
+      // predictions at typical 2.5–3.5 lines. Pure Poisson with λ=2.5 gives P(X≥3) = 54%
+      // while observed hit rate is ~43%. r=2.0 (empirically calibrated minimum) gives
+      // P(X≥3) ≈ 40%, matching observed rates. CV floor derivation: NegBin variance =
+      // μ + μ²/r, so CV = sqrt(1/μ + 1/r). At r=2: floorCV = sqrt(1/μ + 0.5) × 100.
+      // STL/BLK are unaffected — their NegBin is well-calibrated and should not be floored.
+      if (key === 'threes' && mu > 0) {
+        const floorCv = Math.sqrt(1 / mu + 0.5) * 100;
+        const effectiveCvPct = Math.max(cvPct || 0, floorCv);
+        simResults[key] = simulateStatNegBin(mean, effectiveCvPct, numSims);
+      } else {
+        simResults[key] = (cvPct > 0)
+          ? simulateStatNegBin(mean, cvPct, numSims)
+          : simulateStatPoisson(mean, numSims);
+      }
     } else if (KDE_STATS.has(key)) {
       // Fallback chain for pts/reb/ast:
       // 1. KDE hybrid — empirical shape from historical scores, recentered to ETR mean
       // 2. Gamma (pts, ast) / log-normal (reb) — parametric fallback
       const rawData = rawDataMap[key];
       if (rawData) {
-        const kde = simulateStatKDE(mean, rawData.rawScores, rawData.historicalMean, numSims, effectiveStd);
+        // PTS: apply 1.25× variance inflation on targetStd. Calibration data (4-day sample,
+        // N=351) shows PTS overconfidence in BOTH directions simultaneously (-6.7pp OVER,
+        // -6.4pp UNDER gap vs model). This is the signature of a distribution that is too
+        // narrow/peaked relative to actual game-score fat tails (foul trouble, rest, blowouts).
+        // Inflating targetStd widens the KDE bandwidth, spreading probability mass away from
+        // the center and eliminating spurious edge on both sides.
+        // AST/REB use raw effectiveStd — REB is well-calibrated; AST UNDER edge is genuine
+        // directional signal, not a width problem, so widening would corrupt it.
+        //
+        // The 20% log-normal blend previously applied here was removed: it added right-tail
+        // mass for all KDE stats unconditionally, inflating OVER probability by ~3-5pp and
+        // degrading OVER calibration across PTS, AST. UNDER side was unaffected (left tail
+        // unchanged), creating the asymmetric OVER underperformance seen in calibration data.
+        const kdeTargetStd = key === 'pts' ? effectiveStd * 1.25 : effectiveStd;
+        const kde = simulateStatKDE(mean, rawData.rawScores, rawData.historicalMean, numSims, kdeTargetStd);
         if (kde !== null) {
-          // Blend 20% log-normal to prevent KDE tail collapse on extreme alt lines.
-          // KDE bootstraps from observed scores and cannot project beyond the observed
-          // range + bandwidth; log-normal provides a probability floor at 2+ SD extremes.
-          const lnCount = Math.round(numSims * 0.20);
-          const lnSamples = simulateStatLogNormal(mean, effectiveStd, lnCount);
-          for (let i = 0; i < lnCount; i++) kde[numSims - lnCount + i] = lnSamples[i];
-          // Fisher-Yates shuffle so the 20% log-normal blend is uniformly distributed
-          // across the array. DistBar reads only the first 5k elements; without shuffling
-          // it would never display the tail blend while calcProbability uses all samples —
-          // causing the histogram to visually misrepresent the distribution used for odds.
-          for (let i = numSims - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            const tmp = kde[i]; kde[i] = kde[j]; kde[j] = tmp;
-          }
           simResults[key] = kde;
           return;
         }
