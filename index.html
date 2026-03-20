@@ -1589,6 +1589,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   viewMode, setViewMode, gameData }) {
   const { useMemo, useState } = React;
   const [strategyB, setStrategyB] = useState(false);
+  const [strategyC, setStrategyC] = useState(false);
 
   const filtered = useMemo(() => {
     return results
@@ -1596,7 +1597,8 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         (!positiveOnly || r.edge > 0) &&
         r.edge >= minEdge &&
         statFilter.has(r.stat) &&
-        (!strategyB || STRATEGY_B_FILTER(r))
+        (!strategyB || STRATEGY_B_FILTER(r)) &&
+        (!strategyC || STRATEGY_C_FILTER(r))
       )
       .sort((a, b) => {
         const mult = sortDir === 'desc' ? -1 : 1;
@@ -1605,7 +1607,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         if (typeof av === 'string') return mult * av.localeCompare(bv);
         return mult * (av - bv);
       });
-  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB]);
+  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC]);
 
   const trackedCount = tracked ? tracked.size : 0;
   const cols = [
@@ -1687,13 +1689,20 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           background: positiveOnly ? 'rgba(34,197,94,0.1)' : 'rgba(15,23,42,0.4)',
           color: positiveOnly ? '#4ade80' : '#475569',
         }}>+EV ONLY</button>
-        <button onClick={() => setStrategyB(b => !b)} style={{
+        <button onClick={() => { setStrategyB(b => !b); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
           border: strategyB ? '1px solid rgba(167,139,250,0.5)' : '1px solid rgba(148,163,184,0.15)',
           background: strategyB ? 'rgba(167,139,250,0.15)' : 'rgba(15,23,42,0.4)',
           color: strategyB ? '#a78bfa' : '#475569',
         }}>STRATEGY B</button>
+        <button onClick={() => { setStrategyC(c => !c); setStrategyB(false); }} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: strategyC ? '1px solid rgba(45,212,191,0.5)' : '1px solid rgba(148,163,184,0.15)',
+          background: strategyC ? 'rgba(45,212,191,0.12)' : 'rgba(15,23,42,0.4)',
+          color: strategyC ? '#2dd4bf' : '#475569',
+        }}>STRATEGY C</button>
         {/* View mode toggle */}
         <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
           {[['list','≡ LIST'],['game','⬡ GAME']].map(([mode, label]) => (
@@ -1708,7 +1717,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         </div>
       </div>
 
-      {/* Strategy B criteria chip */}
+      {/* Strategy criteria chip */}
       {strategyB && (
         <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
           background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.15)',
@@ -1718,6 +1727,18 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           </span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
             CV ≥ 36 games · OVER edge ≥ 5% · PTS edge ≥ 5% · exclude ≥+176 · −135 to −121 edge ≥ 5%
+          </span>
+        </div>
+      )}
+      {strategyC && (
+        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
+          background: 'rgba(45,212,191,0.05)', border: '1px solid rgba(45,212,191,0.2)',
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#2dd4bf', letterSpacing: 0.5, fontWeight: 700 }}>
+            STRATEGY C
+          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
+            Strategy B + no PTS · UNDER only (REB OVER exempt) · excludes THREES OVER · AST OVER
           </span>
         </div>
       )}
@@ -3208,9 +3229,24 @@ const STRATEGY_B_FILTER = e => {
   return true;
 };
 
+// Strategy C — tightest filter, built on Strategy B baseline.
+// Data: N=668 Strategy B bets. Key additional cuts:
+// (1) PTS excluded entirely — -7.4% / -12.2% ROI both sides, model overconfident post-KDE blend removal.
+// (2) OVER side excluded for all stats except REB — UNDER +10% ROI vs OVER -0.2% in Strategy B.
+//     REB exempted: +9.6% OVER ROI in Strategy B (N=40), well-calibrated both directions.
+// (3) THREES OVER and AST OVER naturally excluded by OVER rule; redundant but intentional.
+// All Strategy B gates still apply (36+ games, ≥+176 exclusion, -135/-121 gate).
+const STRATEGY_C_FILTER = e => {
+  if (!STRATEGY_B_FILTER(e))                    return false;  // inherit all Strategy B gates
+  if (e.stat === 'pts')                         return false;  // PTS excluded entirely both directions
+  if (e.side === 'OVER' && e.stat !== 'reb')    return false;  // UNDER only; REB OVER exempted (+9.6% ROI, N=40)
+  return true;
+};
+
 const STRATEGY_LABELS = {
   all: 'ALL BETS',
   b:   'STRATEGY B',
+  c:   'STRATEGY C',
 };
 
 function CalibrationPanel({
@@ -3233,10 +3269,11 @@ function CalibrationPanel({
 
   // Strategy-filtered views — same data, different lens. Filtering happens here;
   // computeCalibrationStats handles its own settled-only filter internally.
-  const strategyLog   = React.useMemo(
-    () => analysisStrategy === 'b' ? log.filter(STRATEGY_B_FILTER) : log,
-    [log, analysisStrategy]
-  );
+  const strategyLog   = React.useMemo(() => {
+    if (analysisStrategy === 'b') return log.filter(STRATEGY_B_FILTER);
+    if (analysisStrategy === 'c') return log.filter(STRATEGY_C_FILTER);
+    return log;
+  }, [log, analysisStrategy]);
   const strategyStats = React.useMemo(() => computeCalibrationStats(strategyLog), [strategyLog]);
   const strategySettledN = React.useMemo(
     () => strategyLog.filter(e => e.result === 'won' || e.result === 'lost' || e.result === 'push').length,
@@ -3413,12 +3450,12 @@ function CalibrationPanel({
                     </div>
                     {/* Strategy toggle — only meaningful when analysis is open */}
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {['all', 'b'].map(key => {
+                      {['all', 'b', 'c'].map(key => {
                         const isActive = analysisStrategy === key;
                         const n = key === 'all' ? settled.length : strategySettledN;
-                        const activeColor  = key === 'b' ? '#a78bfa' : '#94a3b8';
-                        const activeBorder = key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
-                        const activeBg     = key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
+                        const activeColor  = key === 'c' ? '#2dd4bf' : key === 'b' ? '#a78bfa' : '#94a3b8';
+                        const activeBorder = key === 'c' ? 'rgba(45,212,191,0.4)' : key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
+                        const activeBg     = key === 'c' ? 'rgba(45,212,191,0.08)' : key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
                         return (
                           <button key={key}
                             onClick={e => { e.stopPropagation(); setAnalysisStrategy(key); if (!analysisOpen) setAnalysisOpen(true); }}
@@ -3435,7 +3472,7 @@ function CalibrationPanel({
                     </div>
                   </div>
 
-                  {/* Strategy B criteria legend — shown only when B is active */}
+                  {/* Strategy criteria legend — shown when B or C is active */}
                   {analysisOpen && analysisStrategy === 'b' && (
                     <div style={{ margin: '0 12px 8px', padding: '6px 10px', borderRadius: 5,
                       background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.15)' }}>
@@ -3444,6 +3481,17 @@ function CalibrationPanel({
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
                         CV ≥ 36 games · OVER edge ≥ 5% · PTS edge ≥ 5% · exclude ≥+176 · -135 to -121 edge ≥ 5%
+                      </span>
+                    </div>
+                  )}
+                  {analysisOpen && analysisStrategy === 'c' && (
+                    <div style={{ margin: '0 12px 8px', padding: '6px 10px', borderRadius: 5,
+                      background: 'rgba(45,212,191,0.05)', border: '1px solid rgba(45,212,191,0.2)' }}>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: '#2dd4bf', letterSpacing: 0.5 }}>
+                        STRATEGY C CRITERIA:
+                      </span>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
+                        Strategy B + no PTS · UNDER only (REB OVER exempt) · excludes THREES OVER · AST OVER
                       </span>
                     </div>
                   )}
@@ -3457,6 +3505,8 @@ function CalibrationPanel({
                     <div style={{ padding: '12px', fontSize: 9, color: '#475569', fontFamily: mono }}>
                       {analysisStrategy === 'b'
                         ? `Strategy B has ${strategySettledN} settled plays — need at least 5 for analysis.`
+                        : analysisStrategy === 'c'
+                        ? `Strategy C has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : 'Need at least 5 settled plays for analysis.'}
                     </div>
                   )}
