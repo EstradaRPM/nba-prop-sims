@@ -2731,6 +2731,29 @@ function computeCalibrationStats(entries) {
     });
   });
 
+  // By game date — last 7 days with settled bets, newest first
+  const getGameDate = e => {
+    const ts = e.commenceTime || e.loggedAt;
+    if (!ts) return null;
+    return new Date(ts).toLocaleDateString('en-CA'); // YYYY-MM-DD (locale-independent ISO format)
+  };
+  const dateMap = {};
+  settled.forEach(e => {
+    const d = getGameDate(e);
+    if (!d) return;
+    if (!dateMap[d]) dateMap[d] = [];
+    dateMap[d].push(e);
+  });
+  const recentDays = Object.entries(dateMap)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .slice(0, 7)
+    .map(([dateStr, entries]) => {
+      const g = groupStats(entries); // groupStats already excludes pushes
+      const label = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return { dateStr, label, ...(g || {}) };
+    })
+    .filter(d => d.n > 0);
+
   return {
     total: settled.length, wins, losses, pushes,
     avgModelProb, actualRate,
@@ -2751,6 +2774,7 @@ function computeCalibrationStats(entries) {
     cvSampleBuckets, cvSampleWithData,
     lineGapBuckets,  lineGapWithData,
     statSideRows,
+    recentDays,
   };
 }
 
@@ -2759,7 +2783,7 @@ function CalibrationAnalysis({ stats: s }) {
   if (!s) return null;
   const mono = "'JetBrains Mono', monospace";
 
-  const ALL_SECTIONS = ['overall','calibration','stat','statside','side','edge','odds','total','spread','time','clv','distmodel','minutes','cvsample','linegap','trend'];
+  const ALL_SECTIONS = ['overall','calibration','stat','statside','side','edge','odds','total','spread','time','clv','distmodel','minutes','cvsample','linegap','trend','recent'];
   const [openSections, setOpenSections] = React.useState(() =>
     Object.fromEntries(ALL_SECTIONS.map(k => [k, true]))
   );
@@ -3113,6 +3137,25 @@ function CalibrationAnalysis({ stats: s }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 7, color: '#475569', fontFamily: mono, marginTop: 2 }}>
                 <span>oldest</span><span>50% line</span><span>most recent</span>
               </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Recent days breakdown */}
+      {s.recentDays && s.recentDays.length > 0 && (
+        <>
+          <SectionHeader id="recent">
+            RECENT DAYS
+            <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+              — last {s.recentDays.length} day{s.recentDays.length !== 1 ? 's' : ''} with settled bets
+            </span>
+          </SectionHeader>
+          {openSections.recent && (
+            <>
+              {s.recentDays.map(d => (
+                <GroupRow key={d.dateStr} label={d.label} g={d} />
+              ))}
             </>
           )}
         </>
