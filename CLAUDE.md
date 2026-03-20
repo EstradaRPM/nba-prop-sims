@@ -385,13 +385,40 @@ The simulator fetches this URL on load and degrades gracefully if the fetch fail
 
 ## Git Branch
 
-Most recent development branch: `claude/add-combo-props-fetch-k7ZPN`
+Most recent development branch: `claude/analyze-strategy-b-results-3gD0k`
 
 Commit messages should be descriptive (e.g., `Add correlation banner for PRA signals`, not `Update index.html`).
 
 ---
 
 ## Recent Changes
+
+### 2026-03-20 — Model Calibration Fixes: KDE LN Blend Removal, PTS Variance Inflation, THREES NegBin Floor
+
+Driven by 4-day calibration dataset (N=1525 overall, N=668 Strategy B). Three structural model biases identified and corrected:
+
+**KDE 20% log-normal blend removed (KDE OVER bias fix)**:
+- Removed the unconditional 20% log-normal blend previously applied to all KDE simulation output (PTS/REB/AST).
+- The blend was added to prevent tail collapse on extreme alt lines, but it inflated right-tail probability mass unconditionally — increasing P(OVER) by ~3-5pp for near-mean props where all betting volume sits. UNDER side was unaffected (left tail unchanged), creating the asymmetric OVER underperformance: KDE OVER -5.5pp gap vs model, KDE UNDER near-flat.
+- In Strategy B (36+ game CV), the blend was actively degrading performance: KDE -8.9pp gap, -8.0% ROI vs NegBin +0.3pp, +7.7% ROI.
+
+**PTS variance inflation 1.25× (overconfidence fix)**:
+- PTS showed overconfidence in BOTH directions (OVER -7.6pp, UNDER -6.4pp in D1; worsening to -10.4pp / -9.0pp in Strategy B). Both directions losing is the signature of a distribution too narrow relative to actual fat-tailed game-score outcomes (foul trouble, rest, blowouts, matchup blowups).
+- Added `kdeTargetStd = effectiveStd * 1.25` for PTS in both the main path and projection-uncertainty path. This widens the KDE bandwidth, spreading probability mass away from center and eliminating spurious edge in both directions.
+- AST/REB intentionally not inflated: REB is well-calibrated; AST UNDER edge (+19.4% Strategy B) is genuine directional market signal, not a width problem — widening would corrupt it.
+
+**THREES minimum NegBin overdispersion floor (THREES OVER fix)**:
+- THREES OVER was the single worst bet: -10.8pp D1 / -14.8pp Strategy B, -15.5% / -16.4% ROI.
+- Root cause: auto-blended THREES CV often falls below the Poisson threshold `1/√mean`, triggering pure Poisson fallback. Poisson with λ=2.5 gives P(X≥3) = 54%, but observed hit rate is ~43%.
+- Per-36 normalization systematically underestimates discrete game-level THREES variance — shot selection, cold nights, defensive schemes produce more zero-make games than Poisson predicts.
+- Fix: enforce minimum NegBin with r ≤ 2.0 for all THREES bets regardless of CV data. CV floor = `sqrt(1/μ + 0.5) × 100` (algebraic inverse of r=2.0). At mean=2.5, this forces CV ≥ 94.9%, giving P(X≥3) ≈ 40% — matching observed rates.
+- Applied even without CV data (no-CV path also floors to NegBin). STL/BLK unaffected.
+- Both main simulation path and projection-uncertainty (chunked) path updated identically.
+
+**What was NOT changed**:
+- STL/BLK NegBin: best-performing model component (+24.9% STL UNDER ROI). Hands off.
+- REB KDE: performing well in both directions in Strategy B. No inflation applied.
+- AST KDE: UNDER edge is genuine; only OVER is broken. LN blend removal addresses it without corrupting the UNDER signal.
 
 ### 2026-03-16 — Combo Prop Line Auto-Population + Stale State Bug Fix
 
