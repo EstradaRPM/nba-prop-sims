@@ -297,6 +297,35 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
     reb_raw, reb_mean_raw = build_raw_windows("reb")
     ast_raw, ast_mean_raw = build_raw_windows("ast")
 
+    # Unfiltered raw scores for KDE: all games where player actually played (MIN >= 5).
+    # Unlike pts_raw (situation-filtered), this includes blowout/foul-trouble/overtime
+    # games that fall outside the ±25% minutes band. The KDE uses these to capture the
+    # full empirical game distribution including the left and right tail games that the
+    # situation filter excludes. CV computation still uses the filtered per-36 rates above.
+    def build_raw_windows_unfiltered(stat_key: str) -> tuple[dict, dict]:
+        all_played = [g for g in raw_games if g["min"] >= 5.0]
+        raw: dict[str, list[float] | None] = {}
+        mean_raw: dict[str, float | None] = {}
+        windows_unfiltered = {
+            "season": all_played,
+            "last20": all_played[-20:],
+            "last10": all_played[-10:],
+            "last5":  all_played[-5:],
+        }
+        for window_name, window_games in windows_unfiltered.items():
+            scores = [round(g[stat_key], 1) for g in window_games]
+            if len(scores) >= 5:
+                raw[window_name] = scores
+                mean_raw[window_name] = round(sum(scores) / len(scores), 2)
+            else:
+                raw[window_name] = None
+                mean_raw[window_name] = None
+        return raw, mean_raw
+
+    pts_raw_all, pts_mean_raw_all = build_raw_windows_unfiltered("pts")
+    reb_raw_all, reb_mean_raw_all = build_raw_windows_unfiltered("reb")
+    ast_raw_all, ast_mean_raw_all = build_raw_windows_unfiltered("ast")
+
     return {
         "nba_id": player_id,
         "team": team,
@@ -311,6 +340,12 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
         "reb_mean_raw": reb_mean_raw,
         "ast_raw": ast_raw,
         "ast_mean_raw": ast_mean_raw,
+        "pts_raw_all": pts_raw_all,
+        "pts_mean_raw_all": pts_mean_raw_all,
+        "reb_raw_all": reb_raw_all,
+        "reb_mean_raw_all": reb_mean_raw_all,
+        "ast_raw_all": ast_raw_all,
+        "ast_mean_raw_all": ast_mean_raw_all,
     }
 
 
@@ -435,6 +470,15 @@ def main() -> None:
         assert "reb_mean_raw" in sample, "Schema error: missing 'reb_mean_raw' key"
         assert "ast_raw" in sample, "Schema error: missing 'ast_raw' key"
         assert "ast_mean_raw" in sample, "Schema error: missing 'ast_mean_raw' key"
+        assert "pts_raw_all" in sample, "Schema error: missing 'pts_raw_all' key"
+        assert "pts_mean_raw_all" in sample, "Schema error: missing 'pts_mean_raw_all' key"
+        assert "reb_raw_all" in sample, "Schema error: missing 'reb_raw_all' key"
+        assert "reb_mean_raw_all" in sample, "Schema error: missing 'reb_mean_raw_all' key"
+        assert "ast_raw_all" in sample, "Schema error: missing 'ast_raw_all' key"
+        assert "ast_mean_raw_all" in sample, "Schema error: missing 'ast_mean_raw_all' key"
+        assert all(
+            w in sample["pts_raw_all"] for w in ["season", "last20", "last10", "last5"]
+        ), "Schema error: missing window keys in pts_raw_all"
         print(f"Schema check PASSED (validated against '{sample_name}')")
 
 

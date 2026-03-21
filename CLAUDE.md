@@ -318,7 +318,13 @@ python scripts/compute_cv.py
       "reb_raw":      { "season": [6,8,5,7,9,4,6], "last20": [6,8,5,7,9,4,6], "last10": [6,8,5,7,9], "last5": [7,9,4,6,8] },
       "reb_mean_raw": { "season": 6.43, "last20": 6.43, "last10": 7.0, "last5": 6.8 },
       "ast_raw":      { "season": [8,7,9,6,10,7,8], "last20": [8,7,9,6,10,7,8], "last10": [8,7,9,6,10], "last5": [6,10,7,8,7] },
-      "ast_mean_raw": { "season": 7.86, "last20": 7.86, "last10": 8.0, "last5": 7.6 }
+      "ast_mean_raw": { "season": 7.86, "last20": 7.86, "last10": 8.0, "last5": 7.6 },
+      "pts_raw_all":      { "season": [28,31,22,35,40,18,27,12,34], "last20": [...], "last10": [...], "last5": [...] },
+      "pts_mean_raw_all": { "season": 27.44, "last20": 27.44, "last10": 29.8, "last5": 28.0 },
+      "reb_raw_all":      { "season": [...], "last20": [...], "last10": [...], "last5": [...] },
+      "reb_mean_raw_all": { "season": 6.1, "last20": 6.1, "last10": 6.6, "last5": 6.4 },
+      "ast_raw_all":      { "season": [...], "last20": [...], "last10": [...], "last5": [...] },
+      "ast_mean_raw_all": { "season": 7.5, "last20": 7.5, "last10": 7.8, "last5": 7.3 }
     }
   }
 }
@@ -328,7 +334,8 @@ python scripts/compute_cv.py
 - **`position`** field is always `""` — `PlayerGameLog` does not return position; ETR provides it on the JS side
 - **`null` values** mean the window had fewer than 5 qualifying games, or the stat mean was 0 (e.g., a player made 0 three-pointers in the last 5 games — CV is undefined, not zero)
 - **Windows**: `season` = all filtered games this season; `last20/last10/last5` = most recent N qualifying games
-- **`pts_raw` / `reb_raw` / `ast_raw`** — Arrays of situation-filtered raw game totals (not per-36) per window. Used by the JS KDE hybrid sampler (`simulateStatKDE`). Each is `null` if the window has < 5 games.
+- **`pts_raw` / `reb_raw` / `ast_raw`** — Arrays of situation-filtered raw game totals (not per-36) per window. Legacy KDE path (used when `*_raw_all` unavailable). Each is `null` if the window has < 5 games.
+- **`pts_raw_all` / `reb_raw_all` / `ast_raw_all`** — Arrays of unfiltered raw game totals (all games with `MIN >= 5`). Preferred KDE training data — includes blowout, foul-trouble, and overtime games that the situation filter strips. The `targetStd` is computed empirically from these scores via `computeEmpiricalStd()`. Badge shows **"KDE+"** when this path is active.
 - **`pts_mean_raw` / `reb_mean_raw` / `ast_mean_raw`** — Mean of the raw game totals for each window (same filter). Used as the historical mean for KDE recentering.
 - **Combo CVs** (`pra`, `pr`, `pa`, `ra`, `sb` inside `cv`) — Empirical combo CVs for direct simulation. When available, the JS uses these for log-normal combo simulation instead of element-wise component summing, correctly capturing within-game correlation (all stats co-move with minutes).
 
@@ -392,6 +399,33 @@ Commit messages should be descriptive (e.g., `Add correlation banner for PRA sig
 ---
 
 ## Recent Changes
+
+### 2026-03-21 — PTS KDE Root Cause Fix: Unfiltered Raw Scores + Empirical TargetStd
+
+**Root cause identified**: The situation filter in `compute_cv.py` (exclude games where `|min - trailing_mean| / trailing_mean > 0.25`) removes blowout/foul-trouble/overtime games from `pts_raw`. These are the left and right tail games of the scoring distribution. The KDE was bootstrapping from this filtered dataset, producing a distribution 15-25% narrower than the true game distribution. Both OVER and UNDER appeared to have edge because the model was systematically too confident: model said ~56% on both directions, reality was ~45-50% (calibration data: PTS OVER -11.6pp, UNDER -7.5pp).
+
+The previous 1.25× multiplier was a partial compensation but had two structural flaws:
+1. Gaussian noise is symmetric — missing left tail (blowout games) is larger than missing right tail
+2. Large bandwidth `h` degrades the KDE toward Gaussian, losing empirical shape benefits
+3. Didn't address the Pythagorean CV underestimation of the rate-minutes covariance
+
+**The fix — two coordinated changes:**
+
+**`compute_cv.py`**: Exports `pts_raw_all`, `reb_raw_all`, `ast_raw_all` (and `*_mean_raw_all`) per window. These use all games where `MIN >= 5` (only true DNPs excluded), preserving the full empirical distribution including tail games.
+
+**`index.html`**:
+- `computeEmpiricalStd(rawScores, etrMean)`: computes empirical std from unfiltered raw scores, scaled to ETR mean. This captures all four variance components: rate variance, minutes variance, rate-minutes covariance (stars play more in close games AND score better), and tail events.
+- `runSimulation` KDE path: when `pts_raw_all` is available, use it for bootstrap training data and `computeEmpiricalStd` as `targetStd`. Removes the 1.25× multiplier for this path.
+- Legacy fallback: when `pts_raw_all` is absent (old cv_data.json), falls back to situation-filtered `pts_raw` with 1.25× multiplier.
+- `ptsRawDataAll`, `rebRawDataAll`, `astRawDataAll` state variables added; loaded in `handleLoadCv`, reset in `handleSelectProjection` / `handleClearPlayer`.
+- Distribution model badge: **"KDE+"** (green) = unfiltered path active; **"KDE"** (cyan) = legacy filtered path.
+
+**Why empirical raw CV > Pythagorean per-36 + minutes CV for targetStd:**
+The Pythagorean formula `sqrt(cvPer36² + cvMin²)` assumes rate and minutes are *independent*. For PTS, they are positively correlated: more minutes → higher usage → more points (and vice versa in blowouts). The true game-level variance is `Var(pts/36)×(mean_min/36)² + Var(min)×(mean_pts36)² + 2×Cov(pts/36, min/36)×mean_pts36×mean_min/36`. The covariance term is positive and systematically ignored by Pythagorean, making effectiveStd too small. The unfiltered empirical std captures all three terms simultaneously without needing to estimate the covariance separately.
+
+**What was NOT changed**: STL/BLK NegBin, REB/AST KDE paths (both well-calibrated), THREES NegBin floor.
+
+---
 
 ### 2026-03-20 — Model Calibration Fixes: KDE LN Blend Removal, PTS Variance Inflation, THREES NegBin Floor
 
