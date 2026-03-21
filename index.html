@@ -3070,6 +3070,19 @@ function computeCalibrationStats(entries) {
     })
     .filter(d => d.n > 0);
 
+  // PTS OVER / UNDER per day — same day windows as recentDays but filtered to pts
+  const ptsDays = Object.entries(dateMap)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .slice(0, 7)
+    .map(([dateStr, entries]) => {
+      const pts = entries.filter(e => e.stat === 'pts');
+      const label = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const over  = groupStats(pts.filter(e => e.side === 'OVER'));
+      const under = groupStats(pts.filter(e => e.side === 'UNDER'));
+      return { dateStr, label, over, under };
+    })
+    .filter(d => d.over || d.under);
+
   return {
     total: settled.length, wins, losses, pushes,
     avgModelProb, actualRate,
@@ -3091,6 +3104,7 @@ function computeCalibrationStats(entries) {
     lineGapBuckets,  lineGapWithData,
     statSideRows,
     recentDays,
+    ptsDays,
   };
 }
 
@@ -3099,7 +3113,7 @@ function CalibrationAnalysis({ stats: s }) {
   if (!s) return null;
   const mono = "'JetBrains Mono', monospace";
 
-  const ALL_SECTIONS = ['overall','calibration','stat','statside','side','edge','odds','total','spread','time','clv','distmodel','minutes','cvsample','linegap','trend','recent'];
+  const ALL_SECTIONS = ['overall','calibration','stat','statside','side','edge','odds','total','spread','time','clv','distmodel','minutes','cvsample','linegap','trend','recent','ptsday'];
   const [openSections, setOpenSections] = React.useState(() =>
     Object.fromEntries(ALL_SECTIONS.map(k => [k, true]))
   );
@@ -3474,6 +3488,28 @@ function CalibrationAnalysis({ stats: s }) {
               ))}
             </>
           )}
+        </>
+      )}
+
+      {s.ptsDays && s.ptsDays.length > 0 && (
+        <>
+          <SectionHeader id="ptsday">
+            PTS OVER / UNDER BY DAY
+            <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+              — last {s.ptsDays.length} day{s.ptsDays.length !== 1 ? 's' : ''} with PTS bets
+            </span>
+          </SectionHeader>
+          {openSections.ptsday && s.ptsDays.map(d => (
+            <React.Fragment key={d.dateStr}>
+              <div style={{ fontSize: 8, color: '#475569', fontFamily: mono,
+                padding: '5px 0 1px', borderTop: '1px solid rgba(148,163,184,0.07)',
+                marginTop: 4 }}>
+                {d.label}
+              </div>
+              {d.over  && <GroupRow label="OVER"  g={d.over}  />}
+              {d.under && <GroupRow label="UNDER" g={d.under} />}
+            </React.Fragment>
+          ))}
         </>
       )}
     </div>
