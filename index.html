@@ -272,8 +272,11 @@ const LOG_NORMAL_STATS = new Set([]);
 const POISSON_STATS    = new Set(['stl', 'blk', 'threes']);
 const KDE_STATS        = new Set(['pts', 'reb', 'ast']);
 
-function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projSDs = {}) {
-  const rawDataMap = { pts: ptsRawData, reb: rebRawData, ast: astRawData };
+function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projSDs = {}, ptsRawDataAll = null, rebRawDataAll = null, astRawDataAll = null) {
+  const rawDataMap    = { pts: ptsRawData,    reb: rebRawData,    ast: astRawData    };
+  // Unfiltered raw data map — preferred for KDE when available.
+  // Contains blowout/overtime/foul-trouble games stripped by the situation filter.
+  const rawDataMapAll = { pts: ptsRawDataAll, reb: rebRawDataAll, ast: astRawDataAll };
   const simResults = {};
   Object.keys(stats).forEach((key) => {
     const { mean, stdDev, cvMode, cvValue } = stats[key];
@@ -292,12 +295,22 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
       const chunkSize = Math.ceil(numSims / CHUNKS);
       const combined = new Float64Array(numSims);
       let offset = 0;
-      // Precompute KDE model for reuse across chunks (avoids O(n²) CDF rebuilding)
-      const rawData = rawDataMap[key];
-      // PTS: same 1.25× variance inflation as the non-uncertainty path.
-      const kdeTargetStd_pu = key === 'pts' ? effectiveStd * 1.25 : effectiveStd;
-      const kdeModel = (KDE_STATS.has(key) && rawData)
-        ? buildKDEModel(etrMean, rawData.rawScores, rawData.historicalMean, kdeTargetStd_pu)
+      // Precompute KDE model for reuse across chunks (avoids O(n²) CDF rebuilding).
+      // Prefer unfiltered raw data (_raw_all) for PTS/REB/AST — same rationale as the
+      // non-uncertainty path: unfiltered data includes tail games and captures rate-minutes
+      // covariance. Falls back to situation-filtered data with 1.25× PTS multiplier.
+      const rawDataAll = rawDataMapAll[key];
+      const rawData    = rawDataMap[key];
+      const empiricalStd_pu = (KDE_STATS.has(key) && rawDataAll)
+        ? computeEmpiricalStd(rawDataAll.rawScores, etrMean)
+        : null;
+      const useUnfiltered_pu = empiricalStd_pu !== null;
+      const kdeSource_pu    = useUnfiltered_pu ? rawDataAll : rawData;
+      const kdeTargetStd_pu = useUnfiltered_pu
+        ? empiricalStd_pu
+        : (key === 'pts' ? effectiveStd * 1.25 : effectiveStd);
+      const kdeModel = (KDE_STATS.has(key) && kdeSource_pu)
+        ? buildKDEModel(etrMean, kdeSource_pu.rawScores, kdeSource_pu.historicalMean, kdeTargetStd_pu)
         : null;
       const cvPct_nb = cvMode && cvValue ? parseFloat(cvValue) : null;
       for (let c = 0; c < CHUNKS && offset < numSims; c++) {
@@ -363,25 +376,39 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
       }
     } else if (KDE_STATS.has(key)) {
       // Fallback chain for pts/reb/ast:
-      // 1. KDE hybrid — empirical shape from historical scores, recentered to ETR mean
-      // 2. Gamma (pts, ast) / log-normal (reb) — parametric fallback
-      const rawData = rawDataMap[key];
+      // 1. KDE hybrid (unfiltered) — empirical shape from all played games (MIN ≥ 5),
+      //    targetStd derived from the empirical raw CV of those scores. This captures
+      //    blowout/foul-trouble/overtime tails that the situation-filtered pts_raw misses,
+      //    and correctly accounts for the positive rate-minutes covariance that the
+      //    Pythagorean sqrt(cvPer36² + cvMin²) formula underestimates for PTS.
+      // 2. KDE hybrid (filtered) — situation-filtered scores; PTS gets 1.25× targetStd
+      //    as a partial correction for the missing tail games (legacy fallback for older
+      //    cv_data.json lacking _raw_all fields).
+      // 3. Gamma (pts, ast) / LogNormal (reb) — parametric fallback when no raw data.
+      const rawDataAll = rawDataMapAll[key];
+      const rawData    = rawDataMap[key];
+      const etrMean    = parseFloat(mean) || 0;
+
+      // Path 1: unfiltered KDE with empirically-derived targetStd
+      if (rawDataAll) {
+        const empiricalStd = computeEmpiricalStd(rawDataAll.rawScores, etrMean);
+        // empiricalStd may be null if rawScores is thin; fall through to path 2 if so.
+        if (empiricalStd !== null) {
+          const kde = simulateStatKDE(etrMean, rawDataAll.rawScores, rawDataAll.historicalMean, numSims, empiricalStd);
+          if (kde !== null) {
+            simResults[key] = kde;
+            return;
+          }
+        }
+      }
+
+      // Path 2: situation-filtered KDE (legacy / missing _raw_all)
       if (rawData) {
-        // PTS: apply 1.25× variance inflation on targetStd. Calibration data (4-day sample,
-        // N=351) shows PTS overconfidence in BOTH directions simultaneously (-6.7pp OVER,
-        // -6.4pp UNDER gap vs model). This is the signature of a distribution that is too
-        // narrow/peaked relative to actual game-score fat tails (foul trouble, rest, blowouts).
-        // Inflating targetStd widens the KDE bandwidth, spreading probability mass away from
-        // the center and eliminating spurious edge on both sides.
-        // AST/REB use raw effectiveStd — REB is well-calibrated; AST UNDER edge is genuine
-        // directional signal, not a width problem, so widening would corrupt it.
-        //
-        // The 20% log-normal blend previously applied here was removed: it added right-tail
-        // mass for all KDE stats unconditionally, inflating OVER probability by ~3-5pp and
-        // degrading OVER calibration across PTS, AST. UNDER side was unaffected (left tail
-        // unchanged), creating the asymmetric OVER underperformance seen in calibration data.
+        // PTS: 1.25× multiplier partially compensates for the missing tail games when
+        // unfiltered data is unavailable. This was the primary model prior to the
+        // unfiltered-data fix. REB/AST are well-calibrated; no multiplier applied.
         const kdeTargetStd = key === 'pts' ? effectiveStd * 1.25 : effectiveStd;
-        const kde = simulateStatKDE(mean, rawData.rawScores, rawData.historicalMean, numSims, kdeTargetStd);
+        const kde = simulateStatKDE(etrMean, rawData.rawScores, rawData.historicalMean, numSims, kdeTargetStd);
         if (kde !== null) {
           simResults[key] = kde;
           return;
@@ -490,6 +517,33 @@ function calcSensitivity(simValues, propLine, mean) {
     p5:  calcProbability(simValues, line - m * 0.05).over,
     p10: calcProbability(simValues, line - m * 0.10).over,
   };
+}
+
+// ── Empirical game-level std from raw (unfiltered) scores ────────────────────
+// Used when pts_raw_all is available to derive KDE targetStd from actual game
+// outcomes rather than the Pythagorean per-36 + minutes approximation.
+//
+// Why: The situation filter excludes blowout/foul-trouble/overtime games from
+// pts_raw. The Pythagorean combination sqrt(cvPer36² + cvMin²) also misses the
+// positive covariance between rate and minutes (stars play more AND score better
+// in close games). Both effects make effectiveStd systematically too narrow for PTS.
+//
+// The raw unfiltered scores natively capture all four variance components:
+//   1. Per-36 rate variance       (efficiency changes game to game)
+//   2. Minutes variance            (playing time fluctuations)
+//   3. Rate × minutes covariance   (more minutes → higher usage, often better rate)
+//   4. Tail events                 (blowout rest, foul trouble, overtime)
+//
+// Scaling: proportionally maps the historical std to the ETR mean via scale = etrMean / rawMean.
+// This preserves the CV shape while centering on the current projection.
+function computeEmpiricalStd(rawScores, etrMean) {
+  if (!rawScores || rawScores.length < 5) return null;
+  const n = rawScores.length;
+  const rawMean = rawScores.reduce((a, b) => a + b, 0) / n;
+  if (rawMean <= 0) return null;
+  const variance = rawScores.reduce((a, x) => a + (x - rawMean) ** 2, 0) / (n - 1);
+  const scale = etrMean / rawMean;
+  return Math.sqrt(variance) * scale;
 }
 
 // Returns half-integer prop lines for the alt line ladder.
@@ -1311,6 +1365,7 @@ function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfoli
 
 // ── Result Row ──────────────────────────────────────────────────────
 const DIST_MODEL_STYLE = {
+  "KDE+":    { color: "#34d399", bg: "rgba(52,211,153,0.08)",  border: "rgba(52,211,153,0.25)"  }, // unfiltered KDE — full empirical dist
   KDE:       { color: "#22d3ee", bg: "rgba(34,211,238,0.08)", border: "rgba(34,211,238,0.25)" },
   Gamma:     { color: "#f59e0b", bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.25)"  },
   LogNormal: { color: "#60a5fa", bg: "rgba(96,165,250,0.08)",  border: "rgba(96,165,250,0.25)"  },
@@ -3966,6 +4021,12 @@ function NBASimulator() {
   const [ptsRawData, setPtsRawData] = useState(null); // { rawScores: number[], historicalMean: number } | null
   const [rebRawData, setRebRawData] = useState(null);
   const [astRawData, setAstRawData] = useState(null);
+  // Unfiltered raw scores (MIN >= 5 only; includes blowout/overtime/foul-trouble games).
+  // Preferred over ptsRawData for KDE bootstrap — gives full empirical game distribution.
+  // Falls back to null when running against cv_data.json lacking _raw_all fields.
+  const [ptsRawDataAll, setPtsRawDataAll] = useState(null);
+  const [rebRawDataAll, setRebRawDataAll] = useState(null);
+  const [astRawDataAll, setAstRawDataAll] = useState(null);
   const [cvLoadStatus, setCvLoadStatus] = useState(null); // "found" | "found_partial" | "notfound" | null
   const [cvDivergence, setCvDivergence] = useState({}); // { [statKey]: { ratio, dir: 'up'|'down' } }
   const [projections, setProjections] = useState(null);   // parsed ETR slate
@@ -4220,6 +4281,11 @@ function NBASimulator() {
     loadRawData('pts_raw', 'pts_mean_raw', setPtsRawData);
     loadRawData('reb_raw', 'reb_mean_raw', setRebRawData);
     loadRawData('ast_raw', 'ast_mean_raw', setAstRawData);
+    // Unfiltered raw scores (includes tail games filtered out of pts_raw).
+    // kdeWin same selection logic — season preferred for bandwidth estimation.
+    loadRawData('pts_raw_all', 'pts_mean_raw_all', setPtsRawDataAll);
+    loadRawData('reb_raw_all', 'reb_mean_raw_all', setRebRawDataAll);
+    loadRawData('ast_raw_all', 'ast_mean_raw_all', setAstRawDataAll);
     setCvLoadStatus(isAuto ? 'found_auto' : cvMinRaw != null ? 'found' : 'found_partial');
   }, [cvDatabase, cvWindow, playerName]);
 
@@ -4256,6 +4322,9 @@ function NBASimulator() {
     setPtsRawData(null);
     setRebRawData(null);
     setAstRawData(null);
+    setPtsRawDataAll(null);
+    setRebRawDataAll(null);
+    setAstRawDataAll(null);
     setCvDivergence({});
     // Clear stale combo lines from previous player — will re-populate from component sums below if oddsData is loaded
     setComboLines(() => {
@@ -4343,6 +4412,9 @@ function NBASimulator() {
     setPtsRawData(null);
     setRebRawData(null);
     setAstRawData(null);
+    setPtsRawDataAll(null);
+    setRebRawDataAll(null);
+    setAstRawDataAll(null);
     setCvLoadStatus(null);
     setLadderOpen({});
   }, []);
@@ -4359,7 +4431,7 @@ function NBASimulator() {
         projSDs[key] = isNaN(sd) || sd <= 0 ? defaults[key] : sd;
       });
     }
-    const simResults = runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projUncertaintyMode ? projSDs : {});
+    const simResults = runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projUncertaintyMode ? projSDs : {}, ptsRawDataAll, rebRawDataAll, astRawDataAll);
 
     const statProbs = {};
     STAT_CONFIG.forEach(({ key }) => {
@@ -4367,10 +4439,12 @@ function NBASimulator() {
         const cvPctForLabel = POISSON_STATS.has(key) && stats[key].cvMode && stats[key].cvValue ? parseFloat(stats[key].cvValue) : null;
         const poissonCVThreshold = POISSON_STATS.has(key) ? (1 / Math.sqrt(Math.max(0.01, parseFloat(stats[key].mean) || 0))) * 100 : null;
         const usingNegBin = cvPctForLabel > 0 && poissonCVThreshold !== null && cvPctForLabel > poissonCVThreshold;
+        // "KDE+" = unfiltered raw data used (full empirical dist incl. tail games)
+        // "KDE"  = situation-filtered raw data (legacy path, missing tail games)
         const distModel = POISSON_STATS.has(key) ? (usingNegBin ? "NegBin" : "Poisson")
-          : key === 'pts' ? (ptsRawData ? "KDE" : "Gamma")
-          : key === 'reb' ? (rebRawData ? "KDE" : "LogNormal")
-          : key === 'ast' ? (astRawData ? "KDE" : "Gamma")
+          : key === 'pts' ? (ptsRawDataAll && computeEmpiricalStd(ptsRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : ptsRawData ? "KDE" : "Gamma")
+          : key === 'reb' ? (rebRawDataAll && computeEmpiricalStd(rebRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : rebRawData ? "KDE" : "LogNormal")
+          : key === 'ast' ? (astRawDataAll && computeEmpiricalStd(astRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : astRawData ? "KDE" : "Gamma")
           : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
         const method = POISSON_STATS.has(key) ? (usingNegBin ? `CV/${distModel}` : "Poisson")
           : stats[key].cvMode ? `CV/${distModel}` : stats[key].stdOverride ? `Manual/${distModel}` : `Auto/${distModel}`;
