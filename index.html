@@ -3254,6 +3254,7 @@ function CalibrationPanel({
   onSetResult, onFetchClosing, closingFetching, closingFetchMsg,
   onAutoSettle, autoSettleFetching, autoSettleMsg,
   onDelete, onExport, csvCopied, onExportAnalysis, analysisCopied,
+  onExportAll, allStrategiesCopied,
   unitSize, bankroll, kellyFraction,
 }) {
   const [analysisOpen,     setAnalysisOpen]     = React.useState(false);
@@ -3342,6 +3343,13 @@ function CalibrationPanel({
                       color: analysisCopied ? '#4ade80' : '#a5b4fc', fontFamily: mono, fontWeight: 700, fontSize: 9,
                       cursor: 'pointer' }}>
                     {analysisCopied ? '✓ COPIED' : `EXPORT ${STRATEGY_LABELS[analysisStrategy]}`}
+                  </button>
+                  <button onClick={onExportAll}
+                    style={{ padding: '5px 12px', borderRadius: 5,
+                      border: '1px solid rgba(99,102,241,0.5)', background: 'rgba(99,102,241,0.15)',
+                      color: allStrategiesCopied ? '#4ade80' : '#c4b5fd', fontFamily: mono, fontWeight: 700, fontSize: 9,
+                      cursor: 'pointer' }}>
+                    {allStrategiesCopied ? '✓ COPIED' : 'EXPORT ALL STRATEGIES'}
                   </button>
                   <button onClick={onExport}
                     style={{ padding: '5px 12px', borderRadius: 5,
@@ -3647,6 +3655,7 @@ function NBASimulator() {
   const [autoSettleMsg,       setAutoSettleMsg]       = useState(null);
   const [calibrationCsvCopied,setCalibrationCsvCopied]= useState(false);
   const [analysisExportCopied, setAnalysisExportCopied] = useState(false);
+  const [allStrategiesCopied,  setAllStrategiesCopied]  = useState(false);
   // ── Projection Uncertainty state ───────────────────────────────────
   const [projUncertaintyMode, setProjUncertaintyMode] = useState(false);
 
@@ -4471,6 +4480,59 @@ function NBASimulator() {
     });
   }, [calibration]);
 
+  // Export analysis for ALL three strategies (ALL BETS / STRATEGY B / STRATEGY C) in one CSV.
+  // Each row is prefixed with a Strategy column so the sheet can be filtered by strategy.
+  const handleExportAllStrategies = useCallback(() => {
+    const logs = {
+      'ALL BETS':    calibration,
+      'STRATEGY B':  calibration.filter(STRATEGY_B_FILTER),
+      'STRATEGY C':  calibration.filter(STRATEGY_C_FILTER),
+    };
+    const esc = v => { const sv = String(v ?? ''); return (sv.includes(',') || sv.includes('"')) ? `"${sv.replace(/"/g,'""')}"` : sv; };
+    const rows = [['Strategy','Section','Label','N','HIT%','MODEL%','DIFF pp','1U ROI%']];
+    Object.entries(logs).forEach(([stratLabel, log]) => {
+      const calStats = computeCalibrationStats(log);
+      if (!calStats) return;
+      const addRows = (section, items) => {
+        items.forEach(item => {
+          if (!item || item.n == null) return;
+          const hitPct = item.hitRate  != null ? (item.hitRate  * 100).toFixed(1) : '';
+          const modPct = item.modelAvg != null ? (item.modelAvg * 100).toFixed(1) : '';
+          const diff   = item.hitRate  != null && item.modelAvg != null
+            ? ((item.hitRate - item.modelAvg) * 100).toFixed(1) : '';
+          const roi    = item.unitROI  != null ? item.unitROI.toFixed(1) : '';
+          rows.push([stratLabel, section, item.label ?? '', item.n, hitPct, modPct, diff, roi]);
+        });
+      };
+      const s = calStats;
+      rows.push([stratLabel, 'OVERALL', 'All plays', s.wins + s.losses,
+        s.actualRate   != null ? (s.actualRate   * 100).toFixed(1) : '',
+        s.avgModelProb != null ? (s.avgModelProb * 100).toFixed(1) : '',
+        (s.actualRate != null && s.avgModelProb != null)
+          ? (((s.actualRate - s.avgModelProb) * 100).toFixed(1)) : '',
+        s.overall.unitROI != null ? s.overall.unitROI.toFixed(1) : '',
+      ]);
+      addRows('PROB BUCKET', s.probBuckets);
+      addRows('BY STAT', Object.entries(s.byStat).map(([k, v]) => v ? { ...v, label: k.toUpperCase() } : null).filter(Boolean));
+      addRows('STAT × DIR', s.statSideRows);
+      addRows('BY SIDE', Object.entries(s.bySide).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+      addRows('BY EDGE', Object.entries(s.byEdge).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+      addRows('BY ODDS', s.oddsBuckets);
+      addRows('BY TOTAL', s.totalBuckets);
+      addRows('BY SPREAD', s.spreadBuckets);
+      addRows('BY TIME', s.timeBuckets);
+      addRows('DIST MODEL', Object.entries(s.byDistModel).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+      addRows('PROJ MIN', s.minutesBuckets);
+      addRows('CV SAMPLE', s.cvSampleBuckets);
+      addRows('LINE GAP σ', s.lineGapBuckets);
+    });
+    const csv = rows.map(r => r.map(esc).join(',')).join('\n');
+    navigator.clipboard.writeText(csv).then(() => {
+      setAllStrategiesCopied(true);
+      setTimeout(() => setAllStrategiesCopied(false), 2000);
+    });
+  }, [calibration]);
+
   // Wire single-player sim "LOG BET" button → calibration tracker.
   // Looks up eventId/commenceTime from gameData via the player's team in projections.
   const handleLogBetToCalibration = useCallback((data) => {
@@ -5036,6 +5098,8 @@ function NBASimulator() {
           csvCopied={calibrationCsvCopied}
           onExportAnalysis={handleExportAnalysis}
           analysisCopied={analysisExportCopied}
+          onExportAll={handleExportAllStrategies}
+          allStrategiesCopied={allStrategiesCopied}
           unitSize={unitSize}
           bankroll={bankroll}
           kellyFraction={kellyFraction}
