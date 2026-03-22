@@ -563,6 +563,19 @@ function FilterPanel({ mode, setMode, custom, setCustom, total, passing }) {
   );
 }
 
+// ── Wilson 95% CI for hit rate ────────────────────────────────────────
+// Correct interval for small samples — avoids negative bounds from normal approx.
+// Returns { lo, hi } as fractions (0–1), or null if n=0.
+function wilsonCI(wins, n) {
+  if (n === 0) return null;
+  const z = 1.96;
+  const p = wins / n;
+  const denom = 1 + z * z / n;
+  const center = (p + z * z / (2 * n)) / denom;
+  const margin = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom;
+  return { lo: Math.max(0, center - margin), hi: Math.min(1, center + margin) };
+}
+
 // ── BetTable utilities ────────────────────────────────────────────────
 function calcPnL(bet) {
   if (!bet.result || bet.result === 'open') return null;
@@ -1284,11 +1297,455 @@ function AnalysisDashboard({ bets, filterLabel = 'ALL BETS' }) {
   );
 }
 
+// ── SegmentRanker ─────────────────────────────────────────────────────
+// Flattens every breakdown dimension into a single ranked table.
+// Adds Wilson 95% CI so you can distinguish real signals from noise.
+// Rows are colored by statistical robustness, not just raw ROI.
+function SegmentRanker({ bets }) {
+  const [open,    setOpen]    = useState(false);
+  const [sortBy,  setSortBy]  = useState('roi');
+  const [minN,    setMinN]    = useState(30);
+  const [showAll, setShowAll] = useState(false);
+
+  const segments = useMemo(() => {
+    if (!bets.length) return [];
+
+    // Helper: compute stats + CI for a filtered subset, attach dimension + label
+    const seg = (dim, label, subset) => {
+      const s = computeStats(subset);
+      if (s.n < minN) return null;
+      const ci = wilsonCI(s.won, s.n);
+      return { dim, label, ...s, ci };
+    };
+
+    const statKeys = ['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb'];
+    const rows = [];
+
+    // BY STAT
+    statKeys.forEach(k => {
+      const r = seg('STAT', STAT_LABEL[k] || k.toUpperCase(), bets.filter(b => b.stat === k));
+      if (r) rows.push(r);
+    });
+
+    // STAT × SIDE
+    statKeys.forEach(stat => {
+      ['OVER','UNDER'].forEach(side => {
+        const r = seg('STAT×SIDE', `${STAT_LABEL[stat]||stat.toUpperCase()} ${side}`, bets.filter(b => b.stat === stat && b.side === side));
+        if (r) rows.push(r);
+      });
+    });
+
+    // BY SIDE
+    ['OVER','UNDER'].forEach(side => {
+      const r = seg('SIDE', side, bets.filter(b => b.side === side));
+      if (r) rows.push(r);
+    });
+
+    // BY EDGE
+    ['MARGINAL','SOLID','STRONG'].forEach(e => {
+      const r = seg('EDGE', e, bets.filter(b => b.edgeLabel === e));
+      if (r) rows.push(r);
+    });
+
+    // BY DIST MODEL
+    [...new Set(bets.map(b => b.distModel).filter(Boolean))].forEach(m => {
+      const r = seg('DIST', m, bets.filter(b => b.distModel === m));
+      if (r) rows.push(r);
+    });
+
+    // BY BOOK ODDS (10 brackets)
+    [
+      { label: '≤ -176',    fn: b => b.bookOdds != null && b.bookOdds <= -176 },
+      { label: '-175→-151', fn: b => b.bookOdds != null && b.bookOdds >= -175 && b.bookOdds <= -151 },
+      { label: '-150→-136', fn: b => b.bookOdds != null && b.bookOdds >= -150 && b.bookOdds <= -136 },
+      { label: '-135→-121', fn: b => b.bookOdds != null && b.bookOdds >= -135 && b.bookOdds <= -121 },
+      { label: '-120→-106', fn: b => b.bookOdds != null && b.bookOdds >= -120 && b.bookOdds <= -106 },
+      { label: '-105→+100', fn: b => b.bookOdds != null && b.bookOdds >= -105 && b.bookOdds <= 100 },
+      { label: '+101→+125', fn: b => b.bookOdds != null && b.bookOdds >= 101  && b.bookOdds <= 125 },
+      { label: '+126→+150', fn: b => b.bookOdds != null && b.bookOdds >= 126  && b.bookOdds <= 150 },
+      { label: '+151→+175', fn: b => b.bookOdds != null && b.bookOdds >= 151  && b.bookOdds <= 175 },
+      { label: '≥ +176',   fn: b => b.bookOdds != null && b.bookOdds >= 176 },
+    ].forEach(({ label, fn }) => {
+      const r = seg('ODDS', label, bets.filter(fn));
+      if (r) rows.push(r);
+    });
+
+    // BY CV SAMPLE
+    [
+      { label: '<20 games',   fn: b => b.gamesAvailable != null && b.gamesAvailable < 20 },
+      { label: '20–35 games', fn: b => b.gamesAvailable != null && b.gamesAvailable >= 20 && b.gamesAvailable < 36 },
+      { label: '36+ games',   fn: b => b.gamesAvailable != null && b.gamesAvailable >= 36 },
+    ].forEach(({ label, fn }) => {
+      const r = seg('CV N', label, bets.filter(fn));
+      if (r) rows.push(r);
+    });
+
+    // BY GAME TOTAL
+    [
+      { label: '<220',    fn: b => b.gameTotal != null && b.gameTotal < 220 },
+      { label: '220–229', fn: b => b.gameTotal != null && b.gameTotal >= 220 && b.gameTotal < 230 },
+      { label: '230–239', fn: b => b.gameTotal != null && b.gameTotal >= 230 && b.gameTotal < 240 },
+      { label: '240+',    fn: b => b.gameTotal != null && b.gameTotal >= 240 },
+    ].forEach(({ label, fn }) => {
+      const r = seg('TOTAL', label, bets.filter(fn));
+      if (r) rows.push(r);
+    });
+
+    // BY SPREAD
+    [
+      { label: '0–3.5',  fn: b => b.spread != null && Math.abs(b.spread) <= 3.5 },
+      { label: '4–7',    fn: b => b.spread != null && Math.abs(b.spread) > 3.5 && Math.abs(b.spread) <= 7 },
+      { label: '8–11.5', fn: b => b.spread != null && Math.abs(b.spread) > 7   && Math.abs(b.spread) <= 11.5 },
+      { label: '12+',    fn: b => b.spread != null && Math.abs(b.spread) > 11.5 },
+    ].forEach(({ label, fn }) => {
+      const r = seg('SPREAD', label, bets.filter(fn));
+      if (r) rows.push(r);
+    });
+
+    // BY PROJ MINUTES
+    [
+      { label: '<22 min',   fn: b => b.projectedMinutes != null && b.projectedMinutes < 22 },
+      { label: '22–28 min', fn: b => b.projectedMinutes != null && b.projectedMinutes >= 22 && b.projectedMinutes < 28 },
+      { label: '28–34 min', fn: b => b.projectedMinutes != null && b.projectedMinutes >= 28 && b.projectedMinutes < 34 },
+      { label: '34+ min',   fn: b => b.projectedMinutes != null && b.projectedMinutes >= 34 },
+    ].forEach(({ label, fn }) => {
+      const r = seg('MIN', label, bets.filter(fn));
+      if (r) rows.push(r);
+    });
+
+    // BY LINE GAP σ
+    const getSigma = b => {
+      if (b.projection == null || b.propLine == null) return null;
+      const std = b.std ?? (b.cvValue != null && b.projection > 0 ? b.projection * (b.cvValue / 100) : null);
+      if (std == null || std <= 0) return null;
+      return (b.propLine - b.projection) / std;
+    };
+    [
+      { label: '< −1σ (OVER)',    fn: b => { const s = getSigma(b); return s !== null && s < -1; } },
+      { label: '−1σ to −0.3σ',   fn: b => { const s = getSigma(b); return s !== null && s >= -1 && s < -0.3; } },
+      { label: '±0.3σ consensus', fn: b => { const s = getSigma(b); return s !== null && Math.abs(s) <= 0.3; } },
+      { label: '+0.3σ to +1σ',   fn: b => { const s = getSigma(b); return s !== null && s > 0.3 && s <= 1; } },
+      { label: '> +1σ (UNDER)',   fn: b => { const s = getSigma(b); return s !== null && s > 1; } },
+    ].forEach(({ label, fn }) => {
+      const r = seg('LINE GAP', label, bets.filter(fn));
+      if (r) rows.push(r);
+    });
+
+    // Sort
+    return [...rows].sort((a, b) => {
+      if (sortBy === 'roi')    return (b.roi ?? -Infinity) - (a.roi ?? -Infinity);
+      if (sortBy === 'ci_lo')  return (b.ci?.lo ?? 0) - (a.ci?.lo ?? 0);
+      if (sortBy === 'diff')   return (b.diffPp ?? -Infinity) - (a.diffPp ?? -Infinity);
+      if (sortBy === 'n')      return b.n - a.n;
+      return 0;
+    });
+  }, [bets, minN, sortBy]);
+
+  const display = showAll ? segments : segments.slice(0, 20);
+  const GRID = '55px 1fr 28px 46px 46px 46px 52px 70px';
+
+  // Row signal classification: green border = CI lower bound on hit rate > model avg (genuine edge)
+  //                            red border   = CI upper bound on hit rate < model avg (genuine fade)
+  const rowBorder = seg => {
+    if (!seg.ci || seg.modelAvg == null) return 'transparent';
+    if (seg.ci.lo > seg.modelAvg) return C.green;     // statistically positive vs. model
+    if (seg.ci.hi < seg.modelAvg) return C.red;        // statistically negative vs. model
+    return 'transparent';
+  };
+
+  return (
+    <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+      marginBottom: 12, overflow: 'hidden' }}>
+      {/* Header */}
+      <div onClick={() => setOpen(o => !o)}
+        style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8,
+          background: 'rgba(34,197,94,0.03)', cursor: 'pointer', userSelect: 'none',
+          borderBottom: open ? `1px solid ${C.border}` : 'none' }}>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>{open ? '▼' : '▶'}</span>
+        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: 1,
+          color: C.green, flex: 1 }}>SEGMENT RANKER</span>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>
+          {segments.length} segments · N≥{minN} floor · sort by {sortBy.toUpperCase()}
+        </span>
+      </div>
+
+      {open && (<>
+        {/* Controls */}
+        <div style={{ padding: '8px 16px', borderBottom: `1px solid ${C.border}`,
+          display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+
+          {/* Sort selector */}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>SORT</span>
+            {[['roi','ROI'],['ci_lo','CI LO'],['diff','DIFF'],['n','N']].map(([key, lbl]) => (
+              <div key={key} onClick={() => setSortBy(key)}
+                style={{ padding: '2px 8px', borderRadius: 3, cursor: 'pointer', fontFamily: MONO,
+                  fontSize: 8, fontWeight: 700, letterSpacing: 0.5,
+                  background: sortBy === key ? 'rgba(34,197,94,0.15)' : 'rgba(0,0,0,0.2)',
+                  border: `1px solid ${sortBy === key ? C.greenBdr : C.border}`,
+                  color: sortBy === key ? C.green : C.muted3 }}>
+                {lbl}
+              </div>
+            ))}
+          </div>
+
+          {/* Min N selector */}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>MIN N</span>
+            {[20,30,50].map(n => (
+              <div key={n} onClick={() => setMinN(n)}
+                style={{ padding: '2px 8px', borderRadius: 3, cursor: 'pointer', fontFamily: MONO,
+                  fontSize: 8, fontWeight: 700,
+                  background: minN === n ? 'rgba(34,197,94,0.15)' : 'rgba(0,0,0,0.2)',
+                  border: `1px solid ${minN === n ? C.greenBdr : C.border}`,
+                  color: minN === n ? C.green : C.muted3 }}>
+                {n}
+              </div>
+            ))}
+          </div>
+
+          {/* Legend */}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, fontSize: 8,
+            fontFamily: MONO, color: C.muted3 }}>
+            <span><span style={{ color: C.green }}>▌</span> CI lo &gt; MODEL% (signal)</span>
+            <span><span style={{ color: C.red }}>▌</span> CI hi &lt; MODEL% (fade)</span>
+            <span style={{ color: C.muted3 }}>CI = 95% Wilson interval on hit rate</span>
+          </div>
+        </div>
+
+        {/* Table header */}
+        <div style={{ display: 'grid', gridTemplateColumns: GRID, padding: '5px 16px',
+          borderBottom: `1px solid ${C.border}`, background: 'rgba(0,0,0,0.15)' }}>
+          {['DIM','SEGMENT','N','HIT%','MDL%','DIFF','1U ROI','95% CI hit'].map((h, i) => (
+            <div key={h} style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 700,
+              color: C.muted3, letterSpacing: 0.6,
+              textAlign: i === 0 || i === 1 ? 'left' : 'right', padding: '0 2px' }}>{h}</div>
+          ))}
+        </div>
+
+        {/* Rows */}
+        {display.length === 0 ? (
+          <div style={{ padding: '20px 16px', textAlign: 'center', fontFamily: MONO,
+            fontSize: 10, color: C.muted3 }}>
+            No segments meet N≥{minN} threshold in this filter.
+          </div>
+        ) : display.map((seg, i) => {
+          const wc  = seg.winPct == null ? C.muted2
+            : seg.winPct >= 55 ? C.green : seg.winPct >= 52 ? '#86efac'
+            : seg.winPct >= 48 ? C.amber : C.red;
+          const rc  = seg.roi == null ? C.muted2
+            : seg.roi >= 5 ? C.green : seg.roi >= 0 ? '#86efac'
+            : seg.roi >= -5 ? C.amber : C.red;
+          const dc  = seg.diffPp == null ? C.muted3
+            : seg.diffPp > 1 ? C.green : seg.diffPp > -1 ? '#94a3b8' : C.red;
+          const bdr = rowBorder(seg);
+          const ciLoPct = seg.ci ? (seg.ci.lo * 100).toFixed(1) : null;
+          const ciHiPct = seg.ci ? (seg.ci.hi * 100).toFixed(1) : null;
+          return (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID,
+              padding: '0 16px',
+              background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.012)',
+              borderBottom: `1px solid rgba(148,163,184,0.05)`,
+              borderLeft: `2px solid ${bdr}` }}>
+              <div style={{ padding: '5px 2px', fontFamily: MONO, fontSize: 8,
+                color: C.muted3, letterSpacing: 0.4 }}>{seg.dim}</div>
+              <div style={{ padding: '5px 2px', fontFamily: MONO, fontSize: 9,
+                color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {seg.label}
+              </div>
+              <div style={{ padding: '5px 2px', fontFamily: MONO, fontSize: 9,
+                color: C.muted1, textAlign: 'right' }}>{seg.n}</div>
+              <div style={{ padding: '5px 2px', fontFamily: MONO, fontSize: 9,
+                color: wc, fontWeight: 700, textAlign: 'right' }}>
+                {seg.winPct != null ? `${seg.winPct.toFixed(1)}%` : '—'}
+              </div>
+              <div style={{ padding: '5px 2px', fontFamily: MONO, fontSize: 9,
+                color: C.muted2, textAlign: 'right' }}>
+                {seg.modelAvg != null ? `${(seg.modelAvg * 100).toFixed(1)}%` : '—'}
+              </div>
+              <div style={{ padding: '5px 2px', fontFamily: MONO, fontSize: 9,
+                color: dc, fontWeight: 700, textAlign: 'right' }}>
+                {seg.diffPp != null ? `${seg.diffPp >= 0 ? '+' : ''}${seg.diffPp.toFixed(1)}` : '—'}
+              </div>
+              <div style={{ padding: '5px 2px', fontFamily: MONO, fontSize: 9,
+                color: rc, fontWeight: 700, textAlign: 'right' }}>
+                {seg.roi != null ? `${seg.roi >= 0 ? '+' : ''}${seg.roi.toFixed(1)}%` : '—'}
+              </div>
+              <div style={{ padding: '5px 2px', fontFamily: MONO, fontSize: 8,
+                color: bdr !== 'transparent' ? bdr : C.muted3, textAlign: 'right' }}>
+                {ciLoPct != null ? `[${ciLoPct}–${ciHiPct}%]` : '—'}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Show more toggle */}
+        {segments.length > 20 && (
+          <div onClick={() => setShowAll(s => !s)}
+            style={{ padding: '8px 16px', textAlign: 'center', cursor: 'pointer',
+              fontFamily: MONO, fontSize: 8, color: C.muted2,
+              borderTop: `1px solid ${C.border}`,
+              background: 'rgba(255,255,255,0.01)' }}>
+            {showAll
+              ? `▲ SHOW TOP 20 ONLY`
+              : `▼ SHOW ALL ${segments.length} SEGMENTS`}
+          </div>
+        )}
+
+        {/* Overfitting warning */}
+        <div style={{ padding: '6px 16px', background: 'rgba(245,158,11,0.05)',
+          borderTop: `1px solid rgba(245,158,11,0.15)` }}>
+          <span style={{ fontFamily: MONO, fontSize: 7.5, color: '#92400e' }}>
+            ⚠ MULTIPLE TESTING: scanning ~{segments.length + (segments.length < 30 ? 30 - segments.length : 0)} segments inflates false discovery rate.
+            Treat green borders as hypotheses to watch, not proven edges.
+            A segment needs a causal story + N≥100 before acting on it as a new strategy rule.
+          </span>
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+// ── EraComparison ─────────────────────────────────────────────────────
+// Splits bets on a date cutoff and shows pre/post performance side-by-side.
+// Use this to detect whether a model change (e.g. KDE fix on 2026-03-21)
+// has shifted calibration. Avoids burying recent performance in old-model noise.
+function EraComparison({ bets, eraDate, setEraDate }) {
+  const [open, setOpen] = useState(true);
+
+  const pre  = useMemo(() => eraDate ? bets.filter(b => (b.loggedAt || '').slice(0, 10) <  eraDate) : [], [bets, eraDate]);
+  const post = useMemo(() => eraDate ? bets.filter(b => (b.loggedAt || '').slice(0, 10) >= eraDate) : [], [bets, eraDate]);
+
+  const statKeys = ['pts','reb','ast','stl','blk','threes'];
+
+  const StatRow = ({ label, preBets, postBets }) => {
+    const preS  = computeStats(preBets);
+    const postS = computeStats(postBets);
+    const fmt = s => s.n === 0 ? <span style={{ color: C.muted3 }}>—</span> : (
+      <span>
+        <span style={{ color: s.roi >= 0 ? C.green : C.red, fontWeight: 700 }}>
+          {s.roi != null ? `${s.roi >= 0 ? '+' : ''}${s.roi.toFixed(1)}%` : '—'}
+        </span>
+        <span style={{ color: C.muted3, marginLeft: 4 }}>
+          ({s.winPct != null ? s.winPct.toFixed(0) : '—'}% · n={s.n})
+        </span>
+      </span>
+    );
+    const delta = (preS.roi != null && postS.roi != null) ? postS.roi - preS.roi : null;
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 52px',
+        padding: '4px 12px', borderBottom: `1px solid rgba(148,163,184,0.06)` }}>
+        <div style={{ fontFamily: MONO, fontSize: 9, color: C.muted2 }}>{label}</div>
+        <div style={{ fontFamily: MONO, fontSize: 9 }}>{fmt(preS)}</div>
+        <div style={{ fontFamily: MONO, fontSize: 9 }}>{fmt(postS)}</div>
+        <div style={{ fontFamily: MONO, fontSize: 9, textAlign: 'right',
+          color: delta == null ? C.muted3 : delta >= 2 ? C.green : delta >= -2 ? '#94a3b8' : C.red,
+          fontWeight: delta != null ? 700 : 400 }}>
+          {delta != null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}pp` : '—'}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+      marginBottom: 12, overflow: 'hidden' }}>
+      <div onClick={() => setOpen(o => !o)}
+        style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8,
+          borderBottom: open ? `1px solid ${C.border}` : 'none',
+          background: 'rgba(245,158,11,0.03)', cursor: 'pointer', userSelect: 'none' }}>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>{open ? '▼' : '▶'}</span>
+        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: 1,
+          color: C.amber, flex: 1 }}>ERA COMPARISON</span>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>
+          split bets on a date to detect model-era changes
+        </span>
+      </div>
+
+      {open && (
+        <div style={{ padding: 16 }}>
+          {/* Date picker */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontFamily: MONO, fontSize: 9, color: C.muted2 }}>ERA CUTOFF DATE</span>
+            <input type="date" value={eraDate} onChange={e => setEraDate(e.target.value)}
+              style={{ background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.border}`,
+                borderRadius: 4, color: C.text, fontFamily: MONO, fontSize: 10,
+                padding: '4px 8px', outline: 'none', colorScheme: 'dark' }} />
+            {eraDate && (
+              <button onClick={() => setEraDate('')}
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 4,
+                  color: C.muted2, fontFamily: MONO, fontSize: 8, padding: '4px 8px',
+                  cursor: 'pointer' }}>CLEAR</button>
+            )}
+            {!eraDate && (
+              <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3, fontStyle: 'italic' }}>
+                e.g. 2026-03-21 for the KDE fix date
+              </span>
+            )}
+          </div>
+
+          {!eraDate ? (
+            <div style={{ padding: '16px 0', textAlign: 'center', fontFamily: MONO,
+              fontSize: 10, color: C.muted3 }}>
+              Set a cutoff date above to compare model eras.
+            </div>
+          ) : (
+            <>
+              {/* Column headers */}
+              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 52px',
+                padding: '4px 12px', marginBottom: 2 }}>
+                <div style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>SEGMENT</div>
+                <div style={{ fontFamily: MONO, fontSize: 8, color: C.amber }}>
+                  BEFORE {eraDate} ({pre.length} bets)
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 8, color: C.cyan }}>
+                  AFTER {eraDate} ({post.length} bets)
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 8, color: C.muted3, textAlign: 'right' }}>
+                  ΔROI
+                </div>
+              </div>
+
+              {/* Overall */}
+              <StatRow label="OVERALL" preBets={pre} postBets={post} />
+
+              {/* By stat */}
+              {statKeys.map(k => (
+                <StatRow key={k}
+                  label={STAT_LABEL[k] || k.toUpperCase()}
+                  preBets={pre.filter(b => b.stat === k)}
+                  postBets={post.filter(b => b.stat === k)}
+                />
+              ))}
+
+              {/* By side */}
+              {['OVER','UNDER'].map(side => (
+                <StatRow key={side} label={side}
+                  preBets={pre.filter(b => b.side === side)}
+                  postBets={post.filter(b => b.side === side)}
+                />
+              ))}
+
+              {/* Note */}
+              <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 7.5,
+                color: C.muted3, lineHeight: 1.6 }}>
+                ROI shown as 1U (non-push). ΔROI = post − pre. N too small (&lt;30) = treat as noise.
+                A positive ΔROI for PTS post-fix with N≥50 would be meaningful evidence the model improved.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Root App ──────────────────────────────────────────────────────────
 function Backtester() {
   const [allBets,      setAllBets]      = useState([]);
   const [filterMode,   setFilterMode]   = useState('all');
   const [customFilters,setCustomFilters]= useState(() => makeDefaultCustom());
+  const [eraDate,      setEraDate]      = useState('');
 
   const filteredBets = useMemo(
     () => allBets.filter(b => applyFilter(b, filterMode, customFilters)),
@@ -1304,7 +1761,7 @@ function Backtester() {
   }, []);
 
   const handleClear = useCallback(() => {
-    if (window.confirm('Clear all imported bets?')) { setAllBets([]); setFilterMode('all'); }
+    if (window.confirm('Clear all imported bets?')) { setAllBets([]); setFilterMode('all'); setEraDate(''); }
   }, []);
 
   return (
@@ -1370,6 +1827,12 @@ function Backtester() {
               : filterMode === 'd' ? 'STRATEGY D'
               : 'CUSTOM FILTER'
             } />
+
+            {/* Era Comparison — detect model-era changes post code updates */}
+            <EraComparison bets={filteredBets} eraDate={eraDate} setEraDate={setEraDate} />
+
+            {/* Segment Ranker — all segments ranked by ROI with Wilson 95% CI */}
+            <SegmentRanker bets={filteredBets} />
           </>
         )}
       </div>
