@@ -767,6 +767,261 @@ function BetTable({ bets }) {
   );
 }
 
+// ── Analysis Dashboard utilities ─────────────────────────────────────
+function computeStats(bets) {
+  const settled = bets.filter(b => b.result && b.result !== 'open');
+  const won     = settled.filter(b => b.result === 'won').length;
+  const lost    = settled.filter(b => b.result === 'lost').length;
+  const push    = settled.filter(b => b.result === 'push').length;
+  const open    = bets.filter(b => !b.result || b.result === 'open').length;
+  const totalPnl = settled.reduce((s, b) => s + (calcPnL(b) ?? 0), 0);
+  const roi     = settled.length > 0 ? (totalPnl / settled.length) * 100 : null;
+  const winPct  = settled.length > 0 ? (won / settled.length) * 100 : null;
+  return { n: bets.length, settled: settled.length, won, lost, push, open, totalPnl, roi, winPct };
+}
+
+// ── BreakdownTable ────────────────────────────────────────────────────
+function BreakdownTable({ title, rows }) {
+  const GRID = '1fr 30px 50px 58px 56px';
+  const headers = ['GROUP', 'N', 'WIN%', 'ROI', 'P/L u'];
+  return (
+    <div style={{ backgroundColor: 'rgba(15,23,42,0.5)', border: `1px solid ${C.border}`,
+      borderRadius: 10, overflow: 'hidden', flex: 1, minWidth: 210 }}>
+      <div style={{ padding: '7px 12px', borderBottom: `1px solid ${C.border}`,
+        background: 'rgba(167,139,250,0.06)' }}>
+        <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: 1,
+          color: C.purple }}>{title}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: GRID, padding: '0 10px',
+        borderBottom: `1px solid ${C.border}` }}>
+        {headers.map((h, i) => (
+          <div key={h} style={{ padding: '5px 3px', fontFamily: MONO, fontSize: 7.5,
+            fontWeight: 700, letterSpacing: 0.7, color: C.muted3,
+            textAlign: i === 0 ? 'left' : 'right' }}>{h}</div>
+        ))}
+      </div>
+      {rows.map((row, i) => {
+        const s = row.stats;
+        const wc = s.winPct == null ? C.muted2
+          : s.winPct >= 55 ? C.green : s.winPct >= 52 ? '#86efac'
+          : s.winPct >= 48 ? C.amber : C.red;
+        const rc = s.roi == null ? C.muted2 : s.roi >= 0 ? C.green : C.red;
+        const pc = s.settled === 0 ? C.muted3 : s.totalPnl >= 0 ? C.green : C.red;
+        return (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID, padding: '0 10px',
+            background: i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent',
+            borderBottom: `1px solid rgba(148,163,184,0.05)` }}>
+            <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9.5, color: C.text,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</div>
+            <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: C.muted1,
+              textAlign: 'right' }}>{s.settled}</div>
+            <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: wc,
+              textAlign: 'right', fontWeight: 700 }}>
+              {s.winPct != null ? `${s.winPct.toFixed(1)}%` : '—'}
+            </div>
+            <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: rc,
+              textAlign: 'right', fontWeight: 700 }}>
+              {s.roi != null ? `${s.roi >= 0 ? '+' : ''}${s.roi.toFixed(1)}%` : '—'}
+            </div>
+            <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: pc,
+              textAlign: 'right', fontWeight: s.totalPnl !== 0 ? 700 : 400 }}>
+              {s.settled > 0 ? `${s.totalPnl >= 0 ? '+' : ''}${s.totalPnl.toFixed(2)}` : '—'}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── CalibrationChart ──────────────────────────────────────────────────
+function CalibrationChart({ buckets }) {
+  return (
+    <div style={{ backgroundColor: 'rgba(15,23,42,0.5)', border: `1px solid ${C.border}`,
+      borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ padding: '7px 12px', borderBottom: `1px solid ${C.border}`,
+        background: 'rgba(167,139,250,0.06)', display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between' }}>
+        <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: 1,
+          color: C.purple }}>CALIBRATION CURVE</span>
+        <span style={{ fontFamily: MONO, fontSize: 7.5, color: C.muted3 }}>
+          model prob vs actual hit rate · white tick = expected midpoint
+        </span>
+      </div>
+      <div style={{ padding: '12px 16px' }}>
+        {buckets.map((b, i) => {
+          const hitPct = b.hitRate != null ? b.hitRate * 100 : null;
+          const diff   = hitPct != null ? hitPct - b.midpoint : null;
+          const color  = hitPct != null ? (hitPct >= b.midpoint ? C.green : C.red) : C.muted3;
+          const label  = b.lo === 0 ? `< ${b.hi}%` : b.hi === 100 ? `≥ ${b.lo}%` : `${b.lo}–${b.hi}%`;
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+              <div style={{ width: 58, fontFamily: MONO, fontSize: 8.5, color: C.muted2,
+                flexShrink: 0 }}>{label}</div>
+              <div style={{ flex: 1, height: 16, background: 'rgba(148,163,184,0.07)',
+                borderRadius: 2, position: 'relative', minWidth: 60 }}>
+                {hitPct != null && (
+                  <div style={{ width: `${Math.min(100, hitPct)}%`, height: '100%',
+                    background: `${color}40`, borderRadius: 2 }} />
+                )}
+                <div style={{ position: 'absolute', top: 0, bottom: 0,
+                  left: `${b.midpoint}%`, width: 1, background: 'rgba(255,255,255,0.3)' }} />
+              </div>
+              <div style={{ width: 32, fontFamily: MONO, fontSize: 8, color: C.muted3,
+                textAlign: 'right', flexShrink: 0 }}>n={b.n}</div>
+              <div style={{ width: 46, fontFamily: MONO, fontSize: 9, color,
+                fontWeight: 700, textAlign: 'right', flexShrink: 0 }}>
+                {hitPct != null ? `${hitPct.toFixed(1)}%` : '—'}
+              </div>
+              <div style={{ width: 46, fontFamily: MONO, fontSize: 8, textAlign: 'right',
+                flexShrink: 0,
+                color: diff != null ? (diff >= 0 ? C.green : C.red) : C.muted3 }}>
+                {diff != null ? `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}pp` : ''}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── AnalysisDashboard ─────────────────────────────────────────────────
+function AnalysisDashboard({ bets }) {
+  if (!bets.length) {
+    return (
+      <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+        padding: 40, textAlign: 'center', marginBottom: 12 }}>
+        <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted3 }}>
+          Import data to see analysis.
+        </span>
+      </div>
+    );
+  }
+
+  const overall = computeStats(bets);
+
+  const statKeys = ['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb'];
+  const byStat = statKeys
+    .map(k => ({ label: STAT_LABEL[k] || k, stats: computeStats(bets.filter(b => b.stat === k)) }))
+    .filter(r => r.stats.n > 0);
+
+  const bySide = ['OVER','UNDER']
+    .map(s => ({ label: s, stats: computeStats(bets.filter(b => b.side === s)) }))
+    .filter(r => r.stats.n > 0);
+
+  const byCv = [
+    { label: '< 20',  fn: b => (b.gamesAvailable ?? 0) < 20 },
+    { label: '20–35', fn: b => { const g = b.gamesAvailable ?? 0; return g >= 20 && g < 36; } },
+    { label: '36+',   fn: b => (b.gamesAvailable ?? 0) >= 36 },
+    { label: 'N/A',   fn: b => b.gamesAvailable == null },
+  ].map(({ label, fn }) => ({ label, stats: computeStats(bets.filter(fn)) }))
+   .filter(r => r.stats.n > 0);
+
+  const byEdge = ['MARGINAL','SOLID','STRONG']
+    .map(e => ({ label: e, stats: computeStats(bets.filter(b => b.edgeLabel === e)) }))
+    .filter(r => r.stats.n > 0);
+
+  const distModels = [...new Set(bets.map(b => b.distModel).filter(Boolean))].sort();
+  const byDist = distModels.map(m => ({ label: m, stats: computeStats(bets.filter(b => b.distModel === m)) }));
+
+  const ODDS_RANGES = [
+    { label: '≤ -175',    fn: b => b.bookOdds != null && b.bookOdds <= -175 },
+    { label: '-174→-136', fn: b => b.bookOdds != null && b.bookOdds > -175 && b.bookOdds <= -136 },
+    { label: '-135→-106', fn: b => b.bookOdds != null && b.bookOdds > -136 && b.bookOdds <= -106 },
+    { label: '-105→+100', fn: b => b.bookOdds != null && b.bookOdds > -106 && b.bookOdds <= 100 },
+    { label: '+101→+175', fn: b => b.bookOdds != null && b.bookOdds > 100 && b.bookOdds <= 175 },
+    { label: '≥ +176',    fn: b => b.bookOdds != null && b.bookOdds >= 176 },
+  ];
+  const byOdds = ODDS_RANGES
+    .map(({ label, fn }) => ({ label, stats: computeStats(bets.filter(fn)) }))
+    .filter(r => r.stats.n > 0);
+
+  const CAL_BUCKETS = [[0,40],[40,45],[45,50],[50,55],[55,60],[60,65],[65,70],[70,100]];
+  const calBuckets = CAL_BUCKETS.map(([lo, hi]) => {
+    const inBucket = bets.filter(b => {
+      const p = (b.modelProb ?? 0) * 100;
+      return p >= lo && (hi === 100 ? p <= 100 : p < hi);
+    });
+    const settled = inBucket.filter(b => b.result && b.result !== 'open');
+    const won = settled.filter(b => b.result === 'won').length;
+    return { lo, hi, n: settled.length,
+      hitRate: settled.length > 0 ? won / settled.length : null,
+      midpoint: (lo + hi) / 2 };
+  }).filter(b => b.n > 0);
+
+  const winColor = overall.winPct == null ? C.muted2
+    : overall.winPct >= 55 ? C.green : overall.winPct >= 52 ? '#86efac'
+    : overall.winPct >= 48 ? C.amber : C.red;
+  const roiColor = overall.roi == null ? C.muted2 : overall.roi >= 0 ? C.green : C.red;
+
+  const chip = (label, value, color) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center' }}>
+      <span style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700, color }}>{value}</span>
+      <span style={{ fontFamily: MONO, fontSize: 7.5, color: C.muted3, letterSpacing: 0.7 }}>{label}</span>
+    </div>
+  );
+  const vdiv = <div style={{ width: 1, height: 36, background: C.border }} />;
+
+  return (
+    <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+      marginBottom: 12, overflow: 'hidden' }}>
+      {/* Header */}
+      <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: 'rgba(167,139,250,0.04)' }}>
+        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: 1,
+          color: C.purple }}>ANALYSIS DASHBOARD</span>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>
+          {bets.length} bets · {overall.settled} settled
+        </span>
+      </div>
+
+      {/* KPI strip */}
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '14px 20px',
+        borderBottom: `1px solid ${C.border}`, alignItems: 'center' }}>
+        {chip('SETTLED',   overall.settled, C.textHi)}
+        {vdiv}
+        {chip('WIN%',
+          overall.winPct != null ? `${overall.winPct.toFixed(1)}%` : '—', winColor)}
+        {chip('1U ROI',
+          overall.roi != null ? `${overall.roi >= 0 ? '+' : ''}${overall.roi.toFixed(1)}%` : '—',
+          roiColor)}
+        {chip('P/L UNITS',
+          overall.settled > 0 ? `${overall.totalPnl >= 0 ? '+' : ''}${overall.totalPnl.toFixed(2)}u` : '—',
+          overall.totalPnl >= 0 ? C.green : C.red)}
+        {vdiv}
+        {chip('WON / LOST', `${overall.won} / ${overall.lost}`, C.muted1)}
+        {chip('PUSH',  overall.push, C.muted2)}
+        {chip('OPEN',  overall.open, C.amber)}
+      </div>
+
+      <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Row 1: By Stat + (By Side + By CV Games stacked) */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ flex: '2 1 280px' }}>
+            <BreakdownTable title="BY STAT" rows={byStat} />
+          </div>
+          <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <BreakdownTable title="BY SIDE"     rows={bySide} />
+            <BreakdownTable title="BY CV GAMES" rows={byCv} />
+          </div>
+        </div>
+
+        {/* Row 2: Edge Label + Dist Model + Odds Bucket */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <BreakdownTable title="BY EDGE LABEL" rows={byEdge} />
+          <BreakdownTable title="BY MODEL"      rows={byDist} />
+          <BreakdownTable title="BY BOOK ODDS"  rows={byOdds} />
+        </div>
+
+        {/* Calibration curve */}
+        {calBuckets.length > 0 && <CalibrationChart buckets={calBuckets} />}
+      </div>
+    </div>
+  );
+}
+
 // ── Root App ──────────────────────────────────────────────────────────
 function Backtester() {
   const [allBets,      setAllBets]      = useState([]);
@@ -845,13 +1100,8 @@ function Backtester() {
             {/* Bet Table */}
             <BetTable bets={filteredBets} />
 
-            {/* Placeholder — built in Session 4 */}
-            <div style={{ backgroundColor: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
-              padding: 32, textAlign: 'center', marginBottom: 12 }}>
-              <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted3, letterSpacing: 1 }}>
-                ANALYSIS DASHBOARD — SESSION 4
-              </div>
-            </div>
+            {/* Analysis Dashboard */}
+            <AnalysisDashboard bets={filteredBets} />
           </>
         )}
       </div>
