@@ -3731,10 +3731,10 @@ const STRATEGY_C_FILTER = e => {
 //   +0.5pp bonus: spread ≥ 12 (blowout dynamics; soft signal, N=156 in Strat C)
 // Diversification caps applied after scoring: max 2/player, max 3/team, max 2/game → top 4–12 output.
 const STRATEGY_D_FILTER = e => {
-  if (!STRATEGY_C_FILTER(e))      return false;  // inherit all Strategy C gates
-  if (e.distModel !== 'NegBin')   return false;  // NegBin only — CV must be loaded and overdispersed
-  if ((e.edge ?? 0) < 3)          return false;  // SOLID edge floor
-  if ((e.bookOdds ?? 0) <= -170)  return false;  // heavy chalk — routed to CHALK PARLAYS section
+  if (!STRATEGY_C_FILTER(e))                    return false;  // inherit all Strategy C gates
+  if (e.distModel !== 'NegBin')                 return false;  // NegBin only — CV must be loaded and overdispersed
+  if ((e.edgePct ?? e.edge ?? 0) < 3)           return false;  // SOLID edge floor (edgePct in calibration log, edge in batch rows)
+  if ((e.bookOdds ?? 0) <= -170)                return false;  // heavy chalk — routed to CHALK PARLAYS section
   return true;
 };
 
@@ -3742,9 +3742,9 @@ const STRATEGY_D_FILTER = e => {
 // These pass all other quality criteria but are too chalky for a straight bet in a concentrated slate.
 // Used by buildChalkParlays() to generate 2-leg / 3-leg parlay suggestions in StrategyDSlate.
 const STRATEGY_D_CHALK_FILTER = e => {
-  if (!STRATEGY_C_FILTER(e))      return false;
-  if (e.distModel !== 'NegBin')   return false;
-  if ((e.edge ?? 0) < 3)          return false;
+  if (!STRATEGY_C_FILTER(e))                    return false;
+  if (e.distModel !== 'NegBin')                 return false;
+  if ((e.edgePct ?? e.edge ?? 0) < 3)           return false;  // same fix: edgePct in calibration log
   return (e.bookOdds ?? 0) <= -170;  // only heavy chalk
 };
 
