@@ -98,7 +98,7 @@ function parseCalibrationCSV(raw) {
       id:              get('id') || `csv_${i}`,
       loggedAt:        get('logged at'),
       player:          get('player'),
-      stat:            get('stat').toLowerCase().replace(/\s+/g, '').replace('points','pts').replace('rebounds','reb').replace('assists','ast').replace('steals','stl').replace('blocks','blk').replace('3-pointersmade','threes').replace('threesmade','threes'),
+      stat:            get('stat').toLowerCase().replace(/\s+/g, '').replace('points','pts').replace('rebounds','reb').replace('assists','ast').replace('steals','stl').replace('blocks','blk').replace('3-pointersmade','threes').replace('threesmade','threes').replace('3pm','threes').replace('3ptmade','threes').replace('threepointersmade','threes'),
       statLabel:       get('stat'),
       side:            get('side').toUpperCase(),
       propLine:        parseNum(get('line')),
@@ -818,23 +818,31 @@ function BetTable({ bets }) {
 // ── Analysis Dashboard utilities ─────────────────────────────────────
 function computeStats(bets) {
   const settled = bets.filter(b => b.result && b.result !== 'open');
-  const won     = settled.filter(b => b.result === 'won').length;
-  const lost    = settled.filter(b => b.result === 'lost').length;
+  const wl      = settled.filter(b => b.result !== 'push');  // won + lost (no pushes)
+  const won     = wl.filter(b => b.result === 'won').length;
+  const lost    = wl.filter(b => b.result === 'lost').length;
   const push    = settled.filter(b => b.result === 'push').length;
   const open    = bets.filter(b => !b.result || b.result === 'open').length;
-  const totalPnl = settled.reduce((s, b) => s + (calcPnL(b) ?? 0), 0);
-  const roi     = settled.length > 0 ? (totalPnl / settled.length) * 100 : null;
-  const winPct  = settled.length > 0 ? (won / settled.length) * 100 : null;
-  return { n: bets.length, settled: settled.length, won, lost, push, open, totalPnl, roi, winPct };
+  const totalPnl = wl.reduce((s, b) => s + (calcPnL(b) ?? 0), 0);
+  // 1U ROI: divide by wl.length (excludes pushes) to match index.html export
+  const roi      = wl.length > 0 ? (totalPnl / wl.length) * 100 : null;
+  const hitRate  = wl.length > 0 ? won / wl.length : null;
+  const winPct   = hitRate != null ? hitRate * 100 : null;
+  const modelAvg = wl.length > 0 ? wl.reduce((s, b) => s + (b.modelProb ?? 0), 0) / wl.length : null;
+  const diffPp   = hitRate != null && modelAvg != null ? (hitRate - modelAvg) * 100 : null;
+  // n = won+lost (matches 'N' in the analysis export from index.html which excludes pushes)
+  return { n: wl.length, settled: settled.length, won, lost, push, open, totalPnl, roi, winPct, hitRate, modelAvg, diffPp };
 }
 
 // ── BreakdownTable ────────────────────────────────────────────────────
+// Columns: GROUP | N | HIT% | MDL% | DIFF | 1U ROI
+// Matches the analysis CSV exported from index.html (N=won+lost, HIT%, MODEL%, DIFF pp, 1U ROI%)
 function BreakdownTable({ title, rows }) {
-  const GRID = '1fr 30px 50px 58px 56px';
-  const headers = ['GROUP', 'N', 'WIN%', 'ROI', 'P/L u'];
+  const GRID = '1fr 30px 50px 50px 50px 52px';
+  const headers = ['GROUP', 'N', 'HIT%', 'MDL%', 'DIFF', '1U ROI'];
   return (
     <div style={{ backgroundColor: 'rgba(15,23,42,0.5)', border: `1px solid ${C.border}`,
-      borderRadius: 10, overflow: 'hidden', flex: 1, minWidth: 210 }}>
+      borderRadius: 10, overflow: 'hidden', flex: 1, minWidth: 240 }}>
       <div style={{ padding: '7px 12px', borderBottom: `1px solid ${C.border}`,
         background: 'rgba(167,139,250,0.06)' }}>
         <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: 1,
@@ -853,8 +861,9 @@ function BreakdownTable({ title, rows }) {
         const wc = s.winPct == null ? C.muted2
           : s.winPct >= 55 ? C.green : s.winPct >= 52 ? '#86efac'
           : s.winPct >= 48 ? C.amber : C.red;
-        const rc = s.roi == null ? C.muted2 : s.roi >= 0 ? C.green : C.red;
-        const pc = s.settled === 0 ? C.muted3 : s.totalPnl >= 0 ? C.green : C.red;
+        const mc = s.modelAvg == null ? C.muted3 : C.muted2;
+        const dc = s.diffPp == null ? C.muted3 : s.diffPp > 1 ? C.green : s.diffPp > -1 ? '#94a3b8' : C.red;
+        const rc = s.roi == null ? C.muted2 : s.roi >= 3 ? C.green : s.roi >= 0 ? '#86efac' : s.roi >= -3 ? C.amber : C.red;
         return (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID, padding: '0 10px',
             background: i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent',
@@ -862,18 +871,22 @@ function BreakdownTable({ title, rows }) {
             <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9.5, color: C.text,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</div>
             <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: C.muted1,
-              textAlign: 'right' }}>{s.settled}</div>
+              textAlign: 'right' }}>{s.n > 0 ? s.n : '—'}</div>
             <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: wc,
               textAlign: 'right', fontWeight: 700 }}>
               {s.winPct != null ? `${s.winPct.toFixed(1)}%` : '—'}
             </div>
+            <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: mc,
+              textAlign: 'right' }}>
+              {s.modelAvg != null ? `${(s.modelAvg * 100).toFixed(1)}%` : '—'}
+            </div>
+            <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: dc,
+              textAlign: 'right', fontWeight: 700 }}>
+              {s.diffPp != null ? `${s.diffPp >= 0 ? '+' : ''}${s.diffPp.toFixed(1)}` : '—'}
+            </div>
             <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: rc,
               textAlign: 'right', fontWeight: 700 }}>
               {s.roi != null ? `${s.roi >= 0 ? '+' : ''}${s.roi.toFixed(1)}%` : '—'}
-            </div>
-            <div style={{ padding: '6px 3px', fontFamily: MONO, fontSize: 9, color: pc,
-              textAlign: 'right', fontWeight: s.totalPnl !== 0 ? 700 : 400 }}>
-              {s.settled > 0 ? `${s.totalPnl >= 0 ? '+' : ''}${s.totalPnl.toFixed(2)}` : '—'}
             </div>
           </div>
         );
@@ -952,59 +965,146 @@ function AnalysisDashboard({ bets, filterLabel = 'ALL BETS' }) {
 
   const overall = computeStats(bets);
 
+  // ── BY STAT ──────────────────────────────────────────────────────────
   const statKeys = ['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb'];
   const byStat = statKeys
-    .map(k => ({ label: STAT_LABEL[k] || k, stats: computeStats(bets.filter(b => b.stat === k)) }))
+    .map(k => ({ label: STAT_LABEL[k] || k.toUpperCase(), stats: computeStats(bets.filter(b => b.stat === k)) }))
     .filter(r => r.stats.n > 0);
 
+  // ── STAT × DIRECTION ─────────────────────────────────────────────────
+  const statSideRows = [];
+  statKeys.forEach(stat => {
+    ['OVER','UNDER'].forEach(side => {
+      const s = computeStats(bets.filter(b => b.stat === stat && b.side === side));
+      if (s.n > 0) statSideRows.push({ label: `${STAT_LABEL[stat]||stat.toUpperCase()} ${side}`, stats: s });
+    });
+  });
+
+  // ── BY SIDE ───────────────────────────────────────────────────────────
   const bySide = ['OVER','UNDER']
     .map(s => ({ label: s, stats: computeStats(bets.filter(b => b.side === s)) }))
     .filter(r => r.stats.n > 0);
 
-  const byCv = [
-    { label: '< 20',  fn: b => (b.gamesAvailable ?? 0) < 20 },
-    { label: '20–35', fn: b => { const g = b.gamesAvailable ?? 0; return g >= 20 && g < 36; } },
-    { label: '36+',   fn: b => (b.gamesAvailable ?? 0) >= 36 },
-    { label: 'N/A',   fn: b => b.gamesAvailable == null },
-  ].map(({ label, fn }) => ({ label, stats: computeStats(bets.filter(fn)) }))
-   .filter(r => r.stats.n > 0);
-
+  // ── BY EDGE ───────────────────────────────────────────────────────────
   const byEdge = ['MARGINAL','SOLID','STRONG']
     .map(e => ({ label: e, stats: computeStats(bets.filter(b => b.edgeLabel === e)) }))
     .filter(r => r.stats.n > 0);
 
+  // ── BY DIST MODEL ─────────────────────────────────────────────────────
   const distModels = [...new Set(bets.map(b => b.distModel).filter(Boolean))].sort();
-  const byDist = distModels.map(m => ({ label: m, stats: computeStats(bets.filter(b => b.distModel === m)) }));
+  const byDist = distModels
+    .map(m => ({ label: m, stats: computeStats(bets.filter(b => b.distModel === m)) }))
+    .filter(r => r.stats.n > 0);
 
+  // ── BY BOOK ODDS (10 brackets matching index.html export) ────────────
   const ODDS_RANGES = [
-    { label: '≤ -175',    fn: b => b.bookOdds != null && b.bookOdds <= -175 },
-    { label: '-174→-136', fn: b => b.bookOdds != null && b.bookOdds > -175 && b.bookOdds <= -136 },
-    { label: '-135→-106', fn: b => b.bookOdds != null && b.bookOdds > -136 && b.bookOdds <= -106 },
-    { label: '-105→+100', fn: b => b.bookOdds != null && b.bookOdds > -106 && b.bookOdds <= 100 },
-    { label: '+101→+175', fn: b => b.bookOdds != null && b.bookOdds > 100 && b.bookOdds <= 175 },
-    { label: '≥ +176',    fn: b => b.bookOdds != null && b.bookOdds >= 176 },
+    { label: '≤ -176',      fn: b => b.bookOdds != null && b.bookOdds <= -176 },
+    { label: '-175→-151',   fn: b => b.bookOdds != null && b.bookOdds >= -175 && b.bookOdds <= -151 },
+    { label: '-150→-136',   fn: b => b.bookOdds != null && b.bookOdds >= -150 && b.bookOdds <= -136 },
+    { label: '-135→-121',   fn: b => b.bookOdds != null && b.bookOdds >= -135 && b.bookOdds <= -121 },
+    { label: '-120→-106',   fn: b => b.bookOdds != null && b.bookOdds >= -120 && b.bookOdds <= -106 },
+    { label: '-105→+100',   fn: b => b.bookOdds != null && b.bookOdds >= -105 && b.bookOdds <= 100 },
+    { label: '+101→+125',   fn: b => b.bookOdds != null && b.bookOdds >= 101  && b.bookOdds <= 125 },
+    { label: '+126→+150',   fn: b => b.bookOdds != null && b.bookOdds >= 126  && b.bookOdds <= 150 },
+    { label: '+151→+175',   fn: b => b.bookOdds != null && b.bookOdds >= 151  && b.bookOdds <= 175 },
+    { label: '≥ +176',      fn: b => b.bookOdds != null && b.bookOdds >= 176 },
   ];
   const byOdds = ODDS_RANGES
     .map(({ label, fn }) => ({ label, stats: computeStats(bets.filter(fn)) }))
     .filter(r => r.stats.n > 0);
 
-  const CAL_BUCKETS = [[0,40],[40,45],[45,50],[50,55],[55,60],[60,65],[65,70],[70,100]];
+  // ── BY CV SAMPLE SIZE ─────────────────────────────────────────────────
+  const byCv = [
+    { label: '<20 games',  fn: b => b.gamesAvailable != null && b.gamesAvailable < 20 },
+    { label: '20–35 games',fn: b => b.gamesAvailable != null && b.gamesAvailable >= 20 && b.gamesAvailable < 36 },
+    { label: '36+ games',  fn: b => b.gamesAvailable != null && b.gamesAvailable >= 36 },
+    { label: 'No CV data', fn: b => b.gamesAvailable == null },
+  ].map(({ label, fn }) => ({ label, stats: computeStats(bets.filter(fn)) }))
+   .filter(r => r.stats.n > 0);
+
+  // ── BY GAME TOTAL ─────────────────────────────────────────────────────
+  const byTotal = [
+    { label: '<220',    fn: b => b.gameTotal != null && b.gameTotal < 220 },
+    { label: '220–229', fn: b => b.gameTotal != null && b.gameTotal >= 220 && b.gameTotal < 230 },
+    { label: '230–239', fn: b => b.gameTotal != null && b.gameTotal >= 230 && b.gameTotal < 240 },
+    { label: '240+',    fn: b => b.gameTotal != null && b.gameTotal >= 240 },
+  ].map(({ label, fn }) => ({ label, stats: computeStats(bets.filter(fn)) }))
+   .filter(r => r.stats.n > 0);
+  const totalWithData = bets.filter(b => b.gameTotal != null).length;
+
+  // ── BY SPREAD MAGNITUDE ───────────────────────────────────────────────
+  const bySpread = [
+    { label: '0–3.5',  fn: b => b.spread != null && Math.abs(b.spread) <= 3.5 },
+    { label: '4–7',    fn: b => b.spread != null && Math.abs(b.spread) > 3.5 && Math.abs(b.spread) <= 7 },
+    { label: '8–11.5', fn: b => b.spread != null && Math.abs(b.spread) > 7   && Math.abs(b.spread) <= 11.5 },
+    { label: '12+',    fn: b => b.spread != null && Math.abs(b.spread) > 11.5 },
+  ].map(({ label, fn }) => ({ label, stats: computeStats(bets.filter(fn)) }))
+   .filter(r => r.stats.n > 0);
+  const spreadWithData = bets.filter(b => b.spread != null).length;
+
+  // ── BY TIME BEFORE TIP-OFF ────────────────────────────────────────────
+  const getMinsBefore = b => {
+    if (!b.commenceTime || !b.loggedAt) return null;
+    return (new Date(b.commenceTime) - new Date(b.loggedAt)) / 60000;
+  };
+  const byTime = [
+    { label: '>3h',    min: 180,       max: Infinity },
+    { label: '1–3h',   min: 60,        max: 180 },
+    { label: '30–60m', min: 30,        max: 60 },
+    { label: '<30m',   min: -Infinity, max: 30 },
+  ].map(({ label, min, max }) => {
+    const fn = b => { const m = getMinsBefore(b); return m !== null && m >= min && m < max; };
+    return { label, stats: computeStats(bets.filter(fn)) };
+  }).filter(r => r.stats.n > 0);
+  const timeWithData = bets.filter(b => b.commenceTime != null && b.loggedAt != null).length;
+
+  // ── BY PROJ MINUTES ───────────────────────────────────────────────────
+  const byMinutes = [
+    { label: '<22 min',  fn: b => b.projectedMinutes != null && b.projectedMinutes < 22 },
+    { label: '22–28 min',fn: b => b.projectedMinutes != null && b.projectedMinutes >= 22 && b.projectedMinutes < 28 },
+    { label: '28–34 min',fn: b => b.projectedMinutes != null && b.projectedMinutes >= 28 && b.projectedMinutes < 34 },
+    { label: '34+ min',  fn: b => b.projectedMinutes != null && b.projectedMinutes >= 34 },
+  ].map(({ label, fn }) => ({ label, stats: computeStats(bets.filter(fn)) }))
+   .filter(r => r.stats.n > 0);
+  const minutesWithData = bets.filter(b => b.projectedMinutes != null).length;
+
+  // ── LINE GAP σ ────────────────────────────────────────────────────────
+  // Sigma = (propLine - projection) / std; positive σ → line above ETR → UNDER signal
+  const getSigma = b => {
+    if (b.projection == null || b.propLine == null) return null;
+    const std = b.std ?? (b.cvValue != null && b.projection > 0 ? b.projection * (b.cvValue / 100) : null);
+    if (std == null || std <= 0) return null;
+    return (b.propLine - b.projection) / std;
+  };
+  const byLineGap = [
+    { label: '< −1σ (OVER)',     fn: b => { const s = getSigma(b); return s !== null && s < -1; } },
+    { label: '−1σ to −0.3σ',    fn: b => { const s = getSigma(b); return s !== null && s >= -1 && s < -0.3; } },
+    { label: '±0.3σ consensus',  fn: b => { const s = getSigma(b); return s !== null && s >= -0.3 && s <= 0.3; } },
+    { label: '+0.3σ to +1σ',    fn: b => { const s = getSigma(b); return s !== null && s > 0.3 && s <= 1; } },
+    { label: '> +1σ (UNDER)',    fn: b => { const s = getSigma(b); return s !== null && s > 1; } },
+  ].map(({ label, fn }) => ({ label, stats: computeStats(bets.filter(fn)) }))
+   .filter(r => r.stats.n > 0);
+  const lineGapWithData = bets.filter(b => getSigma(b) !== null).length;
+
+  // ── CALIBRATION CURVE (prob buckets matching index.html export) ───────
+  // Buckets: <45%, 45-50, 50-55, 55-60, 60-65, 65-70, 70-75, 75%+
+  const CAL_BUCKETS = [[0,45],[45,50],[50,55],[55,60],[60,65],[65,70],[70,75],[75,100]];
   const calBuckets = CAL_BUCKETS.map(([lo, hi]) => {
     const inBucket = bets.filter(b => {
       const p = (b.modelProb ?? 0) * 100;
       return p >= lo && (hi === 100 ? p <= 100 : p < hi);
     });
-    const settled = inBucket.filter(b => b.result && b.result !== 'open');
-    const won = settled.filter(b => b.result === 'won').length;
-    return { lo, hi, n: settled.length,
-      hitRate: settled.length > 0 ? won / settled.length : null,
-      midpoint: (lo + hi) / 2 };
+    const wl = inBucket.filter(b => b.result && b.result !== 'open' && b.result !== 'push');
+    const won = wl.filter(b => b.result === 'won').length;
+    return { lo, hi, n: wl.length, hitRate: wl.length > 0 ? won / wl.length : null, midpoint: (lo + hi) / 2 };
   }).filter(b => b.n > 0);
 
+  // ── KPI STRIP ─────────────────────────────────────────────────────────
   const winColor = overall.winPct == null ? C.muted2
     : overall.winPct >= 55 ? C.green : overall.winPct >= 52 ? '#86efac'
     : overall.winPct >= 48 ? C.amber : C.red;
-  const roiColor = overall.roi == null ? C.muted2 : overall.roi >= 0 ? C.green : C.red;
+  const roiColor = overall.roi == null ? C.muted2
+    : overall.roi >= 3 ? C.green : overall.roi >= 0 ? '#86efac' : overall.roi >= -3 ? C.amber : C.red;
 
   const chip = (label, value, color) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center' }}>
@@ -1014,72 +1114,65 @@ function AnalysisDashboard({ bets, filterLabel = 'ALL BETS' }) {
   );
   const vdiv = <div style={{ width: 1, height: 36, background: C.border }} />;
 
-  const fmt = (s, n = 10) => String(s).padEnd(n);
-  const fmtRow = ({ label, stats: s }) =>
-    `  ${fmt(label, 9)} N=${String(s.settled).padStart(4)}  ` +
-    `Win%=${s.winPct != null ? s.winPct.toFixed(1).padStart(5) + '%' : '   —  '}`  +
-    `  ROI=${s.roi != null ? (s.roi >= 0 ? '+' : '') + s.roi.toFixed(1) + '%' : '  —  '}`   +
-    `  P/L=${s.settled > 0 ? (s.totalPnl >= 0 ? '+' : '') + s.totalPnl.toFixed(2) + 'u' : '—'}`;
-
-  const buildExportText = () => {
-    const dates = bets.map(b => (b.loggedAt || '').slice(0, 10)).filter(Boolean).sort();
-    const dateRange = dates.length ? `${dates[0]} → ${dates[dates.length - 1]}` : '—';
-    const lines = [
-      'NBA PROP BACKTESTER ANALYSIS',
-      `Generated : ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
-      `Filter    : ${filterLabel}`,
-      `Bets      : ${bets.length} total · ${overall.settled} settled · ${overall.open} open`,
-      `Date range: ${dateRange}`,
-      '',
-      '═══ OVERALL ═══',
-      `Win%: ${overall.winPct != null ? overall.winPct.toFixed(1) + '%' : '—'}  |  ` +
-        `1U ROI: ${overall.roi != null ? (overall.roi >= 0 ? '+' : '') + overall.roi.toFixed(1) + '%' : '—'}  |  ` +
-        `P/L: ${overall.settled > 0 ? (overall.totalPnl >= 0 ? '+' : '') + overall.totalPnl.toFixed(2) + 'u' : '—'}`,
-      `Won: ${overall.won}  Lost: ${overall.lost}  Push: ${overall.push}  Open: ${overall.open}`,
-      '',
-      '═══ BY STAT ═══',
-      ...byStat.map(fmtRow),
-      '',
-      '═══ BY SIDE ═══',
-      ...bySide.map(fmtRow),
-      '',
-      '═══ BY CV GAMES ═══',
-      ...byCv.map(fmtRow),
-      '',
-      '═══ BY EDGE LABEL ═══',
-      ...byEdge.map(fmtRow),
-      '',
-      '═══ BY DIST MODEL ═══',
-      ...byDist.map(fmtRow),
-      '',
-      '═══ BY BOOK ODDS ═══',
-      ...byOdds.map(fmtRow),
-      '',
-      '═══ CALIBRATION ═══',
-      '  Bucket    n     Expected  Actual    Diff',
-      ...calBuckets.map(b => {
-        const hitPct  = b.hitRate != null ? (b.hitRate * 100).toFixed(1) + '%' : '—';
-        const diffStr = b.hitRate != null
-          ? (b.hitRate * 100 - b.midpoint >= 0 ? '+' : '') + (b.hitRate * 100 - b.midpoint).toFixed(1) + 'pp'
-          : '—';
-        const lbl = b.lo === 0 ? `< ${b.hi}%` : b.hi === 100 ? `≥ ${b.lo}%` : `${b.lo}–${b.hi}%`;
-        return `  ${fmt(lbl, 9)} n=${String(b.n).padStart(3)}   ${String(b.midpoint + '%').padEnd(9)} ${hitPct.padEnd(9)} ${diffStr}`;
-      }),
-    ];
-    return lines.join('\n');
+  // ── CSV EXPORT (matches index.html "EXPORT ALL STRATEGIES" format) ────
+  const buildExportCSV = () => {
+    const esc = v => { const sv = String(v ?? ''); return (sv.includes(',') || sv.includes('"')) ? `"${sv.replace(/"/g,'""')}"` : sv; };
+    const rows = [['Strategy','Section','Label','N','HIT%','MODEL%','DIFF pp','1U ROI%']];
+    const strat = filterLabel;
+    const addRow = (section, label, s) => {
+      if (!s || s.n === 0) return;
+      rows.push([strat, section, label, s.n,
+        s.winPct  != null ? s.winPct.toFixed(1)  : '',
+        s.modelAvg != null ? (s.modelAvg * 100).toFixed(1) : '',
+        s.diffPp  != null ? s.diffPp.toFixed(1)  : '',
+        s.roi     != null ? s.roi.toFixed(1)     : '',
+      ]);
+    };
+    // OVERALL
+    addRow('OVERALL', 'All plays', overall);
+    // PROB BUCKET
+    CAL_BUCKETS.forEach(([lo, hi]) => {
+      const inBucket = bets.filter(b => {
+        const p = (b.modelProb ?? 0) * 100;
+        return p >= lo && (hi === 100 ? p <= 100 : p < hi);
+      });
+      const s = computeStats(inBucket);
+      const lbl = lo === 0 ? `<${hi}%` : hi === 100 ? `${lo}%+` : `${lo}-${hi}`;
+      addRow('PROB BUCKET', lbl, s);
+    });
+    byStat.forEach(r       => addRow('BY STAT',   r.label, r.stats));
+    statSideRows.forEach(r => addRow('STAT × DIR', r.label, r.stats));
+    bySide.forEach(r       => addRow('BY SIDE',   r.label, r.stats));
+    byEdge.forEach(r       => addRow('BY EDGE',   r.label, r.stats));
+    byOdds.forEach(r       => addRow('BY ODDS',   r.label, r.stats));
+    byTotal.forEach(r      => addRow('BY TOTAL',  r.label, r.stats));
+    bySpread.forEach(r     => addRow('BY SPREAD', r.label, r.stats));
+    byTime.forEach(r       => addRow('BY TIME',   r.label, r.stats));
+    byDist.forEach(r       => addRow('DIST MODEL',r.label, r.stats));
+    byMinutes.forEach(r    => addRow('PROJ MIN',  r.label, r.stats));
+    byCv.forEach(r         => addRow('CV SAMPLE', r.label, r.stats));
+    byLineGap.forEach(r    => addRow('LINE GAP σ',r.label, r.stats));
+    return rows.map(r => r.map(esc).join(',')).join('\n');
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(buildExportText()).then(() => {
+    navigator.clipboard.writeText(buildExportCSV()).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
 
+  // Helper: small info note for sections with partial data coverage
+  const coverageNote = (withData, total) => {
+    if (withData === 0) return ' — no data (requires Odds API context)';
+    if (withData < total) return ` — ${withData} of ${total} bets have data`;
+    return null;
+  };
+
   return (
     <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
       marginBottom: 12, overflow: 'hidden' }}>
-      {/* Header — click chevron area to collapse; export button stops propagation */}
+      {/* Header */}
       <div style={{ padding: '10px 16px', borderBottom: open ? `1px solid ${C.border}` : 'none',
         display: 'flex', alignItems: 'center', gap: 8,
         background: 'rgba(167,139,250,0.04)', cursor: 'pointer', userSelect: 'none' }}
@@ -1090,7 +1183,7 @@ function AnalysisDashboard({ bets, filterLabel = 'ALL BETS' }) {
         <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: 1,
           color: C.purple, flex: 1 }}>ANALYSIS DASHBOARD</span>
         <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>
-          {bets.length} bets · {overall.settled} settled
+          {bets.length} bets · {overall.n} settled (non-push)
         </span>
         <button onClick={e => { e.stopPropagation(); handleCopy(); }}
           style={{ marginLeft: 8, padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
@@ -1098,7 +1191,7 @@ function AnalysisDashboard({ bets, filterLabel = 'ALL BETS' }) {
             background: copied ? C.greenDim : 'rgba(167,139,250,0.12)',
             border: `1px solid ${copied ? C.greenBdr : 'rgba(167,139,250,0.4)'}`,
             color: copied ? C.green : C.purple, flexShrink: 0 }}>
-          {copied ? '✓ COPIED' : 'COPY ANALYSIS'}
+          {copied ? '✓ COPIED' : 'EXPORT CSV'}
         </button>
       </div>
 
@@ -1106,16 +1199,18 @@ function AnalysisDashboard({ bets, filterLabel = 'ALL BETS' }) {
       {/* KPI strip */}
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '14px 20px',
         borderBottom: `1px solid ${C.border}`, alignItems: 'center' }}>
-        {chip('SETTLED',   overall.settled, C.textHi)}
+        {chip('N (non-push)', overall.n, C.textHi)}
         {vdiv}
-        {chip('WIN%',
+        {chip('HIT%',
           overall.winPct != null ? `${overall.winPct.toFixed(1)}%` : '—', winColor)}
+        {chip('MODEL%',
+          overall.modelAvg != null ? `${(overall.modelAvg * 100).toFixed(1)}%` : '—', C.muted2)}
+        {chip('DIFF',
+          overall.diffPp != null ? `${overall.diffPp >= 0 ? '+' : ''}${overall.diffPp.toFixed(1)}pp` : '—',
+          overall.diffPp != null ? (overall.diffPp > 0 ? C.green : C.red) : C.muted2)}
         {chip('1U ROI',
           overall.roi != null ? `${overall.roi >= 0 ? '+' : ''}${overall.roi.toFixed(1)}%` : '—',
           roiColor)}
-        {chip('P/L UNITS',
-          overall.settled > 0 ? `${overall.totalPnl >= 0 ? '+' : ''}${overall.totalPnl.toFixed(2)}u` : '—',
-          overall.totalPnl >= 0 ? C.green : C.red)}
         {vdiv}
         {chip('WON / LOST', `${overall.won} / ${overall.lost}`, C.muted1)}
         {chip('PUSH',  overall.push, C.muted2)}
@@ -1123,23 +1218,63 @@ function AnalysisDashboard({ bets, filterLabel = 'ALL BETS' }) {
       </div>
 
       <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Row 1: By Stat + (By Side + By CV Games stacked) */}
+
+        {/* Row 1: By Stat + (By Side + By Edge stacked) */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          <div style={{ flex: '2 1 280px' }}>
+          <div style={{ flex: '2 1 300px' }}>
             <BreakdownTable title="BY STAT" rows={byStat} />
           </div>
-          <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <BreakdownTable title="BY SIDE"     rows={bySide} />
-            <BreakdownTable title="BY CV GAMES" rows={byCv} />
+          <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <BreakdownTable title="BY SIDE"       rows={bySide} />
+            <BreakdownTable title="BY EDGE LABEL" rows={byEdge} />
           </div>
         </div>
 
-        {/* Row 2: Edge Label + Dist Model + Odds Bucket */}
+        {/* Stat × Direction */}
+        {statSideRows.length > 0 && (
+          <BreakdownTable title="BY STAT × DIRECTION" rows={statSideRows} />
+        )}
+
+        {/* Row 2: Dist Model + CV Sample */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          <BreakdownTable title="BY EDGE LABEL" rows={byEdge} />
-          <BreakdownTable title="BY MODEL"      rows={byDist} />
-          <BreakdownTable title="BY BOOK ODDS"  rows={byOdds} />
+          <div style={{ flex: '1 1 240px' }}>
+            <BreakdownTable title="BY DIST MODEL" rows={byDist} />
+          </div>
+          <div style={{ flex: '1 1 240px' }}>
+            <BreakdownTable title="BY CV SAMPLE" rows={byCv} />
+          </div>
         </div>
+
+        {/* By Book Odds */}
+        <BreakdownTable title="BY BOOK ODDS" rows={byOdds} />
+
+        {/* Contextual: Game Total + Spread */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ flex: '1 1 240px' }}>
+            <BreakdownTable title={`BY GAME TOTAL${totalWithData < bets.length && totalWithData > 0 ? ` (${totalWithData}/${bets.length})` : totalWithData === 0 ? ' — no data' : ''}`} rows={byTotal} />
+          </div>
+          <div style={{ flex: '1 1 240px' }}>
+            <BreakdownTable title={`BY SPREAD${spreadWithData < bets.length && spreadWithData > 0 ? ` (${spreadWithData}/${bets.length})` : spreadWithData === 0 ? ' — no data' : ''}`} rows={bySpread} />
+          </div>
+        </div>
+
+        {/* By Time + By Proj Minutes */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ flex: '1 1 240px' }}>
+            <BreakdownTable title={`BY TIME BEFORE TIP${timeWithData < bets.length && timeWithData > 0 ? ` (${timeWithData}/${bets.length})` : timeWithData === 0 ? ' — no data' : ''}`} rows={byTime} />
+          </div>
+          <div style={{ flex: '1 1 240px' }}>
+            <BreakdownTable title={`BY PROJ MINUTES${minutesWithData < bets.length && minutesWithData > 0 ? ` (${minutesWithData}/${bets.length})` : minutesWithData === 0 ? ' — no data' : ''}`} rows={byMinutes} />
+          </div>
+        </div>
+
+        {/* Line Gap σ */}
+        {(byLineGap.length > 0 || lineGapWithData === 0) && (
+          <BreakdownTable
+            title={`BY LINE GAP (σ)${lineGapWithData < bets.length && lineGapWithData > 0 ? ` (${lineGapWithData}/${bets.length})` : lineGapWithData === 0 ? ' — requires projection + CV data' : ''}`}
+            rows={byLineGap}
+          />
+        )}
 
         {/* Calibration curve */}
         {calBuckets.length > 0 && <CalibrationChart buckets={calBuckets} />}
