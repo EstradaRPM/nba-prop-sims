@@ -141,6 +141,84 @@ function parseCalibrationJSON(raw) {
   return arr.map(e => ({ ...e, result: e.result ? e.result.toLowerCase() : null, _source: 'json' }));
 }
 
+// ── Strategy Filters (mirrored verbatim from index.html) ─────────────
+const STRATEGY_B_FILTER = e => {
+  const edge  = e.edgePct ?? e.edge ?? 0;
+  const games = e.gamesAvailable ?? 0;
+  const odds  = e.bookOdds ?? 0;
+  if (games < 36)                               return false;
+  if (e.side === 'OVER' && edge < 5)            return false;
+  if (e.stat === 'pts'  && edge < 5)            return false;
+  if (odds >= 176)                              return false;
+  if (odds >= -135 && odds <= -121 && edge < 5) return false;
+  return true;
+};
+const STRATEGY_C_FILTER = e => {
+  if (!STRATEGY_B_FILTER(e))                 return false;
+  if (e.stat === 'pts')                      return false;
+  if (e.side === 'OVER' && e.stat !== 'reb') return false;
+  return true;
+};
+const STRATEGY_D_FILTER = e => {
+  if (!STRATEGY_C_FILTER(e))               return false;
+  if (e.distModel !== 'NegBin')            return false;
+  if ((e.edgePct ?? e.edge ?? 0) < 3)      return false;
+  if ((e.bookOdds ?? 0) <= -170)           return false;
+  return true;
+};
+
+// Human-readable descriptors shown under each preset button
+const PRESET_DESCRIPTORS = {
+  b: ['games ≥ 36','OVER edge ≥ 5%','PTS edge ≥ 5%','no odds ≥ +176','−135/−121 range gate'],
+  c: ['inherits B','no PTS','UNDER only','REB OVER exempt'],
+  d: ['inherits C','NegBin only','edge ≥ 3%','no chalk ≤ −170','note: slate caps not applied in backtester'],
+};
+
+// ── Custom Filter ─────────────────────────────────────────────────────
+const ALL_STATS  = ['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb'];
+const STAT_LABEL = { pts:'PTS',reb:'REB',ast:'AST',stl:'STL',blk:'BLK',threes:'3PM',pra:'PRA',pr:'PR',pa:'PA',ra:'RA',sb:'SB' };
+const ALL_MODELS = ['KDE+','KDE','LogNormal','NegBin','Poisson','Direct','Summed'];
+
+const makeDefaultCustom = () => ({
+  minEdge:    0,
+  minGames:   0,
+  side:       'both',
+  stats:      new Set(ALL_STATS),
+  edgeLabels: new Set(['MARGINAL','SOLID','STRONG']),
+  distModels: new Set(ALL_MODELS),
+  results:    new Set(['won','lost','push','open']),
+  oddsMin:    -9999,
+  oddsMax:    9999,
+  dateFrom:   '',
+  dateTo:     '',
+});
+
+function applyCustomFilter(e, c) {
+  const edge = e.edgePct ?? e.edge ?? 0;
+  if (edge < c.minEdge) return false;
+  if ((e.gamesAvailable ?? 0) < c.minGames) return false;
+  if (c.side !== 'both' && e.side.toLowerCase() !== c.side) return false;
+  if (!c.stats.has(e.stat)) return false;
+  if (e.edgeLabel && !c.edgeLabels.has(e.edgeLabel)) return false;
+  if (e.distModel && !c.distModels.has(e.distModel)) return false;
+  const res = e.result ? e.result.toLowerCase() : 'open';
+  if (!c.results.has(res)) return false;
+  if (e.bookOdds != null && (e.bookOdds < c.oddsMin || e.bookOdds > c.oddsMax)) return false;
+  const date = (e.loggedAt || '').slice(0, 10);
+  if (c.dateFrom && date < c.dateFrom) return false;
+  if (c.dateTo   && date > c.dateTo)   return false;
+  return true;
+}
+
+function applyFilter(bet, mode, custom) {
+  if (mode === 'all')    return true;
+  if (mode === 'b')      return STRATEGY_B_FILTER(bet);
+  if (mode === 'c')      return STRATEGY_C_FILTER(bet);
+  if (mode === 'd')      return STRATEGY_D_FILTER(bet);
+  if (mode === 'custom') return applyCustomFilter(bet, custom);
+  return true;
+}
+
 // ── DataImporter component ────────────────────────────────────────────
 function DataImporter({ onImport }) {
   const [mode,    setMode]    = useState('json'); // 'json' | 'csv'
@@ -269,12 +347,209 @@ function BetSummaryStrip({ bets }) {
   );
 }
 
+// ── FilterPanel ───────────────────────────────────────────────────────
+function FilterPanel({ mode, setMode, custom, setCustom, total, passing }) {
+  const toggleSet = (field, val) => setCustom(prev => {
+    const next = new Set(prev[field]);
+    if (next.has(val)) next.delete(val); else next.add(val);
+    return { ...prev, [field]: next };
+  });
+
+  // Base chip style; callers supply active colors
+  const chip = (active, color, borderColor, bgColor) => ({
+    padding: '3px 9px', borderRadius: 4, cursor: 'pointer', userSelect: 'none',
+    fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+    background: active ? bgColor  : 'rgba(0,0,0,0.2)',
+    border:     `1px solid ${active ? borderColor : C.border}`,
+    color:      active ? color    : C.muted3,
+  });
+  const purpleChip = active => chip(active, C.purple, 'rgba(167,139,250,0.45)', C.purpleDim);
+
+  const RESULT_COLORS = {
+    won:  [C.green,  'rgba(34,197,94,0.4)',    C.greenDim],
+    lost: [C.red,    'rgba(239,68,68,0.4)',     C.redDim],
+    push: [C.muted1, 'rgba(148,163,184,0.3)',   'rgba(148,163,184,0.08)'],
+    open: [C.amber,  'rgba(245,158,11,0.4)',    C.amberDim],
+  };
+
+  const fieldLabel = s => (
+    <div style={{ fontFamily: MONO, fontSize: 9, color: C.muted3, letterSpacing: 0.5, marginBottom: 5 }}>{s}</div>
+  );
+  const smallInput = (val, onChange, opts = {}) => (
+    <input type={opts.type || 'number'} value={val} onChange={e => onChange(e.target.value)}
+      placeholder={opts.placeholder} min={opts.min} step={opts.step}
+      style={{ width: opts.width || 64, background: 'rgba(0,0,0,0.3)',
+        border: `1px solid ${C.border}`, borderRadius: 4,
+        color: C.text, fontFamily: MONO, fontSize: 10, padding: '4px 7px', outline: 'none',
+        colorScheme: 'dark' }} />
+  );
+
+  return (
+    <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, marginBottom: 12 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.muted1, letterSpacing: 1.5 }}>FILTER</span>
+        <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 12, fontWeight: 700,
+          color: passing < total ? C.purple : C.muted2 }}>
+          {passing} <span style={{ fontSize: 10, color: C.muted3 }}>/ {total} bets pass</span>
+        </span>
+      </div>
+
+      {/* Preset pills */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {[['all','ALL'],['b','STRATEGY B'],['c','STRATEGY C'],['d','STRATEGY D'],['custom','CUSTOM ▾']].map(([key, label]) => (
+          <div key={key} onClick={() => setMode(key)} style={purpleChip(mode === key)}>
+            {label}
+          </div>
+        ))}
+      </div>
+
+      {/* Preset descriptor chips */}
+      {PRESET_DESCRIPTORS[mode] && (
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', paddingBottom: 10,
+          borderBottom: `1px solid ${C.border}`, marginBottom: 12 }}>
+          {PRESET_DESCRIPTORS[mode].map((d, i) => (
+            <span key={i} style={{ fontFamily: MONO, fontSize: 9, color: C.muted2,
+              background: 'rgba(148,163,184,0.07)', border: `1px solid ${C.border}`,
+              borderRadius: 3, padding: '2px 6px' }}>{d}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Custom controls — only visible in custom mode */}
+      {mode === 'custom' && (
+        <div>
+          {/* Row 1: numeric gates + date range */}
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+            <div>
+              {fieldLabel('MIN EDGE %')}
+              {smallInput(custom.minEdge, v => setCustom(p => ({ ...p, minEdge: parseFloat(v) || 0 })),
+                { min: 0, step: 0.5, width: 60 })}
+            </div>
+            <div>
+              {fieldLabel('MIN CV GAMES')}
+              {smallInput(custom.minGames, v => setCustom(p => ({ ...p, minGames: parseInt(v) || 0 })),
+                { min: 0, step: 1, width: 60 })}
+            </div>
+            <div>
+              {fieldLabel('BOOK ODDS')}
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {smallInput(custom.oddsMin === -9999 ? '' : custom.oddsMin,
+                  v => setCustom(p => ({ ...p, oddsMin: v === '' ? -9999 : parseFloat(v) || -9999 })),
+                  { placeholder: 'min', width: 56 })}
+                <span style={{ color: C.muted3, fontFamily: MONO, fontSize: 9 }}>–</span>
+                {smallInput(custom.oddsMax === 9999 ? '' : custom.oddsMax,
+                  v => setCustom(p => ({ ...p, oddsMax: v === '' ? 9999 : parseFloat(v) || 9999 })),
+                  { placeholder: 'max', width: 56 })}
+              </div>
+            </div>
+            <div>
+              {fieldLabel('DATE RANGE')}
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {smallInput(custom.dateFrom, v => setCustom(p => ({ ...p, dateFrom: v })),
+                  { type: 'date', width: 130 })}
+                <span style={{ color: C.muted3, fontFamily: MONO, fontSize: 9 }}>→</span>
+                {smallInput(custom.dateTo, v => setCustom(p => ({ ...p, dateTo: v })),
+                  { type: 'date', width: 130 })}
+              </div>
+            </div>
+          </div>
+
+          {/* Side */}
+          <div style={{ marginBottom: 10 }}>
+            {fieldLabel('SIDE')}
+            <div style={{ display: 'flex', gap: 5 }}>
+              {['over','both','under'].map(s => (
+                <div key={s} onClick={() => setCustom(p => ({ ...p, side: s }))} style={purpleChip(custom.side === s)}>
+                  {s.toUpperCase()}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 5 }}>
+              {fieldLabel('STATS')}
+              <div onClick={() => setCustom(p => ({ ...p, stats: new Set(ALL_STATS) }))}
+                style={{ ...purpleChip(false), padding: '2px 7px', fontSize: 8 }}>ALL</div>
+              <div onClick={() => setCustom(p => ({ ...p, stats: new Set() }))}
+                style={{ ...purpleChip(false), padding: '2px 7px', fontSize: 8 }}>NONE</div>
+            </div>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {ALL_STATS.map(s => (
+                <div key={s} onClick={() => toggleSet('stats', s)} style={purpleChip(custom.stats.has(s))}>
+                  {STAT_LABEL[s]}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Edge Label */}
+          <div style={{ marginBottom: 10 }}>
+            {fieldLabel('EDGE LABEL')}
+            <div style={{ display: 'flex', gap: 5 }}>
+              {['MARGINAL','SOLID','STRONG'].map(l => (
+                <div key={l} onClick={() => toggleSet('edgeLabels', l)} style={purpleChip(custom.edgeLabels.has(l))}>
+                  {l}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Dist Model */}
+          <div style={{ marginBottom: 10 }}>
+            {fieldLabel('DIST MODEL')}
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {ALL_MODELS.map(m => (
+                <div key={m} onClick={() => toggleSet('distModels', m)} style={purpleChip(custom.distModels.has(m))}>
+                  {m}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Results */}
+          <div style={{ marginBottom: 6 }}>
+            {fieldLabel('INCLUDE RESULTS')}
+            <div style={{ display: 'flex', gap: 5 }}>
+              {['won','lost','push','open'].map(r => {
+                const [color, border, bg] = RESULT_COLORS[r];
+                return (
+                  <div key={r} onClick={() => toggleSet('results', r)}
+                    style={chip(custom.results.has(r), color, border, bg)}>
+                    {r.toUpperCase()}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Reset */}
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+            <div onClick={() => setCustom(makeDefaultCustom())}
+              style={{ display: 'inline-block', ...purpleChip(false), padding: '4px 12px', fontSize: 9 }}>
+              RESET TO DEFAULTS
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Root App ──────────────────────────────────────────────────────────
 function Backtester() {
-  const [allBets, setAllBets] = useState([]);
+  const [allBets,      setAllBets]      = useState([]);
+  const [filterMode,   setFilterMode]   = useState('all');
+  const [customFilters,setCustomFilters]= useState(() => makeDefaultCustom());
+
+  const filteredBets = useMemo(
+    () => allBets.filter(b => applyFilter(b, filterMode, customFilters)),
+    [allBets, filterMode, customFilters]
+  );
 
   const handleImport = useCallback(bets => {
-    // Merge: dedupe by id, newest wins
     setAllBets(prev => {
       const map = new Map(prev.map(b => [b.id, b]));
       bets.forEach(b => map.set(b.id, b));
@@ -283,11 +558,11 @@ function Backtester() {
   }, []);
 
   const handleClear = useCallback(() => {
-    if (window.confirm('Clear all imported bets?')) setAllBets([]);
+    if (window.confirm('Clear all imported bets?')) { setAllBets([]); setFilterMode('all'); }
   }, []);
 
   return (
-    <div style={{ minHeight: '100vh', background: `linear-gradient(180deg, #0b0f1a 0%, #111827 100%)` }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0b0f1a 0%, #111827 100%)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px 80px' }}>
 
         {/* Header */}
@@ -295,8 +570,8 @@ function Backtester() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'linear-gradient(135deg, #a78bfa, #7c3aed)', boxShadow: '0 0 8px rgba(167,139,250,0.5)' }} />
             <span style={{ fontSize: 11, fontWeight: 600, color: C.purple, letterSpacing: 2, fontFamily: MONO }}>BACKTESTER</span>
-            <a href="index.html" style={{ marginLeft: 'auto', fontSize: 10, color: C.muted2, fontFamily: MONO, textDecoration: 'none',
-              border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 8px' }}>
+            <a href="index.html" style={{ marginLeft: 'auto', fontSize: 10, color: C.muted2, fontFamily: MONO,
+              textDecoration: 'none', border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 8px' }}>
               ← SIMULATOR
             </a>
           </div>
@@ -313,25 +588,32 @@ function Backtester() {
         {/* Import */}
         <DataImporter onImport={handleImport} />
 
-        {/* Summary + clear */}
+        {/* Content — only shown once bets are loaded */}
         {allBets.length > 0 && (
           <>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
               <button onClick={handleClear}
                 style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 4,
-                  color: C.muted2, fontFamily: MONO, fontSize: 9, padding: '4px 10px', cursor: 'pointer', letterSpacing: 0.5 }}>
+                  color: C.muted2, fontFamily: MONO, fontSize: 9, padding: '4px 10px',
+                  cursor: 'pointer', letterSpacing: 0.5 }}>
                 CLEAR ALL
               </button>
             </div>
-            <BetSummaryStrip bets={allBets} />
+
+            {/* Filter Panel */}
+            <FilterPanel
+              mode={filterMode}
+              setMode={setFilterMode}
+              custom={customFilters}
+              setCustom={setCustomFilters}
+              total={allBets.length}
+              passing={filteredBets.length}
+            />
+
+            {/* Summary strip — shows filtered bets */}
+            <BetSummaryStrip bets={filteredBets} />
 
             {/* Placeholder panels — built in subsequent sessions */}
-            <div style={{ backgroundColor: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
-              padding: 32, textAlign: 'center', marginBottom: 12 }}>
-              <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted3, letterSpacing: 1 }}>
-                FILTER PANEL — SESSION 2
-              </div>
-            </div>
             <div style={{ backgroundColor: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
               padding: 32, textAlign: 'center', marginBottom: 12 }}>
               <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted3, letterSpacing: 1 }}>
@@ -343,7 +625,7 @@ function Backtester() {
               <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted3, letterSpacing: 1 }}>
                 ANALYSIS DASHBOARD — SESSION 4
               </div>
-        </div>
+            </div>
           </>
         )}
       </div>
