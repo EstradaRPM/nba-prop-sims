@@ -538,6 +538,235 @@ function FilterPanel({ mode, setMode, custom, setCustom, total, passing }) {
   );
 }
 
+// ── BetTable utilities ────────────────────────────────────────────────
+function calcPnL(bet) {
+  if (!bet.result || bet.result === 'open') return null;
+  if (bet.result === 'push') return 0;
+  const odds = bet.bookOdds;
+  if (bet.result === 'won') return odds > 0 ? odds / 100 : 100 / (-odds);
+  if (bet.result === 'lost') return -1;
+  return null;
+}
+
+function edgeColor(edge) {
+  if (edge >= 5)   return '#22c55e';
+  if (edge >= 3)   return '#4ade80';
+  if (edge >= 1.5) return '#86efac';
+  return '#ef4444';
+}
+
+function fmtOdds(o) {
+  if (o == null) return '—';
+  return o > 0 ? `+${o}` : String(o);
+}
+
+// ── BetTable ──────────────────────────────────────────────────────────
+const PAGE_SIZE = 50;
+
+const COLUMNS = [
+  { key: 'loggedAt',       label: 'DATE',   width: '80px',   align: 'left'   },
+  { key: 'player',         label: 'PLAYER', width: '1fr',    align: 'left'   },
+  { key: 'stat',           label: 'STAT',   width: '40px',   align: 'center' },
+  { key: 'side',           label: 'SIDE',   width: '50px',   align: 'center' },
+  { key: 'propLine',       label: 'LINE',   width: '42px',   align: 'right'  },
+  { key: 'bookOdds',       label: 'ODDS',   width: '50px',   align: 'right'  },
+  { key: 'modelProb',      label: 'MDL%',   width: '46px',   align: 'right'  },
+  { key: 'edgePct',        label: 'EDGE',   width: '46px',   align: 'right'  },
+  { key: 'distModel',      label: 'DIST',   width: '58px',   align: 'center' },
+  { key: 'gamesAvailable', label: 'CV N',   width: '38px',   align: 'right'  },
+  { key: 'result',         label: 'RESULT', width: '52px',   align: 'center' },
+  { key: '_pnl',           label: 'P/L u',  width: '54px',   align: 'right'  },
+];
+
+const GRID = COLUMNS.map(c => c.width).join(' ');
+
+function sortValue(bet, key) {
+  if (key === '_pnl') return calcPnL(bet) ?? -Infinity;
+  const v = bet[key];
+  if (v == null) return key === 'loggedAt' ? '' : -Infinity;
+  return v;
+}
+
+function BetTable({ bets }) {
+  const [sortField, setSortField] = useState('loggedAt');
+  const [sortDir,   setSortDir]   = useState('desc');
+  const [page,      setPage]      = useState(0);
+
+  // Reset to page 0 whenever the bet list changes
+  React.useEffect(() => { setPage(0); }, [bets]);
+
+  const sorted = useMemo(() => {
+    return [...bets].sort((a, b) => {
+      const va = sortValue(a, sortField);
+      const vb = sortValue(b, sortField);
+      if (va === vb) return 0;
+      const cmp = va < vb ? -1 : 1;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [bets, sortField, sortDir]);
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const pageSlice  = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const handleSort = key => {
+    if (key === sortField) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortField(key); setSortDir('desc'); }
+    setPage(0);
+  };
+
+  // ── Cell renderers ──
+  const renderCell = (bet, key, idx) => {
+    switch (key) {
+      case 'loggedAt': {
+        const d = (bet.loggedAt || bet.commenceTime || '').slice(0, 10);
+        const parts = d.split('-');
+        return parts.length === 3 ? `${parts[1]}/${parts[2]}` : d || '—';
+      }
+      case 'player':
+        return <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          display: 'block', maxWidth: '100%' }}>{bet.player || '—'}</span>;
+      case 'stat':
+        return STAT_LABEL[bet.stat] ?? bet.stat ?? '—';
+      case 'side': {
+        const isOver = bet.side === 'OVER';
+        return (
+          <span style={{
+            background: isOver ? 'rgba(34,197,94,0.12)' : 'rgba(99,102,241,0.12)',
+            color:      isOver ? '#4ade80' : '#a5b4fc',
+            border:     `1px solid ${isOver ? 'rgba(34,197,94,0.3)' : 'rgba(99,102,241,0.3)'}`,
+            borderRadius: 3, padding: '1px 5px', fontSize: 8, fontWeight: 700, letterSpacing: 0.4,
+          }}>{bet.side}</span>
+        );
+      }
+      case 'propLine':
+        return bet.propLine ?? '—';
+      case 'bookOdds':
+        return <span style={{ color: C.muted1 }}>{fmtOdds(bet.bookOdds)}</span>;
+      case 'modelProb':
+        return bet.modelProb != null
+          ? <span style={{ color: C.muted1 }}>{(bet.modelProb * 100).toFixed(1)}</span>
+          : '—';
+      case 'edgePct':
+        return bet.edgePct != null
+          ? <span style={{ color: edgeColor(bet.edgePct), fontWeight: 700 }}>
+              {bet.edgePct > 0 ? '+' : ''}{bet.edgePct.toFixed(1)}
+            </span>
+          : '—';
+      case 'distModel':
+        return bet.distModel
+          ? <span style={{ fontSize: 8, color: C.muted2, background: 'rgba(148,163,184,0.08)',
+              border: `1px solid ${C.border}`, borderRadius: 3, padding: '1px 4px' }}>
+              {bet.distModel}
+            </span>
+          : '—';
+      case 'gamesAvailable':
+        return bet.gamesAvailable != null
+          ? <span style={{ color: bet.gamesAvailable >= 36 ? C.muted1 : C.muted3 }}>{bet.gamesAvailable}</span>
+          : '—';
+      case 'result': {
+        const r = bet.result || 'open';
+        const cfg = {
+          won:  { bg: 'rgba(34,197,94,0.12)',   border: 'rgba(34,197,94,0.35)',   color: C.green,  label: 'WON'  },
+          lost: { bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.35)',   color: C.red,    label: 'LOST' },
+          push: { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.25)', color: C.muted1, label: 'PUSH' },
+          open: { bg: 'rgba(245,158,11,0.10)',  border: 'rgba(245,158,11,0.35)',  color: C.amber,  label: 'OPEN' },
+        }[r] ?? { bg: 'transparent', border: C.border, color: C.muted2, label: r.toUpperCase() };
+        return <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 0.4,
+          background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color,
+          borderRadius: 3, padding: '1px 5px' }}>{cfg.label}</span>;
+      }
+      case '_pnl': {
+        const pnl = calcPnL(bet);
+        if (pnl === null) return <span style={{ color: C.muted3 }}>—</span>;
+        const sign = pnl > 0 ? '+' : '';
+        const color = pnl > 0 ? C.green : pnl < 0 ? C.red : C.muted2;
+        const dollarPart = bet.unitStake != null
+          ? <span style={{ fontSize: 8, color: C.muted3, marginLeft: 2 }}>
+              ({pnl >= 0 ? '+' : ''}${(pnl * bet.unitStake).toFixed(0)})
+            </span>
+          : null;
+        return <span style={{ color, fontWeight: 700 }}>{sign}{pnl.toFixed(2)}u{dollarPart}</span>;
+      }
+      default: return '—';
+    }
+  };
+
+  if (bets.length === 0) {
+    return (
+      <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+        padding: 40, textAlign: 'center', marginBottom: 12 }}>
+        <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted3 }}>
+          No bets match the current filter.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+      marginBottom: 12, overflow: 'hidden' }}>
+
+      {/* Table header */}
+      <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 0,
+        borderBottom: `1px solid ${C.border}`, padding: '0 12px' }}>
+        {COLUMNS.map(col => (
+          <div key={col.key} onClick={() => handleSort(col.key)}
+            style={{ padding: '9px 4px', fontFamily: MONO, fontSize: 8, fontWeight: 700,
+              letterSpacing: 0.8, color: sortField === col.key ? C.purple : C.muted3,
+              textAlign: col.align, cursor: 'pointer', userSelect: 'none',
+              display: 'flex', alignItems: 'center',
+              justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
+              gap: 3, whiteSpace: 'nowrap' }}>
+            {col.label}
+            {sortField === col.key && (
+              <span style={{ fontSize: 7 }}>{sortDir === 'asc' ? '▲' : '▼'}</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Rows */}
+      <div>
+        {pageSlice.map((bet, idx) => (
+          <div key={bet.id || idx}
+            style={{ display: 'grid', gridTemplateColumns: GRID, gap: 0,
+              padding: '0 12px',
+              background: idx % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent',
+              borderBottom: `1px solid rgba(148,163,184,0.06)` }}>
+            {COLUMNS.map(col => (
+              <div key={col.key}
+                style={{ padding: '7px 4px', fontFamily: MONO, fontSize: 10,
+                  color: C.muted1, textAlign: col.align, overflow: 'hidden',
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start' }}>
+                {renderCell(bet, col.key, idx)}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: 16, padding: '10px 16px', borderTop: `1px solid ${C.border}` }}>
+          <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+            style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 4,
+              color: page === 0 ? C.muted3 : C.muted1, fontFamily: MONO, fontSize: 9,
+              padding: '4px 10px', cursor: page === 0 ? 'default' : 'pointer' }}>◀</button>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: C.muted2 }}>
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} of {sorted.length}
+          </span>
+          <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+            style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 4,
+              color: page >= totalPages - 1 ? C.muted3 : C.muted1, fontFamily: MONO, fontSize: 9,
+              padding: '4px 10px', cursor: page >= totalPages - 1 ? 'default' : 'pointer' }}>▶</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Root App ──────────────────────────────────────────────────────────
 function Backtester() {
   const [allBets,      setAllBets]      = useState([]);
@@ -613,13 +842,10 @@ function Backtester() {
             {/* Summary strip — shows filtered bets */}
             <BetSummaryStrip bets={filteredBets} />
 
-            {/* Placeholder panels — built in subsequent sessions */}
-            <div style={{ backgroundColor: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
-              padding: 32, textAlign: 'center', marginBottom: 12 }}>
-              <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted3, letterSpacing: 1 }}>
-                BET TABLE — SESSION 3
-              </div>
-            </div>
+            {/* Bet Table */}
+            <BetTable bets={filteredBets} />
+
+            {/* Placeholder — built in Session 4 */}
             <div style={{ backgroundColor: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
               padding: 32, textAlign: 'center', marginBottom: 12 }}>
               <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted3, letterSpacing: 1 }}>
