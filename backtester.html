@@ -220,7 +220,8 @@ function applyFilter(bet, mode, custom) {
 }
 
 // ── DataImporter component ────────────────────────────────────────────
-function DataImporter({ onImport }) {
+function DataImporter({ onImport, importedCount }) {
+  const [open,    setOpen]    = useState(true);
   const [mode,    setMode]    = useState('json'); // 'json' | 'csv'
   const [text,    setText]    = useState('');
   const [error,   setError]   = useState(null);
@@ -234,6 +235,7 @@ function DataImporter({ onImport }) {
       onImport(bets);
       setSuccess(true);
       setText('');
+      setOpen(false);
     } catch (e) {
       setError(e.message);
     }
@@ -250,10 +252,24 @@ function DataImporter({ onImport }) {
 
   return (
     <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
-      <div style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.muted1, letterSpacing: 1.5, marginBottom: 14 }}>
-        IMPORT BET LOG
+      {/* Header — click to collapse */}
+      <div onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', marginBottom: open ? 14 : 0,
+          cursor: 'pointer', userSelect: 'none' }}>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3, marginRight: 6 }}>
+          {open ? '▼' : '▶'}
+        </span>
+        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.muted1, letterSpacing: 1.5 }}>
+          IMPORT BET LOG
+        </span>
+        {importedCount > 0 && (
+          <span style={{ marginLeft: 10, fontFamily: MONO, fontSize: 9, color: C.green }}>
+            ✓ {importedCount} bets loaded
+          </span>
+        )}
       </div>
 
+      {open && (<>
       {/* Mode tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: -1, position: 'relative', zIndex: 1 }}>
         <div style={tab(mode === 'json')} onClick={() => { setMode('json'); setError(null); setSuccess(false); }}>JSON (LOCALSTORAGE)</div>
@@ -301,6 +317,7 @@ function DataImporter({ onImport }) {
           {success && <span style={{ fontFamily: MONO, fontSize: 10, color: C.green }}>✓ Imported successfully</span>}
         </div>
       </div>
+      </>)}
     </div>
   );
 }
@@ -349,6 +366,7 @@ function BetSummaryStrip({ bets }) {
 
 // ── FilterPanel ───────────────────────────────────────────────────────
 function FilterPanel({ mode, setMode, custom, setCustom, total, passing }) {
+  const [bodyOpen, setBodyOpen] = useState(true);
   const toggleSet = (field, val) => setCustom(prev => {
     const next = new Set(prev[field]);
     if (next.has(val)) next.delete(val); else next.add(val);
@@ -386,8 +404,13 @@ function FilterPanel({ mode, setMode, custom, setCustom, total, passing }) {
 
   return (
     <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, marginBottom: 12 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+      {/* Header — click to collapse */}
+      <div onClick={() => setBodyOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', marginBottom: bodyOpen ? 12 : 0,
+          cursor: 'pointer', userSelect: 'none' }}>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3, marginRight: 6 }}>
+          {bodyOpen ? '▼' : '▶'}
+        </span>
         <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.muted1, letterSpacing: 1.5 }}>FILTER</span>
         <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 12, fontWeight: 700,
           color: passing < total ? C.purple : C.muted2 }}>
@@ -395,6 +418,7 @@ function FilterPanel({ mode, setMode, custom, setCustom, total, passing }) {
         </span>
       </div>
 
+      {bodyOpen && (<>
       {/* Preset pills */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {[['all','ALL'],['b','STRATEGY B'],['c','STRATEGY C'],['d','STRATEGY D'],['custom','CUSTOM ▾']].map(([key, label]) => (
@@ -534,6 +558,7 @@ function FilterPanel({ mode, setMode, custom, setCustom, total, passing }) {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }
@@ -588,6 +613,7 @@ function sortValue(bet, key) {
 }
 
 function BetTable({ bets }) {
+  const [open,      setOpen]      = useState(true);
   const [sortField, setSortField] = useState('loggedAt');
   const [sortDir,   setSortDir]   = useState('desc');
   const [page,      setPage]      = useState(0);
@@ -691,13 +717,32 @@ function BetTable({ bets }) {
     }
   };
 
+  const sectionHeader = (
+    <div onClick={() => setOpen(o => !o)}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px',
+        borderBottom: open ? `1px solid ${C.border}` : 'none',
+        cursor: 'pointer', userSelect: 'none', background: 'rgba(255,255,255,0.01)' }}>
+      <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3, width: 8, flexShrink: 0 }}>
+        {open ? '▼' : '▶'}
+      </span>
+      <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: 1,
+        color: C.muted1, flex: 1 }}>BET TABLE</span>
+      <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>{bets.length} bets</span>
+    </div>
+  );
+
   if (bets.length === 0) {
     return (
       <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
-        padding: 40, textAlign: 'center', marginBottom: 12 }}>
-        <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted3 }}>
-          No bets match the current filter.
-        </span>
+        marginBottom: 12, overflow: 'hidden' }}>
+        {sectionHeader}
+        {open && (
+          <div style={{ padding: 40, textAlign: 'center' }}>
+            <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted3 }}>
+              No bets match the current filter.
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -705,7 +750,9 @@ function BetTable({ bets }) {
   return (
     <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
       marginBottom: 12, overflow: 'hidden' }}>
+      {sectionHeader}
 
+      {open && (<>
       {/* Table header */}
       <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 0,
         borderBottom: `1px solid ${C.border}`, padding: '0 12px' }}>
@@ -763,6 +810,7 @@ function BetTable({ bets }) {
               padding: '4px 10px', cursor: page >= totalPages - 1 ? 'default' : 'pointer' }}>▶</button>
         </div>
       )}
+      </>)}
     </div>
   );
 }
@@ -887,7 +935,10 @@ function CalibrationChart({ buckets }) {
 }
 
 // ── AnalysisDashboard ─────────────────────────────────────────────────
-function AnalysisDashboard({ bets }) {
+function AnalysisDashboard({ bets, filterLabel = 'ALL BETS' }) {
+  const [open,   setOpen]   = useState(true);
+  const [copied, setCopied] = useState(false);
+
   if (!bets.length) {
     return (
       <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
@@ -963,20 +1014,95 @@ function AnalysisDashboard({ bets }) {
   );
   const vdiv = <div style={{ width: 1, height: 36, background: C.border }} />;
 
+  const fmt = (s, n = 10) => String(s).padEnd(n);
+  const fmtRow = ({ label, stats: s }) =>
+    `  ${fmt(label, 9)} N=${String(s.settled).padStart(4)}  ` +
+    `Win%=${s.winPct != null ? s.winPct.toFixed(1).padStart(5) + '%' : '   —  '}`  +
+    `  ROI=${s.roi != null ? (s.roi >= 0 ? '+' : '') + s.roi.toFixed(1) + '%' : '  —  '}`   +
+    `  P/L=${s.settled > 0 ? (s.totalPnl >= 0 ? '+' : '') + s.totalPnl.toFixed(2) + 'u' : '—'}`;
+
+  const buildExportText = () => {
+    const dates = bets.map(b => (b.loggedAt || '').slice(0, 10)).filter(Boolean).sort();
+    const dateRange = dates.length ? `${dates[0]} → ${dates[dates.length - 1]}` : '—';
+    const lines = [
+      'NBA PROP BACKTESTER ANALYSIS',
+      `Generated : ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+      `Filter    : ${filterLabel}`,
+      `Bets      : ${bets.length} total · ${overall.settled} settled · ${overall.open} open`,
+      `Date range: ${dateRange}`,
+      '',
+      '═══ OVERALL ═══',
+      `Win%: ${overall.winPct != null ? overall.winPct.toFixed(1) + '%' : '—'}  |  ` +
+        `1U ROI: ${overall.roi != null ? (overall.roi >= 0 ? '+' : '') + overall.roi.toFixed(1) + '%' : '—'}  |  ` +
+        `P/L: ${overall.settled > 0 ? (overall.totalPnl >= 0 ? '+' : '') + overall.totalPnl.toFixed(2) + 'u' : '—'}`,
+      `Won: ${overall.won}  Lost: ${overall.lost}  Push: ${overall.push}  Open: ${overall.open}`,
+      '',
+      '═══ BY STAT ═══',
+      ...byStat.map(fmtRow),
+      '',
+      '═══ BY SIDE ═══',
+      ...bySide.map(fmtRow),
+      '',
+      '═══ BY CV GAMES ═══',
+      ...byCv.map(fmtRow),
+      '',
+      '═══ BY EDGE LABEL ═══',
+      ...byEdge.map(fmtRow),
+      '',
+      '═══ BY DIST MODEL ═══',
+      ...byDist.map(fmtRow),
+      '',
+      '═══ BY BOOK ODDS ═══',
+      ...byOdds.map(fmtRow),
+      '',
+      '═══ CALIBRATION ═══',
+      '  Bucket    n     Expected  Actual    Diff',
+      ...calBuckets.map(b => {
+        const hitPct  = b.hitRate != null ? (b.hitRate * 100).toFixed(1) + '%' : '—';
+        const diffStr = b.hitRate != null
+          ? (b.hitRate * 100 - b.midpoint >= 0 ? '+' : '') + (b.hitRate * 100 - b.midpoint).toFixed(1) + 'pp'
+          : '—';
+        const lbl = b.lo === 0 ? `< ${b.hi}%` : b.hi === 100 ? `≥ ${b.lo}%` : `${b.lo}–${b.hi}%`;
+        return `  ${fmt(lbl, 9)} n=${String(b.n).padStart(3)}   ${String(b.midpoint + '%').padEnd(9)} ${hitPct.padEnd(9)} ${diffStr}`;
+      }),
+    ];
+    return lines.join('\n');
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(buildExportText()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
     <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
       marginBottom: 12, overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: 'rgba(167,139,250,0.04)' }}>
+      {/* Header — click chevron area to collapse; export button stops propagation */}
+      <div style={{ padding: '10px 16px', borderBottom: open ? `1px solid ${C.border}` : 'none',
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: 'rgba(167,139,250,0.04)', cursor: 'pointer', userSelect: 'none' }}
+        onClick={() => setOpen(o => !o)}>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3, flexShrink: 0 }}>
+          {open ? '▼' : '▶'}
+        </span>
         <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: 1,
-          color: C.purple }}>ANALYSIS DASHBOARD</span>
+          color: C.purple, flex: 1 }}>ANALYSIS DASHBOARD</span>
         <span style={{ fontFamily: MONO, fontSize: 8, color: C.muted3 }}>
           {bets.length} bets · {overall.settled} settled
         </span>
+        <button onClick={e => { e.stopPropagation(); handleCopy(); }}
+          style={{ marginLeft: 8, padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
+            fontFamily: MONO, fontSize: 8, fontWeight: 700, letterSpacing: 0.5,
+            background: copied ? C.greenDim : 'rgba(167,139,250,0.12)',
+            border: `1px solid ${copied ? C.greenBdr : 'rgba(167,139,250,0.4)'}`,
+            color: copied ? C.green : C.purple, flexShrink: 0 }}>
+          {copied ? '✓ COPIED' : 'COPY ANALYSIS'}
+        </button>
       </div>
 
+      {open && (<>
       {/* KPI strip */}
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '14px 20px',
         borderBottom: `1px solid ${C.border}`, alignItems: 'center' }}>
@@ -1018,6 +1144,7 @@ function AnalysisDashboard({ bets }) {
         {/* Calibration curve */}
         {calBuckets.length > 0 && <CalibrationChart buckets={calBuckets} />}
       </div>
+      </>)}
     </div>
   );
 }
@@ -1070,7 +1197,7 @@ function Backtester() {
         </div>
 
         {/* Import */}
-        <DataImporter onImport={handleImport} />
+        <DataImporter onImport={handleImport} importedCount={allBets.length} />
 
         {/* Content — only shown once bets are loaded */}
         {allBets.length > 0 && (
@@ -1101,7 +1228,13 @@ function Backtester() {
             <BetTable bets={filteredBets} />
 
             {/* Analysis Dashboard */}
-            <AnalysisDashboard bets={filteredBets} />
+            <AnalysisDashboard bets={filteredBets} filterLabel={
+              filterMode === 'all' ? 'ALL BETS'
+              : filterMode === 'b' ? 'STRATEGY B'
+              : filterMode === 'c' ? 'STRATEGY C'
+              : filterMode === 'd' ? 'STRATEGY D'
+              : 'CUSTOM FILTER'
+            } />
           </>
         )}
       </div>
