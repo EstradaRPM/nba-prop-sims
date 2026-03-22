@@ -1690,318 +1690,6 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
   );
 }
 
-// ── Strategy D Slate ─────────────────────────────────────────────────
-// Renders the concentrated 4-12 bet output of Strategy D with rank badges,
-// scoring bonuses displayed inline, and diversification context.
-function StrategyDSlate({ slate, viewMode, gameData, tracked, onToggleTrack, onLogAll, bankroll, chalkParlays, chalkBetCount }) {
-  const mono = "'JetBrains Mono', monospace";
-
-  if (slate.length === 0) {
-    return (
-      <div style={{ padding: '24px', textAlign: 'center', borderRadius: 6,
-        border: '1px solid rgba(251,146,60,0.15)', background: 'rgba(251,146,60,0.03)' }}>
-        <div style={{ fontSize: 11, color: '#fb923c', fontFamily: mono, fontWeight: 700, marginBottom: 6 }}>
-          NO STRATEGY D BETS
-        </div>
-        <div style={{ fontSize: 9, color: '#64748b', fontFamily: mono }}>
-          Requires NegBin dist model + CV loaded + edge ≥ 3% + Strategy C criteria
-        </div>
-      </div>
-    );
-  }
-
-  // Annotate each bet with its score breakdown for display
-  const scored = slate.map(e => {
-    const std = e.std ?? (e.projection > 0 && e.cvValue ? e.projection * (e.cvValue / 100) : null);
-    const sigma = (std > 0 && e.projection > 0) ? (e.propLine - e.projection) / std : null;
-    const hasLgBonus   = sigma != null && sigma >= 0.3 && sigma <= 1.0;
-    const hasSprdBonus = e.spread != null && Math.abs(e.spread) >= 12;
-    const score        = scoreStrategyD(e);
-    return { ...e, _score: score, _sigma: sigma, _hasLgBonus: hasLgBonus, _hasSprdBonus: hasSprdBonus };
-  });
-
-  // Game view: reuse GameSlateView with the capped slate
-  if (viewMode === 'game') {
-    return (
-      <div>
-        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
-          background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.2)',
-          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: mono, fontSize: 8, color: '#fb923c', fontWeight: 700 }}>
-            ◆ STRATEGY D SLATE · {slate.length} BETS
-          </span>
-          <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b' }}>
-            ranked by edge + bonuses · diversification caps applied
-          </span>
-          {onLogAll && (
-            <button onClick={() => onLogAll(3, slate)}
-              style={{ marginLeft: 'auto', padding: '2px 10px', borderRadius: 4,
-                border: '1px solid rgba(251,146,60,0.4)', background: 'rgba(251,146,60,0.1)',
-                color: '#fb923c', fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>
-              LOG SLATE
-            </button>
-          )}
-        </div>
-        <GameSlateView filtered={slate} gameData={gameData} tracked={tracked} onToggleTrack={onToggleTrack} />
-      </div>
-    );
-  }
-
-  // List view: compact ranked card layout
-  return (
-    <div>
-      <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
-        background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.2)',
-        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: mono, fontSize: 8, color: '#fb923c', fontWeight: 700 }}>
-          ◆ STRATEGY D SLATE · {slate.length} BETS
-        </span>
-        <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b' }}>
-          ranked by score · line gap +1.5pp bonus · spread 12+ +0.5pp bonus
-        </span>
-        {onLogAll && (
-          <button onClick={() => onLogAll(3, slate)}
-            style={{ marginLeft: 'auto', padding: '2px 10px', borderRadius: 4,
-              border: '1px solid rgba(251,146,60,0.4)', background: 'rgba(251,146,60,0.1)',
-              color: '#fb923c', fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>
-            LOG SLATE
-          </button>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {scored.map((r, i) => {
-          const isTracked  = tracked && tracked.has(r.betId);
-          const edgeColor  = getEdgeColor(r.edge);
-          const sideColor  = r.side === 'OVER' ? '#4ade80' : '#f87171';
-          const rankColor  = i === 0 ? '#fb923c' : i < 3 ? '#fbbf24' : '#64748b';
-
-          return (
-            <div key={r.betId ?? i} style={{
-              display: 'flex', alignItems: 'center', gap: 0,
-              borderRadius: 6, overflow: 'hidden',
-              border: isTracked ? '1px solid rgba(245,158,11,0.4)' : '1px solid rgba(148,163,184,0.12)',
-              background: isTracked ? 'rgba(245,158,11,0.05)'
-                : r.edge >= 5 ? 'rgba(34,197,94,0.06)' : 'rgba(15,23,42,0.5)',
-            }}>
-              {/* Rank badge */}
-              <div style={{ width: 28, minWidth: 28, textAlign: 'center', padding: '10px 0',
-                background: 'rgba(0,0,0,0.25)', borderRight: '1px solid rgba(148,163,184,0.08)' }}>
-                <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 900, color: rankColor }}>
-                  #{i + 1}
-                </span>
-              </div>
-
-              {/* Player + team */}
-              <div style={{ flex: 1, minWidth: 0, padding: '6px 8px' }}>
-                <div style={{ fontSize: 10, fontFamily: mono, color: '#e2e8f0',
-                  fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r.player}
-                </div>
-                <div style={{ fontSize: 8, fontFamily: mono, color: '#64748b', marginTop: 1 }}>
-                  {r.team ?? ''}
-                  {r.commenceTime ? ` · ${new Date(r.commenceTime).toLocaleTimeString('en-US',
-                    { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })} ET` : ''}
-                </div>
-              </div>
-
-              {/* Stat + line + side */}
-              <div style={{ padding: '6px 8px', textAlign: 'center', minWidth: 64 }}>
-                <div style={{ fontSize: 9, fontFamily: mono, color: '#94a3b8', fontWeight: 700 }}>
-                  {r.statLabel}
-                </div>
-                <div style={{ fontSize: 10, fontFamily: mono, color: '#e2e8f0', fontWeight: 700, marginTop: 1 }}>
-                  {r.propLine}
-                </div>
-                <div style={{ fontSize: 9, fontFamily: mono, color: sideColor, fontWeight: 700, marginTop: 1 }}>
-                  {r.side}
-                </div>
-              </div>
-
-              {/* Odds + model */}
-              <div style={{ padding: '6px 8px', textAlign: 'right', minWidth: 64 }}>
-                <div style={{ fontSize: 10, fontFamily: mono, color: '#94a3b8', fontWeight: 700 }}>
-                  {r.bookOdds > 0 ? '+' : ''}{r.bookOdds}
-                </div>
-                <div style={{ fontSize: 8, fontFamily: mono, color: '#64748b', marginTop: 2 }}>
-                  {(r.modelProb * 100).toFixed(1)}% mdl
-                </div>
-              </div>
-
-              {/* Edge + score */}
-              <div style={{ padding: '6px 10px', textAlign: 'right', minWidth: 72 }}>
-                <div style={{ fontSize: 11, fontFamily: mono, color: edgeColor, fontWeight: 900 }}>
-                  +{r.edge.toFixed(1)}%
-                </div>
-                <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', marginTop: 3, flexWrap: 'wrap' }}>
-                  {r._hasLgBonus && (
-                    <span style={{ fontSize: 7, fontFamily: mono, color: '#a78bfa',
-                      background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)',
-                      borderRadius: 3, padding: '1px 4px', fontWeight: 700 }}>
-                      LG+
-                    </span>
-                  )}
-                  {r._hasSprdBonus && (
-                    <span style={{ fontSize: 7, fontFamily: mono, color: '#fb923c',
-                      background: 'rgba(251,146,60,0.10)', border: '1px solid rgba(251,146,60,0.25)',
-                      borderRadius: 3, padding: '1px 4px', fontWeight: 700 }}>
-                      SPR+
-                    </span>
-                  )}
-                  <span style={{ fontSize: 7, fontFamily: mono, color: '#475569',
-                    borderRadius: 3, padding: '1px 3px' }}>
-                    {r._score.toFixed(1)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Kelly */}
-              <div style={{ padding: '6px 8px', textAlign: 'right', minWidth: 52,
-                borderLeft: '1px solid rgba(148,163,184,0.08)' }}>
-                {r.kellyPct > 0 ? (
-                  <>
-                    <div style={{ fontSize: 9, fontFamily: mono, color: '#94a3b8', fontWeight: 700 }}>
-                      {r.kellyPct.toFixed(1)}%
-                    </div>
-                    <div style={{ fontSize: 7, fontFamily: mono, color: '#475569', marginTop: 1 }}>¼K</div>
-                    {bankroll && parseFloat(bankroll) > 0 && (
-                      <div style={{ fontSize: 7, fontFamily: mono, color: '#64748b', marginTop: 1 }}>
-                        ${(parseFloat(bankroll) * r.kellyPct / 100).toFixed(0)}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div style={{ fontSize: 8, fontFamily: mono, color: '#334155' }}>—</div>
-                )}
-              </div>
-
-              {/* Track checkbox */}
-              <div style={{ padding: '6px 8px', minWidth: 28, textAlign: 'center',
-                borderLeft: '1px solid rgba(148,163,184,0.08)' }}
-                onClick={() => onToggleTrack && onToggleTrack(r.betId)}>
-                <div style={{
-                  width: 12, height: 12, borderRadius: 2, margin: '0 auto',
-                  border: `1px solid ${isTracked ? 'rgba(245,158,11,0.8)' : 'rgba(148,163,184,0.3)'}`,
-                  background: isTracked ? 'rgba(245,158,11,0.7)' : 'transparent',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {isTracked && <span style={{ fontSize: 8, color: '#0b0f1a', fontWeight: 900, lineHeight: 1 }}>✓</span>}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Legend */}
-      <div style={{ marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 8, fontFamily: mono, color: '#a78bfa' }}>
-          LG+ = line gap +0.3σ to +1σ (+1.5pp score)
-        </span>
-        <span style={{ fontSize: 8, fontFamily: mono, color: '#fb923c' }}>
-          SPR+ = spread ≥ 12 (+0.5pp score)
-        </span>
-        <span style={{ fontSize: 8, fontFamily: mono, color: '#475569' }}>
-          caps: max 2/player · 3/team · 2/game
-        </span>
-      </div>
-
-      {/* Chalk Parlays section */}
-      {chalkParlays && chalkParlays.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          {/* Section header */}
-          <div style={{ padding: '5px 10px', borderRadius: '4px 4px 0 0',
-            background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.3)',
-            borderBottom: 'none', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: mono, fontSize: 8, color: '#818cf8', fontWeight: 700, letterSpacing: 0.5 }}>
-              ◈ CHALK PARLAYS
-            </span>
-            <span style={{ fontFamily: mono, fontSize: 7, color: '#64748b' }}>
-              {chalkBetCount} heavy chalk play{chalkBetCount !== 1 ? 's' : ''} (≤−170) routed here — parlay converts outsized Kelly to even-money exposure
-            </span>
-          </div>
-          {chalkParlays.map((parlay, pi) => {
-            const isLast = pi === chalkParlays.length - 1;
-            const bookAmerFmt = parlay.bookAmericanOdds >= 0 ? `+${parlay.bookAmericanOdds}` : `${parlay.bookAmericanOdds}`;
-            const br = bankroll && parseFloat(bankroll) > 0 ? parseFloat(bankroll) : 0;
-            return (
-              <div key={pi} style={{
-                border: '1px solid rgba(99,102,241,0.25)',
-                borderTop: pi === 0 ? '1px solid rgba(99,102,241,0.25)' : 'none',
-                borderRadius: isLast ? '0 0 4px 4px' : 0,
-                background: 'rgba(15,23,42,0.6)', padding: '8px 10px',
-              }}>
-                {/* Legs row */}
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 7 }}>
-                  {parlay.legs.map((leg, li) => (
-                    <div key={li} style={{
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)',
-                      borderRadius: 3, padding: '2px 6px',
-                    }}>
-                      <span style={{ fontFamily: mono, fontSize: 8, color: '#e2e8f0', fontWeight: 700 }}>
-                        {leg.player}
-                      </span>
-                      <span style={{ fontFamily: mono, fontSize: 8, color: '#94a3b8' }}>
-                        {leg.statLabel} {leg.propLine}
-                      </span>
-                      <span style={{ fontFamily: mono, fontSize: 8, fontWeight: 700,
-                        color: leg.side === 'OVER' ? '#4ade80' : '#f87171' }}>
-                        {leg.side}
-                      </span>
-                      <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b' }}>
-                        {leg.bookOdds > 0 ? '+' : ''}{leg.bookOdds}
-                      </span>
-                      <span style={{ fontFamily: mono, fontSize: 7, color: '#475569' }}>
-                        {(leg.modelProb * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                {/* Parlay summary row */}
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: mono, fontSize: 9, color: '#818cf8', fontWeight: 700 }}>
-                    {parlay.legs.length}-LEG&nbsp;&nbsp;{bookAmerFmt}
-                  </span>
-                  <span style={{ fontFamily: mono, fontSize: 8, color: '#94a3b8' }}>
-                    model {(parlay.modelProb * 100).toFixed(1)}%
-                  </span>
-                  <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700,
-                    color: getEdgeColor(parlay.edge) }}>
-                    +{parlay.edge.toFixed(1)}% edge
-                  </span>
-                  <span style={{ fontFamily: mono, fontSize: 8, color: '#94a3b8' }}>
-                    ¼K {parlay.kellyPct.toFixed(1)}%
-                    {br > 0 ? ` ($${(br * parlay.kellyPct / 100).toFixed(0)})` : ''}
-                  </span>
-                  <span style={{ fontFamily: mono, fontSize: 7, color: '#334155', marginLeft: 'auto' }}>
-                    vs {parlay.legs.map(l => `${l.bookOdds > 0 ? '+' : ''}${l.bookOdds}`).join(' + ')} straight
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ padding: '4px 10px', borderRadius: '0 0 4px 4px', marginTop: 1,
-            fontSize: 7, fontFamily: mono, color: '#334155',
-            background: 'rgba(99,102,241,0.03)', border: '1px solid rgba(99,102,241,0.15)',
-            borderTop: 'none' }}>
-            independence assumed · same-player legs excluded · parlay ¼K replaces sum of individual stakes
-          </div>
-        </div>
-      )}
-
-      {/* Chalk count notice when chalk bets exist but no valid parlays */}
-      {chalkBetCount > 0 && (!chalkParlays || chalkParlays.length === 0) && (
-        <div style={{ marginTop: 10, padding: '5px 10px', borderRadius: 4,
-          border: '1px solid rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.04)',
-          fontSize: 8, fontFamily: mono, color: '#64748b' }}>
-          {chalkBetCount} heavy chalk play{chalkBetCount !== 1 ? 's' : ''} filtered (≤−170) — no valid cross-player parlay combination found (need ≥2 different players with combined edge ≥1.5%)
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Play Selector Component ─────────────────────────────────────────
 // Session-aware slate builder that accumulates plays across projection runs.
 function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly, scaleFactor,
@@ -2223,12 +1911,9 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   const { useMemo, useState } = React;
   const [strategyB, setStrategyB] = useState(false);
   const [strategyC, setStrategyC] = useState(false);
-  const [strategyD, setStrategyD] = useState(false);
   const [showPlaySelector, setShowPlaySelector] = useState(false);
 
   const filtered = useMemo(() => {
-    // Strategy D slate is computed separately via applyStrategyDCaps; skip normal filter pipeline.
-    if (strategyD) return [];
     return results
       .filter(r =>
         (!positiveOnly || r.edge > 0) &&
@@ -2244,29 +1929,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         if (typeof av === 'string') return mult * av.localeCompare(bv);
         return mult * (av - bv);
       });
-  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, strategyD]);
-
-  // Strategy D slate: filter → score → diversification caps → top 4-12
-  const strategyDSlate = useMemo(() => {
-    if (!strategyD) return [];
-    const candidates = results.filter(r => STRATEGY_D_FILTER(r));
-    return applyStrategyDCaps(candidates, 12);
-  }, [results, strategyD]);
-
-  const strategyDQualifying = useMemo(() => {
-    if (!strategyD) return 0;
-    return results.filter(r => STRATEGY_D_FILTER(r)).length;
-  }, [results, strategyD]);
-
-  const strategyDChalkBets = useMemo(() => {
-    if (!strategyD) return [];
-    return results.filter(r => STRATEGY_D_CHALK_FILTER(r));
-  }, [results, strategyD]);
-
-  const strategyDChalkParlays = useMemo(() => {
-    if (!strategyD || strategyDChalkBets.length < 2) return [];
-    return buildChalkParlays(strategyDChalkBets);
-  }, [results, strategyD, strategyDChalkBets]);
+  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC]);
 
   const trackedCount = tracked ? tracked.size : 0;
   const cols = [
@@ -2348,28 +2011,21 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           background: positiveOnly ? 'rgba(34,197,94,0.1)' : 'rgba(15,23,42,0.4)',
           color: positiveOnly ? '#4ade80' : '#475569',
         }}>+EV ONLY</button>
-        <button onClick={() => { setStrategyB(b => !b); setStrategyC(false); setStrategyD(false); }} style={{
+        <button onClick={() => { setStrategyB(b => !b); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
           border: strategyB ? '1px solid rgba(167,139,250,0.5)' : '1px solid rgba(148,163,184,0.15)',
           background: strategyB ? 'rgba(167,139,250,0.15)' : 'rgba(15,23,42,0.4)',
           color: strategyB ? '#a78bfa' : '#475569',
         }}>STRATEGY B</button>
-        <button onClick={() => { setStrategyC(c => !c); setStrategyB(false); setStrategyD(false); }} style={{
+        <button onClick={() => { setStrategyC(c => !c); setStrategyB(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
           border: strategyC ? '1px solid rgba(45,212,191,0.5)' : '1px solid rgba(148,163,184,0.15)',
           background: strategyC ? 'rgba(45,212,191,0.12)' : 'rgba(15,23,42,0.4)',
           color: strategyC ? '#2dd4bf' : '#475569',
         }}>STRATEGY C</button>
-        <button onClick={() => { setStrategyD(d => !d); setStrategyB(false); setStrategyC(false); }} style={{
-          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-          border: strategyD ? '1px solid rgba(251,146,60,0.6)' : '1px solid rgba(148,163,184,0.15)',
-          background: strategyD ? 'rgba(251,146,60,0.12)' : 'rgba(15,23,42,0.4)',
-          color: strategyD ? '#fb923c' : '#475569',
-        }}>STRATEGY D</button>
-        <button onClick={() => { setShowPlaySelector(p => !p); setStrategyB(false); setStrategyC(false); setStrategyD(false); }} style={{
+        <button onClick={() => { setShowPlaySelector(p => !p); setStrategyB(false); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
           border: showPlaySelector ? '1px solid rgba(34,197,94,0.6)' : '1px solid rgba(148,163,184,0.15)',
@@ -2399,7 +2055,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
             STRATEGY B
           </span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            CV ≥ 36 games · OVER edge ≥ 5% · exclude ≥+176 · −135 to −121 edge ≥ 5%
+            UNDER only · CV-backed model (no Poisson/LogNormal)
           </span>
         </div>
       )}
@@ -2411,19 +2067,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
             STRATEGY C
           </span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            Strategy B + CV-backed model (no Poisson) · SOLID edge ≥3%
-          </span>
-        </div>
-      )}
-      {strategyD && (
-        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
-          background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.25)',
-          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#fb923c', letterSpacing: 0.5, fontWeight: 700 }}>
-            STRATEGY D
-          </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            Strategy C + NegBin · edge ≥ 3% · odds better than −170 · heavy chalk → PARLAY section · max 2/player · 3/team · 2/game → top 4–12
+            Exclude 55-60% model probability zone (max overconfidence band)
           </span>
         </div>
       )}
@@ -2431,21 +2075,9 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
       {/* Summary + export row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {strategyD ? (
-            <span style={{ fontSize: 9, color: '#fb923c', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
-              {strategyDSlate.length} bets selected
-              <span style={{ color: '#64748b', fontWeight: 400 }}> from {strategyDQualifying} qualifying</span>
-              {strategyDChalkBets.length > 0 && (
-                <span style={{ color: '#818cf8', fontWeight: 400 }}>
-                  {' '}· {strategyDChalkBets.length} chalk→parlay
-                </span>
-              )}
-            </span>
-          ) : (
           <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
             {filtered.length} rows
           </span>
-          )}
           {strongCount > 0 && <span style={{ fontSize: 9, color: '#22c55e', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
             {strongCount} STRONG
           </span>}
@@ -2514,19 +2146,6 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           onLogSlate={onLogSlate}
           locked={slateLocked}
           bankroll={bankroll}
-        />
-      ) : strategyD ? (
-        <StrategyDSlate
-          slate={strategyDSlate}
-          viewMode={viewMode}
-          gameData={gameData}
-          tracked={tracked}
-          onToggleTrack={onToggleTrack}
-          onTrackSelected={onTrackSelected}
-          onLogAll={onLogAll}
-          bankroll={bankroll}
-          chalkParlays={strategyDChalkParlays}
-          chalkBetCount={strategyDChalkBets.length}
         />
       ) : viewMode === 'game' ? (
         <GameSlateView
@@ -4013,159 +3632,43 @@ function CalibrationAnalysis({ stats: s }) {
 
 // ── CalibrationPanel component ────────────────────────────────────────
 // ── Strategy Filter Definitions ─────────────────────────────────────
-// Rebuilt 2026-03-22 after model-level fixes (KDE+, MODEL_BIAS, PROB_CEILING, LEAGUE_AVG_CV).
-// Previous strategies compensated for model bugs (KDE OVER inflation, PTS narrow distribution).
-// Those bugs are now fixed at the model level. Remaining gates reflect MARKET STRUCTURE only:
-// (1) CV sample reliability, (2) OVER is genuinely harder to predict (market structure),
-// (3) longshot model overestimation, (4) thin-chalk Kelly sizing risk.
-// PTS-specific gate removed — KDE+ fix + MODEL_BIAS address the root cause.
+// Rebuilt 2026-03-22 from scratch. Two independent hypotheses for isolating genuine edge vs noise.
+// Previous strategies (B/C/D) compensated for model bugs now fixed at the model level.
+// New strategies test orthogonal dimensions: B = directional asymmetry, C = calibration zone.
+//
+// Data basis (N=2211 tracked bets):
+//   OVER: N=742, HIT%=48.0, MODEL%=54.4, DIFF=-6.4pp, ROI=-4.4%
+//   UNDER: N=1469, HIT%=57.7, MODEL%=58.8, DIFF=-1.1pp, ROI=+7.4%
+//   Poisson: N=184, -6.3pp, -4.6% ROI · LogNormal: N=22, -11.5pp, -6.5% ROI
+//   55-60% prob bucket: N=546, DIFF=-6.0pp, ROI=-1.7% (max overconfidence zone)
+//
+// Strategy B — "Side Purity: UNDER Edge"
+// Hypothesis: Right-skewed distributions (log-normal, KDE, NegBin) systematically inflate
+// right-tail probability, making OVER edge unreliable. UNDER predictions are more accurate
+// because the left tail is bounded by zero, constraining probability estimation error.
+// BLK OVER (+10.9% ROI, N=83) is the one anomaly but N is too small for significance
+// (Wilson 95% CI: [32.8%, 54.5%]). Will revisit if pattern persists at N>200.
+// Also excludes Poisson/LogNormal: parametric fallbacks without CV data, both unprofitable.
 const STRATEGY_B_FILTER = e => {
-  const edge  = e.edgePct ?? e.edge ?? 0;  // calibration log uses edgePct; batch rows use edge
-  const games = e.gamesAvailable ?? 0;
-  const odds  = e.bookOdds       ?? 0;
-  if (games < 36)                               return false;  // CV sample gate (Z≈2.3)
-  if (e.side === 'OVER' && edge < 5)            return false;  // OVER threshold: market structure (OVER genuinely harder)
-  if (odds >= 176)                              return false;  // ≥+176 excluded: model overestimates tail probabilities
-  if (odds >= -135 && odds <= -121 && edge < 5) return false;  // thin-chalk gate: low decimal odds amplify Kelly error
+  if (e.side !== 'UNDER')                       return false;  // core: UNDER only
+  const dm = e.distModel ?? '';
+  if (dm === 'Poisson' || dm === 'LogNormal')   return false;  // require CV/empirical-backed model
   return true;
 };
 
-// Strategy C — highest-confidence plays. Inherits all Strategy B market-structure gates, then adds:
-// (1) CV-backed model required — excludes Poisson fallback (was -6.3pp, -4.6% ROI). NegBin and KDE/KDE+ pass.
-// (2) SOLID edge floor (≥3%) — filters out borderline plays.
-// PTS and OVER blanket exclusions removed (2026-03-22): KDE+ fix addresses PTS root cause,
-// MODEL_BIAS handles per-stat OVER correction. Strategy B's OVER ≥5% edge gate provides market-structure protection.
+// Strategy C — "Calibration Zone: Exclude Overconfidence Band"
+// Hypothesis: The 55-60% model probability zone is where perceived edge is almost entirely
+// calibration error: model says 57.3% but reality is 51.3% (-6.0pp). At typical -120 to -140
+// odds in this zone, the vig requires ~55-58% to break even, so 51.3% is a consistent loss.
+// Outside this zone: <55% is well-calibrated at plus-money odds (+7.0% ROI combined),
+// 60-72% has true probability high enough to profit despite miscalibration (+4.1% ROI).
+// PROB_CEILING (0.72) already handles the 72%+ zone at the model level.
+// Independent from Strategy B: no directional filter. Tests calibration quality only.
 const STRATEGY_C_FILTER = e => {
-  if (!STRATEGY_B_FILTER(e))                    return false;  // inherit all Strategy B gates
-  if (e.distModel === 'Poisson')                return false;  // require CV-backed model (NegBin or KDE/KDE+)
-  if ((e.edgePct ?? e.edge ?? 0) < 3)           return false;  // SOLID edge floor
+  const prob = e.modelProb ?? 0;
+  if (prob >= 0.55 && prob < 0.60)              return false;  // exclude overconfidence dead zone
   return true;
 };
-
-// Strategy D — concentrated 4-12 bet slate with diversification caps.
-// Inherits all Strategy C gates (CV ≥36, OVER ≥5%, no Poisson, SOLID edge ≥3%), then adds:
-// (1) NegBin distribution required — discrete count stats (STL/BLK/THREES) with CV-backed overdispersion.
-//     Consistently +9-13% ROI across strategies vs KDE -5 to -13%.
-// (2) Heavy chalk cap (odds ≤ -170) — excluded from straight bet slate; see STRATEGY_D_CHALK_FILTER.
-//     At -170 or worse, ¼K Kelly recommends 3U+ due to low decimal odds; 3pp model error erases edge.
-//     Two -175 plays parlayed together convert to ~+115 with compounded edge and lower exposure.
-// Scoring for ranking (not hard gates):
-//   +1.5pp bonus: line gap +0.3σ to +1σ (book line is 0.3–1 SD above ETR → UNDER has genuine signal)
-//   +0.5pp bonus: spread ≥ 12 (blowout dynamics; soft signal)
-// Diversification caps applied after scoring: max 2/player, max 3/team, max 2/game → top 4–12 output.
-const STRATEGY_D_FILTER = e => {
-  if (!STRATEGY_C_FILTER(e))                    return false;  // inherit all Strategy C gates (includes SOLID edge ≥3%)
-  if (e.distModel !== 'NegBin')                 return false;  // NegBin only — CV must be loaded and overdispersed
-  if ((e.bookOdds ?? 0) <= -170)                return false;  // heavy chalk — routed to CHALK PARLAYS section
-  return true;
-};
-
-// Chalk filter: identical Strategy D gates but selects heavy chalk plays (odds ≤ -170).
-// These pass all other quality criteria but are too chalky for a straight bet in a concentrated slate.
-// Used by buildChalkParlays() to generate 2-leg / 3-leg parlay suggestions in StrategyDSlate.
-const STRATEGY_D_CHALK_FILTER = e => {
-  if (!STRATEGY_C_FILTER(e))                    return false;  // inherits SOLID edge ≥3% from Strategy C
-  if (e.distModel !== 'NegBin')                 return false;
-  return (e.bookOdds ?? 0) <= -170;  // only heavy chalk
-};
-
-// Score a Strategy D candidate for ranking. Higher = prioritized.
-function scoreStrategyD(e) {
-  let score = e.edge ?? 0;
-  // Line gap bonus: book line is 0.3–1σ above ETR projection (UNDER signal)
-  const std = e.std ?? (e.projection > 0 && e.cvValue ? e.projection * (e.cvValue / 100) : null);
-  if (std > 0 && e.projection > 0) {
-    const sigma = (e.propLine - e.projection) / std;
-    if (sigma >= 0.3 && sigma <= 1.0) score += 1.5;
-  }
-  // Spread bonus: large underdogs / favorites
-  if (e.spread != null && Math.abs(e.spread) >= 12) score += 0.5;
-  return score;
-}
-
-// Apply diversification caps and return top N bets for Strategy D slate.
-// Caps: max 2 per player, max 3 per team, max 2 per game (eventId or commenceTime).
-function applyStrategyDCaps(candidates, maxBets = 12) {
-  const sorted = [...candidates].sort((a, b) => scoreStrategyD(b) - scoreStrategyD(a));
-  const perPlayer = {}, perTeam = {}, perGame = {};
-  const slate = [];
-  for (const e of sorted) {
-    if (slate.length >= maxBets) break;
-    const player  = e.player  ?? '__';
-    const team    = e.team    ?? '__';
-    const gameKey = e.eventId ?? e.commenceTime ?? '__';
-    if ((perPlayer[player] ?? 0) >= 2) continue;
-    if ((perTeam[team]     ?? 0) >= 3) continue;
-    if ((perGame[gameKey]  ?? 0) >= 2) continue;
-    slate.push(e);
-    perPlayer[player] = (perPlayer[player] ?? 0) + 1;
-    perTeam[team]     = (perTeam[team]     ?? 0) + 1;
-    perGame[gameKey]  = (perGame[gameKey]  ?? 0) + 1;
-  }
-  return slate;
-}
-
-// Build 2-leg and 3-leg parlay suggestions from heavy chalk Strategy D candidates.
-// Independence assumed — legs from the same player are skipped (outcomes are correlated).
-// Parlay math: two -175 plays at 7% individual edge each → ~12% combined edge at ~+115 book odds
-// with lower total exposure than two separate straight bets (5% parlay ¼K vs 12.5% summed ¼K).
-// Returns top 4 combos sorted by edge, each entry: { legs, bookDecimal, bookAmericanOdds, modelProb, edge, kellyPct }.
-function buildChalkParlays(chalkBets) {
-  const combos = [];
-  const bets = chalkBets.slice(0, 6); // cap candidates to avoid combinatorial explosion
-
-  // 2-leg combinations
-  for (let i = 0; i < bets.length; i++) {
-    for (let j = i + 1; j < bets.length; j++) {
-      const a = bets[i], b = bets[j];
-      if (a.player === b.player) continue; // same player = correlated outcomes, skip
-      const decA = americanToDecimal(a.bookOdds) ?? 1;
-      const decB = americanToDecimal(b.bookOdds) ?? 1;
-      const bookDec    = decA * decB;
-      const modelProb  = (a.modelProb ?? 0) * (b.modelProb ?? 0);
-      const bookImp    = 1 / bookDec;
-      const edge       = (modelProb - bookImp) * 100;
-      if (edge < 1.5) continue;
-      const bVal       = bookDec - 1;
-      const kellyFull  = bVal > 0 ? Math.max(0, (bVal * modelProb - (1 - modelProb)) / bVal) : 0;
-      const kellyPct   = kellyFull * 0.25 * 100;
-      const bookAmericanOdds = bookDec >= 2
-        ? Math.round((bookDec - 1) * 100)
-        : -Math.round(100 / (bookDec - 1));
-      combos.push({ legs: [a, b], bookDec, bookAmericanOdds, modelProb, edge, kellyPct });
-    }
-  }
-
-  // 3-leg combinations (only when ≥ 3 distinct-player chalk bets available)
-  if (bets.length >= 3) {
-    for (let i = 0; i < bets.length; i++) {
-      for (let j = i + 1; j < bets.length; j++) {
-        for (let k = j + 1; k < bets.length; k++) {
-          const a = bets[i], b = bets[j], c = bets[k];
-          const players = new Set([a.player, b.player, c.player]);
-          if (players.size < 3) continue; // any duplicate player = correlated, skip
-          const decA = americanToDecimal(a.bookOdds) ?? 1;
-          const decB = americanToDecimal(b.bookOdds) ?? 1;
-          const decC = americanToDecimal(c.bookOdds) ?? 1;
-          const bookDec    = decA * decB * decC;
-          const modelProb  = (a.modelProb ?? 0) * (b.modelProb ?? 0) * (c.modelProb ?? 0);
-          const bookImp    = 1 / bookDec;
-          const edge       = (modelProb - bookImp) * 100;
-          if (edge < 1.5) continue;
-          const bVal       = bookDec - 1;
-          const kellyFull  = bVal > 0 ? Math.max(0, (bVal * modelProb - (1 - modelProb)) / bVal) : 0;
-          const kellyPct   = kellyFull * 0.25 * 100;
-          const bookAmericanOdds = bookDec >= 2
-            ? Math.round((bookDec - 1) * 100)
-            : -Math.round(100 / (bookDec - 1));
-          combos.push({ legs: [a, b, c], bookDec, bookAmericanOdds, modelProb, edge, kellyPct });
-        }
-      }
-    }
-  }
-
-  return combos.sort((a, b) => b.edge - a.edge).slice(0, 4);
-}
 
 // ── Play Selector: Tier Classification & Slate Builder ─────────────
 // Replaces ad-hoc Strategy B/C/D for actionable play selection.
@@ -4304,7 +3807,6 @@ const STRATEGY_LABELS = {
   all: 'ALL BETS',
   b:   'STRATEGY B',
   c:   'STRATEGY C',
-  d:   'STRATEGY D',
 };
 
 function CalibrationPanel({
@@ -4331,7 +3833,6 @@ function CalibrationPanel({
   const strategyLog   = React.useMemo(() => {
     if (analysisStrategy === 'b') return log.filter(STRATEGY_B_FILTER);
     if (analysisStrategy === 'c') return log.filter(STRATEGY_C_FILTER);
-    if (analysisStrategy === 'd') return log.filter(STRATEGY_D_FILTER);
     return log;
   }, [log, analysisStrategy]);
   const strategyStats = React.useMemo(() => computeCalibrationStats(strategyLog), [strategyLog]);
@@ -4517,12 +4018,12 @@ function CalibrationPanel({
                     </div>
                     {/* Strategy toggle — only meaningful when analysis is open */}
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {['all', 'b', 'c', 'd'].map(key => {
+                      {['all', 'b', 'c'].map(key => {
                         const isActive = analysisStrategy === key;
                         const n = key === 'all' ? settled.length : strategySettledN;
-                        const activeColor  = key === 'd' ? '#fb923c' : key === 'c' ? '#2dd4bf' : key === 'b' ? '#a78bfa' : '#94a3b8';
-                        const activeBorder = key === 'd' ? 'rgba(251,146,60,0.4)' : key === 'c' ? 'rgba(45,212,191,0.4)' : key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
-                        const activeBg     = key === 'd' ? 'rgba(251,146,60,0.08)' : key === 'c' ? 'rgba(45,212,191,0.08)' : key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
+                        const activeColor  = key === 'c' ? '#2dd4bf' : key === 'b' ? '#a78bfa' : '#94a3b8';
+                        const activeBorder = key === 'c' ? 'rgba(45,212,191,0.4)' : key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
+                        const activeBg     = key === 'c' ? 'rgba(45,212,191,0.08)' : key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
                         return (
                           <button key={key}
                             onClick={e => { e.stopPropagation(); setAnalysisStrategy(key); if (!analysisOpen) setAnalysisOpen(true); }}
@@ -4547,7 +4048,7 @@ function CalibrationPanel({
                         STRATEGY B CRITERIA:
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        CV ≥ 36 games · OVER edge ≥ 5% · exclude ≥+176 · -135 to -121 edge ≥ 5%
+                        UNDER only · CV-backed model (no Poisson/LogNormal)
                       </span>
                     </div>
                   )}
@@ -4558,18 +4059,7 @@ function CalibrationPanel({
                         STRATEGY C CRITERIA:
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        Strategy B + CV-backed model (no Poisson) · SOLID edge ≥3%
-                      </span>
-                    </div>
-                  )}
-                  {analysisOpen && analysisStrategy === 'd' && (
-                    <div style={{ margin: '0 12px 8px', padding: '6px 10px', borderRadius: 5,
-                      background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)' }}>
-                      <span style={{ fontFamily: mono, fontSize: 8, color: '#fb923c', letterSpacing: 0.5 }}>
-                        STRATEGY D CRITERIA:
-                      </span>
-                      <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        Strategy C + NegBin model · edge ≥ 3% · prospective 4–12 bet slate with diversification caps
+                        Exclude 55-60% model probability zone (max overconfidence band)
                       </span>
                     </div>
                   )}
@@ -4585,8 +4075,6 @@ function CalibrationPanel({
                         ? `Strategy B has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : analysisStrategy === 'c'
                         ? `Strategy C has ${strategySettledN} settled plays — need at least 5 for analysis.`
-                        : analysisStrategy === 'd'
-                        ? `Strategy D has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : 'Need at least 5 settled plays for analysis.'}
                     </div>
                   )}
@@ -5721,7 +5209,6 @@ function NBASimulator() {
       'ALL BETS':    calibration,
       'STRATEGY B':  calibration.filter(STRATEGY_B_FILTER),
       'STRATEGY C':  calibration.filter(STRATEGY_C_FILTER),
-      'STRATEGY D':  calibration.filter(STRATEGY_D_FILTER),
     };
     const esc = v => { const sv = String(v ?? ''); return (sv.includes(',') || sv.includes('"')) ? `"${sv.replace(/"/g,'""')}"` : sv; };
     const rows = [['Strategy','Section','Label','N','HIT%','MODEL%','DIFF pp','1U ROI%']];
