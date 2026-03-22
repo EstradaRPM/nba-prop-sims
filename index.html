@@ -17,6 +17,56 @@
   <script type="text/babel">
 const { useState, useCallback, useMemo } = React;
 
+// ── Model Calibration Constants ────────────────────────────────────
+// Derived from 2,211 logged bets (as of 2026-03-22). Update periodically as data grows.
+
+const MODEL_VERSION = 2;  // Increment when model logic changes; tags logged bets for segmentation
+
+// Hard ceiling on model probability. 75%+ bucket is -13.2pp overconfident (N=61).
+const PROB_CEILING = 0.72;
+
+// Empirical bias corrections (percentage points). Positive = model overestimates that side.
+// Applied as: correctedProb = rawProb - bias/100. Zeroed values = no correction applied.
+// PTS zeroed post-KDE+ fix (2026-03-21) — re-evaluate after 200+ new PTS bets.
+const MODEL_BIAS = {
+  pts:    { over: 0,   under: 0 },  // KDE+ fix just landed; zeroed pending new data
+  reb:    { over: 3.0, under: 0 },  // OVER -4.6pp; conservative 3pp correction
+  ast:    { over: 4.0, under: 0 },  // OVER -7.3pp; 4pp correction (preserve AST UNDER edge)
+  stl:    { over: 6.0, under: 0 },  // OVER -12.1pp; 6pp (half the gap)
+  blk:    { over: 0,   under: 0 },  // OVER -1.7pp; within noise
+  threes: { over: 5.0, under: 0 },  // OVER -9.8pp; 5pp correction
+};
+
+// League-average CVs for NegBin fallback when player CV data unavailable.
+// Replaces pure Poisson (which was -6.3pp, -4.6% ROI). From cv_data.json aggregates.
+const LEAGUE_AVG_CV = { stl: 111, blk: 182, threes: 95 };
+
+// Apply probability ceiling and bias correction to raw simulation probabilities.
+// Returns { over, under, push } with corrections applied.
+function applyModelCorrections(rawProb, statKey) {
+  // 1. Cap each side at ceiling
+  let over  = Math.min(rawProb.over,  PROB_CEILING);
+  let under = Math.min(rawProb.under, PROB_CEILING);
+  const push = rawProb.push;
+
+  // Renormalize after ceiling cap
+  const total1 = over + under + push;
+  if (total1 > 0) { over /= total1; under /= total1; }
+
+  // 2. Apply per-stat bias corrections
+  const bias = MODEL_BIAS[statKey];
+  if (bias) {
+    over  = Math.max(0.01, over  - (bias.over  || 0) / 100);
+    under = Math.max(0.01, under - (bias.under || 0) / 100);
+  }
+
+  // Renormalize after bias correction
+  const total2 = over + under + push;
+  if (total2 > 0) { over /= total2; under /= total2; }
+
+  return { over, under, push };
+}
+
 // ── Monte Carlo Engine ──────────────────────────────────────────────
 function randn() {
   let u = 0, v = 0;
@@ -324,7 +374,9 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
             const effectiveCvPct_pu = Math.max(cvPct_nb || 0, floorCv_pu);
             chunk = simulateStatNegBin(mu_i, effectiveCvPct_pu, n_c);
           } else {
-            chunk = (cvPct_nb > 0) ? simulateStatNegBin(mu_i, cvPct_nb, n_c) : simulateStatPoisson(mu_i, n_c);
+            // League-avg NegBin fallback instead of Poisson (Poisson was -6.3pp calibration)
+            const effectiveCv_pu = (cvPct_nb > 0) ? cvPct_nb : (LEAGUE_AVG_CV[key] || 100);
+            chunk = simulateStatNegBin(mu_i, effectiveCv_pu, n_c);
           }
         } else if (KDE_STATS.has(key)) {
           if (kdeModel) {
@@ -370,9 +422,10 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
         const effectiveCvPct = Math.max(cvPct || 0, floorCv);
         simResults[key] = simulateStatNegBin(mean, effectiveCvPct, numSims);
       } else {
-        simResults[key] = (cvPct > 0)
-          ? simulateStatNegBin(mean, cvPct, numSims)
-          : simulateStatPoisson(mean, numSims);
+        // Use player CV when available; fall back to league-average NegBin (not Poisson).
+        // Poisson fallback was -6.3pp, -4.6% ROI in calibration. League-avg NegBin is strictly better.
+        const effectiveCv = (cvPct > 0) ? cvPct : (LEAGUE_AVG_CV[key] || 100);
+        simResults[key] = simulateStatNegBin(mean, effectiveCv, numSims);
       }
     } else if (KDE_STATS.has(key)) {
       // Fallback chain for pts/reb/ast:
@@ -1370,6 +1423,7 @@ const DIST_MODEL_STYLE = {
   Gamma:     { color: "#f59e0b", bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.25)"  },
   LogNormal: { color: "#60a5fa", bg: "rgba(96,165,250,0.08)",  border: "rgba(96,165,250,0.25)"  },
   NegBin:    { color: "#a78bfa", bg: "rgba(167,139,250,0.08)", border: "rgba(167,139,250,0.25)" },
+  "NegBin*": { color: "#c4b5fd", bg: "rgba(196,181,253,0.06)", border: "rgba(196,181,253,0.2)"  }, // league-avg CV fallback
   Poisson:   { color: "#fb923c", bg: "rgba(251,146,60,0.08)",  border: "rgba(251,146,60,0.25)"  },
   Direct:    { color: "#34d399", bg: "rgba(52,211,153,0.08)",  border: "rgba(52,211,153,0.25)"  },
   Summed:    { color: "#94a3b8", bg: "rgba(148,163,184,0.06)", border: "rgba(148,163,184,0.18)" },
@@ -1948,16 +2002,229 @@ function StrategyDSlate({ slate, viewMode, gameData, tracked, onToggleTrack, onL
   );
 }
 
+// ── Play Selector Component ─────────────────────────────────────────
+// Session-aware slate builder that accumulates plays across projection runs.
+function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly, scaleFactor,
+  onAddPlays, onNewRun, onLockSlate, onClearSlate, onLogSlate, locked, bankroll }) {
+  const mono = "'JetBrains Mono', monospace";
+  const tier1 = slate.filter(p => p.tier === 1);
+  const tier2 = slate.filter(p => p.tier === 2);
+  const bank = parseFloat(bankroll) || 0;
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8,
+        padding: '8px 12px', borderRadius: 6, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}>
+        <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 900, color: '#22c55e', letterSpacing: 1 }}>
+          PLAY SELECTOR
+        </span>
+        <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b' }}>
+          Run #{session} · {slate.length} plays · {tier1.length} T1 · {tier2.length} T2
+        </span>
+        {scaleFactor < 1 && (
+          <span style={{ fontFamily: mono, fontSize: 8, color: '#fb923c', fontWeight: 700 }}>
+            SCALED {(scaleFactor * 100).toFixed(0)}%
+          </span>
+        )}
+        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+          {!locked && (
+            <button onClick={onAddPlays} style={{ padding: '3px 10px', borderRadius: 4,
+              border: '1px solid rgba(34,197,94,0.5)', background: 'rgba(34,197,94,0.12)',
+              color: '#22c55e', fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>
+              + ADD PLAYS
+            </button>
+          )}
+          {!locked && (
+            <button onClick={onNewRun} style={{ padding: '3px 10px', borderRadius: 4,
+              border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.08)',
+              color: '#a5b4fc', fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>
+              NEW RUN
+            </button>
+          )}
+          <button onClick={onLockSlate} style={{ padding: '3px 10px', borderRadius: 4,
+            border: locked ? '1px solid rgba(251,146,60,0.5)' : '1px solid rgba(148,163,184,0.2)',
+            background: locked ? 'rgba(251,146,60,0.12)' : 'rgba(15,23,42,0.4)',
+            color: locked ? '#fb923c' : '#64748b', fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>
+            {locked ? 'UNLOCK' : 'LOCK'}
+          </button>
+          <button onClick={onLogSlate} style={{ padding: '3px 10px', borderRadius: 4,
+            border: '1px solid rgba(167,139,250,0.4)', background: 'rgba(167,139,250,0.08)',
+            color: '#a78bfa', fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>
+            LOG SLATE
+          </button>
+          <button onClick={onClearSlate} style={{ padding: '3px 10px', borderRadius: 4,
+            border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)',
+            color: '#ef4444', fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>
+            CLEAR
+          </button>
+        </div>
+      </div>
+
+      {/* Config row */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+        {[
+          { label: 'MAX PLAYS', key: 'maxPlays', min: 8, max: 30 },
+          { label: 'MAX/GAME', key: 'maxPerGame', min: 1, max: 6 },
+          { label: 'MAX/PLAYER', key: 'maxPerPlayer', min: 1, max: 4 },
+          { label: 'MAX ¼K%', key: 'maxBankrollPct', min: 5, max: 30 },
+        ].map(({ label, key, min, max }) => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontFamily: mono, fontSize: 7, color: '#64748b' }}>{label}</span>
+            <input type="number" min={min} max={max} value={config[key]}
+              onChange={e => setConfig(prev => ({ ...prev, [key]: parseInt(e.target.value) || min }))}
+              style={{ width: 36, padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(148,163,184,0.15)',
+                background: 'rgba(15,23,42,0.6)', color: '#e2e8f0', fontFamily: mono, fontSize: 9, textAlign: 'center' }} />
+          </div>
+        ))}
+        <div style={{ fontFamily: mono, fontSize: 8, color: '#94a3b8', marginLeft: 'auto' }}>
+          Total ¼K: {totalKelly.toFixed(1)}%
+          {bank > 0 && <span> · ${Math.round(bank * totalKelly / 100)}</span>}
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {slate.length === 0 && (
+        <div style={{ padding: 24, textAlign: 'center', borderRadius: 6,
+          border: '1px solid rgba(148,163,184,0.1)', background: 'rgba(15,23,42,0.4)' }}>
+          <div style={{ fontFamily: mono, fontSize: 10, color: '#64748b', marginBottom: 4 }}>No plays in slate</div>
+          <div style={{ fontFamily: mono, fontSize: 8, color: '#475569' }}>
+            Run batch simulation then click "+ ADD PLAYS" to build your slate
+          </div>
+        </div>
+      )}
+
+      {/* Slate plays */}
+      {slate.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {slate.map((r, i) => {
+            const edge = r.edgePct ?? r.edge ?? 0;
+            const tierColor = r.tier === 1 ? '#22c55e' : '#fbbf24';
+            const sideColor = r.side === 'OVER' ? '#4ade80' : '#f87171';
+            const rankColor = i === 0 ? '#fb923c' : i < 3 ? '#fbbf24' : '#64748b';
+
+            return (
+              <div key={r.betId ?? `${r.player}-${r.stat}-${r.side}`} style={{
+                display: 'flex', alignItems: 'center', gap: 0, borderRadius: 5, overflow: 'hidden',
+                borderLeft: `3px solid ${tierColor}`,
+                border: `1px solid rgba(148,163,184,0.08)`,
+                background: r._updated ? 'rgba(99,102,241,0.06)' : 'rgba(15,23,42,0.5)',
+              }}>
+                {/* Rank */}
+                <div style={{ width: 24, minWidth: 24, textAlign: 'center', padding: '8px 0',
+                  background: 'rgba(0,0,0,0.2)' }}>
+                  <span style={{ fontFamily: mono, fontSize: 8, fontWeight: 900, color: rankColor }}>#{i + 1}</span>
+                </div>
+                {/* Player */}
+                <div style={{ flex: 1, minWidth: 0, padding: '4px 6px' }}>
+                  <div style={{ fontSize: 9, fontFamily: mono, color: '#e2e8f0', fontWeight: 700,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.player}</div>
+                  <div style={{ fontSize: 7, fontFamily: mono, color: '#64748b', marginTop: 1 }}>
+                    {r.team ?? ''}{r.commenceTime ? ` · ${new Date(r.commenceTime).toLocaleTimeString('en-US',
+                      { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })} ET` : ''}
+                  </div>
+                </div>
+                {/* Stat + Side */}
+                <div style={{ padding: '4px 6px', textAlign: 'center', minWidth: 52 }}>
+                  <div style={{ fontSize: 8, fontFamily: mono, color: '#94a3b8', fontWeight: 700 }}>
+                    {r.statLabel ?? r.stat?.toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: 8, fontFamily: mono, color: sideColor, fontWeight: 700 }}>
+                    {r.side} {r.propLine}
+                  </div>
+                </div>
+                {/* Odds */}
+                <div style={{ padding: '4px 4px', textAlign: 'center', minWidth: 40 }}>
+                  <div style={{ fontSize: 8, fontFamily: mono, color: '#94a3b8' }}>
+                    {r.bookOdds > 0 ? `+${r.bookOdds}` : r.bookOdds}
+                  </div>
+                </div>
+                {/* Edge */}
+                <div style={{ padding: '4px 6px', textAlign: 'center', minWidth: 48 }}>
+                  <div style={{ fontSize: 9, fontFamily: mono, color: getEdgeColor(edge), fontWeight: 700 }}>
+                    {edge >= 0 ? '+' : ''}{edge.toFixed(1)}%
+                  </div>
+                  <div style={{ fontSize: 7, fontFamily: mono, color: '#475569' }}>{getEdgeLabel(edge)}</div>
+                </div>
+                {/* Kelly */}
+                <div style={{ padding: '4px 6px', textAlign: 'center', minWidth: 40 }}>
+                  <div style={{ fontSize: 8, fontFamily: mono, color: '#94a3b8' }}>
+                    {(r.kellyPct || 0).toFixed(1)}%
+                  </div>
+                  {bank > 0 && (
+                    <div style={{ fontSize: 7, fontFamily: mono, color: '#475569' }}>
+                      ${Math.round(bank * (r.kellyPct || 0) / 100)}
+                    </div>
+                  )}
+                </div>
+                {/* Badges */}
+                <div style={{ padding: '4px 6px', display: 'flex', gap: 3, alignItems: 'center', minWidth: 60 }}>
+                  <span style={{ fontSize: 7, fontFamily: mono, padding: '1px 4px', borderRadius: 3,
+                    background: r.tier === 1 ? 'rgba(34,197,94,0.15)' : 'rgba(251,191,36,0.15)',
+                    color: r.tier === 1 ? '#4ade80' : '#fbbf24', fontWeight: 700 }}>
+                    T{r.tier}
+                  </span>
+                  <span style={{ fontSize: 7, fontFamily: mono, padding: '1px 4px', borderRadius: 3,
+                    background: 'rgba(99,102,241,0.1)', color: '#a5b4fc' }}>
+                    #{r.session}
+                  </span>
+                  {r._updated && (
+                    <span style={{ fontSize: 6, fontFamily: mono, padding: '1px 3px', borderRadius: 2,
+                      background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontWeight: 700 }}>UPD</span>
+                  )}
+                  {r._scaled && (
+                    <span style={{ fontSize: 6, fontFamily: mono, padding: '1px 3px', borderRadius: 2,
+                      background: 'rgba(251,146,60,0.15)', color: '#fb923c' }}>SCL</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Overflow (cut plays) */}
+      {overflow.length > 0 && (
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ fontFamily: mono, fontSize: 8, color: '#475569', cursor: 'pointer' }}>
+            {overflow.length} plays cut by exposure caps
+          </summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
+            {overflow.slice(0, 15).map((r, i) => (
+              <div key={`ov-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 6,
+                padding: '3px 8px', borderRadius: 4, background: 'rgba(15,23,42,0.3)',
+                opacity: 0.5 }}>
+                <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', minWidth: 80 }}>
+                  {r.player}
+                </span>
+                <span style={{ fontFamily: mono, fontSize: 7, color: '#475569' }}>
+                  {r.statLabel ?? r.stat?.toUpperCase()} {r.side} {r.propLine}
+                </span>
+                <span style={{ fontFamily: mono, fontSize: 7, color: '#475569', marginLeft: 'auto' }}>
+                  {r._cutReason}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
 // ── Batch Results Table ──────────────────────────────────────────────
 function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinEdge,
   statFilter, setStatFilter, positiveOnly, setPositiveOnly,
   bankroll, onExport, csvData, csvCopied, onCopyCsv,
   tracked, onToggleTrack, onTrackSelected, onLogAll, batchLogMsg,
-  viewMode, setViewMode, gameData }) {
+  viewMode, setViewMode, gameData,
+  slate, slateOverflow, slateConfig, setSlateConfig, slateSession, slateTotalKelly, slateScaleFactor,
+  slateLocked, onAddPlays, onNewRun, onLockSlate, onClearSlate, onLogSlate }) {
   const { useMemo, useState } = React;
   const [strategyB, setStrategyB] = useState(false);
   const [strategyC, setStrategyC] = useState(false);
   const [strategyD, setStrategyD] = useState(false);
+  const [showPlaySelector, setShowPlaySelector] = useState(false);
 
   const filtered = useMemo(() => {
     // Strategy D slate is computed separately via applyStrategyDCaps; skip normal filter pipeline.
@@ -2102,6 +2369,13 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           background: strategyD ? 'rgba(251,146,60,0.12)' : 'rgba(15,23,42,0.4)',
           color: strategyD ? '#fb923c' : '#475569',
         }}>STRATEGY D</button>
+        <button onClick={() => { setShowPlaySelector(p => !p); setStrategyB(false); setStrategyC(false); setStrategyD(false); }} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: showPlaySelector ? '1px solid rgba(34,197,94,0.6)' : '1px solid rgba(148,163,184,0.15)',
+          background: showPlaySelector ? 'rgba(34,197,94,0.15)' : 'rgba(15,23,42,0.4)',
+          color: showPlaySelector ? '#22c55e' : '#475569',
+        }}>PLAY SELECTOR</button>
         {/* View mode toggle */}
         <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
           {[['list','≡ LIST'],['game','⬡ GAME']].map(([mode, label]) => (
@@ -2224,7 +2498,24 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
       </div>
 
       {/* Table or Game View */}
-      {strategyD ? (
+      {showPlaySelector ? (
+        <PlaySelector
+          slate={slate || []}
+          overflow={slateOverflow || []}
+          config={slateConfig}
+          setConfig={setSlateConfig}
+          session={slateSession}
+          totalKelly={slateTotalKelly}
+          scaleFactor={slateScaleFactor}
+          onAddPlays={onAddPlays}
+          onNewRun={onNewRun}
+          onLockSlate={onLockSlate}
+          onClearSlate={onClearSlate}
+          onLogSlate={onLogSlate}
+          locked={slateLocked}
+          bankroll={bankroll}
+        />
+      ) : strategyD ? (
         <StrategyDSlate
           slate={strategyDSlate}
           viewMode={viewMode}
@@ -3248,6 +3539,23 @@ function computeCalibrationStats(entries) {
     })
     .filter(d => d.over || d.under);
 
+  // BY TIER — Play Selector tier segmentation
+  const byTier = {};
+  [1, 2].forEach(t => {
+    const g = groupStats(wl.filter(e => e.tier === t));
+    if (g) byTier[`Tier ${t}`] = g;
+  });
+  const noTier = groupStats(wl.filter(e => e.tier == null));
+  if (noTier) byTier['No Tier'] = noTier;
+
+  // BY MODEL VERSION — segmented by model version tag
+  const byModelVersion = {};
+  const versions = [...new Set(wl.map(e => e.modelVersion ?? 1))].sort();
+  versions.forEach(v => {
+    const g = groupStats(wl.filter(e => (e.modelVersion ?? 1) === v));
+    if (g) byModelVersion[`v${v}`] = g;
+  });
+
   return {
     total: settled.length, wins, losses, pushes,
     avgModelProb, actualRate,
@@ -3270,6 +3578,8 @@ function computeCalibrationStats(entries) {
     statSideRows,
     recentDays,
     ptsDays,
+    byTier,
+    byModelVersion,
   };
 }
 
@@ -3677,6 +3987,26 @@ function CalibrationAnalysis({ stats: s }) {
           ))}
         </>
       )}
+
+      {/* By Tier — Play Selector tier segmentation */}
+      {s.byTier && Object.keys(s.byTier).length > 0 && (
+        <>
+          <SectionHeader id="tier">BY TIER</SectionHeader>
+          {openSections.tier && Object.entries(s.byTier).map(([t, g]) => g && (
+            <GroupRow key={t} label={t} g={g} />
+          ))}
+        </>
+      )}
+
+      {/* By Model Version */}
+      {s.byModelVersion && Object.keys(s.byModelVersion).length > 0 && (
+        <>
+          <SectionHeader id="modelver">BY MODEL VERSION</SectionHeader>
+          {openSections.modelver && Object.entries(s.byModelVersion).map(([v, g]) => g && (
+            <GroupRow key={v} label={v} g={g} />
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -3844,6 +4174,141 @@ function buildChalkParlays(chalkBets) {
   }
 
   return combos.sort((a, b) => b.edge - a.edge).slice(0, 4);
+}
+
+// ── Play Selector: Tier Classification & Slate Builder ─────────────
+// Replaces ad-hoc Strategy B/C/D for actionable play selection.
+// Tier 1 = high-confidence core (calibration-proven profitable segments).
+// Tier 2 = positive EV with higher edge requirements to compensate for model uncertainty.
+
+function isTier1(e) {
+  const edge = e.edgePct ?? e.edge ?? 0;
+  const games = e.gamesAvailable ?? 0;
+  const odds = e.bookOdds ?? 0;
+  if (games < 36)                                return false;  // CV sample gate
+  if (edge < 1.5)                                return false;  // minimum edge
+  if (odds >= 176)                               return false;  // long-shot exclusion
+  if (e.side === 'OVER' && e.stat !== 'reb')     return false;  // UNDER only (REB OVER exempt)
+  if (e.stat === 'pts')                          return false;  // PTS excluded pending KDE+ data
+  if (e.distModel === 'Poisson')                 return false;  // require CV-backed model
+  const prob = e.modelProb ?? 0;
+  if (prob > PROB_CEILING)                       return false;  // ceiling check
+  return true;
+}
+
+function isTier2(e) {
+  const edge = e.edgePct ?? e.edge ?? 0;
+  const games = e.gamesAvailable ?? 0;
+  const odds = e.bookOdds ?? 0;
+  if (games < 20)                                return false;  // relaxed CV gate
+  if (edge < 3)                                  return false;  // higher edge required
+  if (odds >= 176)                               return false;  // long-shot exclusion
+  if (e.stat === 'pts' && e.side === 'OVER')     return false;  // PTS OVER hard excluded
+  if (e.stat === 'stl' && e.side === 'OVER')     return false;  // STL OVER hard excluded (-12.1pp)
+  if (e.stat === 'threes' && e.side === 'OVER')  return false;  // THREES OVER hard excluded (-9.8pp)
+  const prob = e.modelProb ?? 0;
+  if (prob > PROB_CEILING)                       return false;  // ceiling check
+  if (e.side === 'OVER' && edge < 5)             return false;  // OVER needs 5%+ edge
+  return true;
+}
+
+function classifyTier(e) {
+  if (isTier1(e)) return 1;
+  if (isTier2(e)) return 2;
+  return null;
+}
+
+function scorePlay(e) {
+  const edge = e.edgePct ?? e.edge ?? 0;
+  let score = edge;  // base: vig-free edge %
+
+  // Line gap bonus: book line 0.3–1σ above projection (UNDER signal)
+  // +19.4% ROI in calibration data
+  const std = e.std ?? (e.projection > 0 && e.cvValue ? e.projection * (e.cvValue / 100) : null);
+  if (std > 0 && e.projection > 0) {
+    const sigma = ((e.propLine ?? 0) - e.projection) / std;
+    if (sigma >= 0.3 && sigma <= 1.0) score += 2.0;
+  }
+
+  // Spread bonus: 12+ point games (+20.6% ROI in Strat B)
+  if (e.spread != null && Math.abs(e.spread) >= 12) score += 1.0;
+
+  // Tier 1 preferred over Tier 2
+  if (e.tier === 1) score += 1.0;
+
+  // Solid edge sweet spot: 3–5% outperforms 5%+ in calibration (+12.5% vs -2.6% ROI)
+  if (edge >= 3 && edge < 5) score += 0.5;
+
+  // OVER penalty (even when allowed via Tier 2 or REB exemption)
+  if (e.side === 'OVER') score -= 1.5;
+
+  // NegBin model bonus (+9.7% ROI vs other models)
+  if (e.distModel === 'NegBin') score += 0.5;
+
+  return score;
+}
+
+// Build a bankroll-safe slate from batch results, merging with existing plays.
+// Deduplicates by player+stat+side, keeping the version with best edge.
+// Applies exposure caps and scales stakes if total Kelly exceeds bankroll limit.
+function buildSlate(newBatchResults, existingSlate, config, sessionNum) {
+  // 1. Classify and score new results
+  const newPlays = newBatchResults
+    .map(r => ({ ...r, tier: classifyTier(r) }))
+    .filter(r => r.tier !== null)
+    .map(r => ({ ...r, score: scorePlay(r), session: sessionNum, addedAt: new Date().toISOString() }));
+
+  // 2. Merge with existing slate (dedup: keep best edge)
+  const merged = [...existingSlate];
+  for (const play of newPlays) {
+    const key = `${play.player}|${play.stat}|${play.side}`;
+    const existingIdx = merged.findIndex(m => `${m.player}|${m.stat}|${m.side}` === key);
+    if (existingIdx >= 0) {
+      const existingEdge = merged[existingIdx].edgePct ?? merged[existingIdx].edge ?? 0;
+      const newEdge = play.edgePct ?? play.edge ?? 0;
+      if (newEdge > existingEdge) {
+        merged[existingIdx] = { ...play, _updated: true };
+      }
+    } else {
+      merged.push(play);
+    }
+  }
+
+  // Rescore all (tier may have changed after merge)
+  merged.forEach(p => { p.score = scorePlay(p); });
+
+  // 3. Sort by score descending
+  merged.sort((a, b) => b.score - a.score);
+
+  // 4. Apply exposure caps
+  const perPlayer = {}, perGame = {};
+  const selected = [], overflow = [];
+  for (const play of merged) {
+    const pKey = play.player ?? '__';
+    const gKey = play.eventId ?? play.commenceTime ?? '__';
+    const atPlayerCap = (perPlayer[pKey] ?? 0) >= (config.maxPerPlayer || 2);
+    const atGameCap   = (perGame[gKey]   ?? 0) >= (config.maxPerGame || 3);
+    const atSlateCap  = selected.length >= (config.maxPlays || 18);
+
+    if (atSlateCap || atPlayerCap || atGameCap) {
+      const reason = atSlateCap ? 'slate full' : atPlayerCap ? `max ${config.maxPerPlayer}/player` : `max ${config.maxPerGame}/game`;
+      overflow.push({ ...play, _cutReason: reason });
+      continue;
+    }
+    selected.push(play);
+    perPlayer[pKey] = (perPlayer[pKey] ?? 0) + 1;
+    perGame[gKey]   = (perGame[gKey]   ?? 0) + 1;
+  }
+
+  // 5. Bankroll exposure check — scale down if total ¼K exceeds limit
+  const totalKelly = selected.reduce((s, p) => s + (p.kellyPct || 0), 0);
+  let scaleFactor = 1;
+  if (totalKelly > (config.maxBankrollPct || 15)) {
+    scaleFactor = (config.maxBankrollPct || 15) / totalKelly;
+    selected.forEach(p => { p.kellyPct = (p.kellyPct || 0) * scaleFactor; p._scaled = true; });
+  }
+
+  return { selected, overflow, totalKelly: totalKelly * scaleFactor, scaleFactor, newCount: newPlays.length };
 }
 
 const STRATEGY_LABELS = {
@@ -4237,6 +4702,47 @@ function NBASimulator() {
   const [batchCsvCopied,    setBatchCsvCopied]     = useState(false);
   const [batchOpen,         setBatchOpen]          = useState(false);
   const [batchViewMode,     setBatchViewMode]      = useState('list'); // 'list' | 'game'
+
+  // Play Selector slate state — persisted to localStorage, auto-cleared on date change
+  const [slate, setSlate] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('nbaSimSlate') || 'null');
+      if (saved && saved.date === new Date().toISOString().slice(0, 10)) return saved.plays || [];
+      return [];
+    } catch { return []; }
+  });
+  const [slateOverflow, setSlateOverflow] = useState([]);
+  const [slateSession, setSlateSession] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('nbaSimSlate') || 'null');
+      if (saved && saved.date === new Date().toISOString().slice(0, 10)) return saved.session || 1;
+      return 1;
+    } catch { return 1; }
+  });
+  const [slateLocked, setSlateLocked] = useState(false);
+  const [slateConfig, setSlateConfig] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('nbaSimSlateConfig') || 'null') || { maxPlays: 18, maxPerGame: 3, maxPerPlayer: 2, maxBankrollPct: 15 }; }
+    catch { return { maxPlays: 18, maxPerGame: 3, maxPerPlayer: 2, maxBankrollPct: 15 }; }
+  });
+  const [slateTotalKelly, setSlateTotalKelly] = useState(0);
+  const [slateScaleFactor, setSlateScaleFactor] = useState(1);
+
+  // Persist slate to localStorage on change
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('nbaSimSlate', JSON.stringify({
+        date: new Date().toISOString().slice(0, 10),
+        plays: slate,
+        session: slateSession,
+      }));
+    } catch (e) { console.warn('Slate storage write failed:', e); }
+  }, [slate, slateSession]);
+
+  React.useEffect(() => {
+    try { localStorage.setItem('nbaSimSlateConfig', JSON.stringify(slateConfig)); }
+    catch (e) { /* ignore */ }
+  }, [slateConfig]);
+
   // Parlay odds inputs for correlated signal banner (3-leg PTS+REB+AST)
   const [parlayOdds, setParlayOdds] = useState(() => loadSession().parlayOdds ?? { over: "", under: "" });
 
@@ -4629,14 +5135,16 @@ function NBASimulator() {
         const usingNegBin = cvPctForLabel > 0 && poissonCVThreshold !== null && cvPctForLabel > poissonCVThreshold;
         // "KDE+" = unfiltered raw data used (full empirical dist incl. tail games)
         // "KDE"  = situation-filtered raw data (legacy path, missing tail games)
-        const distModel = POISSON_STATS.has(key) ? (usingNegBin ? "NegBin" : "Poisson")
+        // All count stats now use NegBin (player CV or league-avg fallback); "NegBin*" = league-avg CV
+        const distModel = POISSON_STATS.has(key) ? (usingNegBin ? "NegBin" : "NegBin*")
           : key === 'pts' ? (ptsRawDataAll && computeEmpiricalStd(ptsRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : ptsRawData ? "KDE" : "Gamma")
           : key === 'reb' ? (rebRawDataAll && computeEmpiricalStd(rebRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : rebRawData ? "KDE" : "LogNormal")
           : key === 'ast' ? (astRawDataAll && computeEmpiricalStd(astRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : astRawData ? "KDE" : "Gamma")
           : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
-        const method = POISSON_STATS.has(key) ? (usingNegBin ? `CV/${distModel}` : "Poisson")
+        const method = POISSON_STATS.has(key) ? `CV/${distModel}`
           : stats[key].cvMode ? `CV/${distModel}` : stats[key].stdOverride ? `Manual/${distModel}` : `Auto/${distModel}`;
-        const prob_calc = calcProbability(simResults[key], stats[key].propLine);
+        const prob_raw  = calcProbability(simResults[key], stats[key].propLine);
+        const prob_calc = applyModelCorrections(prob_raw, key);
         const seOver_s  = Math.sqrt(prob_calc.over  * (1 - prob_calc.over)  / numSims);
         const seUnder_s = Math.sqrt(prob_calc.under * (1 - prob_calc.under) / numSims);
         // Discrete probability table for count stats (STL/BLK/THREES)
@@ -4692,7 +5200,9 @@ function NBASimulator() {
         } else {
           comboVals = calcCombo(simResults, parts);
         }
-        const cProb = calcProbability(comboVals, comboLines[key].line);
+        const cProbRaw = calcProbability(comboVals, comboLines[key].line);
+        // Apply ceiling to combo probs (no per-stat bias correction for combos)
+        const cProb = applyModelCorrections(cProbRaw, null);
         const comboMean = comboVals.reduce((a, b) => a + b, 0) / numSims;
         const comboSensitivity = comboMean > 0 ? calcSensitivity(comboVals, comboLines[key].line, comboMean) : null;
         comboProbs[key] = {
@@ -4864,6 +5374,7 @@ function NBASimulator() {
         spread:           r.spread            ?? null,
         otherSideOdds:    r.otherSideOdds     ?? null,
         projectedMinutes: r.projectedMinutes  ?? null,
+        modelVersion:     MODEL_VERSION,
       });
     }
 
@@ -4885,6 +5396,103 @@ function NBASimulator() {
     setBatchLogMsg(msg);
     setTimeout(() => setBatchLogMsg(null), 5000);
   }, [batchResults, calibration, bankroll, unitSize, kellyFraction]);
+
+  // ── Play Selector handlers ────────────────────────────────────────
+  const handleAddPlaysToSlate = useCallback(() => {
+    if (!batchResults || slateLocked) return;
+    const result = buildSlate(batchResults, slate, slateConfig, slateSession);
+    setSlate(result.selected);
+    setSlateOverflow(result.overflow);
+    setSlateTotalKelly(result.totalKelly);
+    setSlateScaleFactor(result.scaleFactor);
+  }, [batchResults, slate, slateConfig, slateSession, slateLocked]);
+
+  const handleNewSlateRun = useCallback(() => {
+    if (slateLocked) return;
+    setSlateSession(prev => prev + 1);
+  }, [slateLocked]);
+
+  const handleLockSlate = useCallback(() => {
+    setSlateLocked(prev => !prev);
+  }, []);
+
+  const handleClearSlate = useCallback(() => {
+    setSlate([]);
+    setSlateOverflow([]);
+    setSlateSession(1);
+    setSlateLocked(false);
+    setSlateTotalKelly(0);
+    setSlateScaleFactor(1);
+  }, []);
+
+  const handleLogSlate = useCallback(() => {
+    if (slate.length === 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const bank  = parseFloat(bankroll) || 0;
+    const unit  = parseFloat(unitSize) || 20;
+    const existingKeys = new Set(
+      calibration
+        .filter(e => (e.loggedAt || '').slice(0, 10) === today)
+        .map(e => `${e.player}|${e.stat}|${e.side}|${e.propLine}`)
+    );
+    let skipped = 0;
+    const newEntries = [];
+    for (const r of slate) {
+      const key = `${r.player}|${r.stat}|${r.side}|${r.propLine}`;
+      if (existingKeys.has(key)) { skipped++; continue; }
+      const kFull = calcKelly(r.modelProb, r.bookOdds) || 0;
+      newEntries.push({
+        id:               r.betId || Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
+        loggedAt:         new Date().toISOString(),
+        player:           r.player,
+        stat:             r.stat,
+        statLabel:        r.statLabel,
+        side:             r.side,
+        propLine:         r.propLine,
+        bookOdds:         r.bookOdds,
+        modelProb:        r.modelProb,
+        fairOdds:         r.side === 'OVER' ? (parseFloat(r.fairOverOdds) || null) : (parseFloat(r.fairUnderOdds) || null),
+        edgePct:          r.edgePct ?? r.edge ?? 0,
+        edgeLabel:        getEdgeLabel(r.edgePct ?? r.edge ?? 0),
+        kellyStake:       bank > 0 ? Math.round(bank * kFull * kellyFraction * 100) / 100 : null,
+        unitStake:        unit,
+        eventId:          r.eventId          ?? null,
+        commenceTime:     r.commenceTime      ?? null,
+        result:           null,
+        closingOdds:      null,
+        closingLine:      null,
+        projection:       r.projection        ?? null,
+        distModel:        r.distModel         ?? null,
+        cvValue:          null,
+        std:              r.std               ?? null,
+        gamesAvailable:   r.gamesAvailable    ?? null,
+        gameTotal:        r.gameTotal         ?? null,
+        spread:           r.spread            ?? null,
+        otherSideOdds:    r.otherSideOdds     ?? null,
+        projectedMinutes: r.projectedMinutes  ?? null,
+        modelVersion:     MODEL_VERSION,
+        tier:             r.tier,
+        slateSession:     r.session,
+        slateScore:       r.score,
+      });
+    }
+    if (newEntries.length > 0) {
+      setCalibration(prev => {
+        const next = [...newEntries, ...prev];
+        if (JSON.stringify(next).length > 4 * 1024 * 1024) {
+          alert('Calibration log approaching storage limit. Export and clear some entries first.');
+          return prev;
+        }
+        return next;
+      });
+      setCalibrationOpen(true);
+    }
+    const msg = newEntries.length === 0
+      ? `All ${skipped} slate plays already recorded today`
+      : `Logged ${newEntries.length} slate plays${skipped > 0 ? ` | Skipped ${skipped} (already today)` : ''}`;
+    setBatchLogMsg(msg);
+    setTimeout(() => setBatchLogMsg(null), 5000);
+  }, [slate, calibration, bankroll, unitSize, kellyFraction]);
 
   // Mark result on a calibration entry
   const handleSetResult = useCallback((id, result) => {
@@ -5213,6 +5821,7 @@ function NBASimulator() {
       spread:           gameCtx?.spread     ?? null,
       otherSideOdds:    data.otherSideOdds  ?? null,
       projectedMinutes: projectedMinutes,
+      modelVersion:     MODEL_VERSION,
     };
     setCalibration(prev => {
       if (prev.some(e => e.id === entry.id)) return prev; // deduplicate
@@ -5277,7 +5886,8 @@ function NBASimulator() {
         const projValue = parseFloat(p[key]);
         if (isNaN(projValue) || projValue < (BATCH_PROJ_FLOORS[key] ?? 0)) return;
 
-        const prob = calcProbability(simResults[key], s.propLine);
+        const prob_raw_b = calcProbability(simResults[key], s.propLine);
+        const prob = applyModelCorrections(prob_raw_b, key);
         const fairOverOdds  = probToAmerican(prob.over);
         const fairUnderOdds = probToAmerican(prob.under);
 
@@ -5322,10 +5932,11 @@ function NBASimulator() {
             std: s.stdDev ?? null,
             distModel: (() => {
               if (POISSON_STATS.has(key)) {
+                // All count stats now use NegBin (player CV or league-avg fallback)
                 const cv = s.cvValue ? s.cvValue / 100 : null;
                 const mean = s.mean;
-                if (cv && mean > 0) return cv > 1 / Math.sqrt(mean) ? 'NegBin' : 'Poisson';
-                return 'Poisson';
+                if (cv && mean > 0 && cv <= 1 / Math.sqrt(mean)) return 'NegBin*'; // league-avg floor
+                return 'NegBin';
               }
               if (key === 'pts') return bPts != null ? 'KDE' : 'Gamma';
               if (key === 'reb') return bReb != null ? 'KDE' : 'LogNormal';
@@ -5717,6 +6328,19 @@ function NBASimulator() {
                   viewMode={batchViewMode}
                   setViewMode={setBatchViewMode}
                   gameData={gameData}
+                  slate={slate}
+                  slateOverflow={slateOverflow}
+                  slateConfig={slateConfig}
+                  setSlateConfig={setSlateConfig}
+                  slateSession={slateSession}
+                  slateTotalKelly={slateTotalKelly}
+                  slateScaleFactor={slateScaleFactor}
+                  slateLocked={slateLocked}
+                  onAddPlays={handleAddPlaysToSlate}
+                  onNewRun={handleNewSlateRun}
+                  onLockSlate={handleLockSlate}
+                  onClearSlate={handleClearSlate}
+                  onLogSlate={handleLogSlate}
                 />
               )}
             </div>
