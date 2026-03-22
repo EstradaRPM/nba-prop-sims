@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NBA Prop Backtester</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" />
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background: #0b0f1a; font-family: 'Outfit', sans-serif; color: #e2e8f0; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b0f1a; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    textarea { resize: vertical; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useMemo, useCallback } = React;
+
+// ── Constants ────────────────────────────────────────────────────────
+const MONO = "'JetBrains Mono', monospace";
+const SANS = "'Outfit', sans-serif";
+
+const C = {
+  bg:       '#0b0f1a',
+  card:     'rgba(15,23,42,0.6)',
+  cardAlt:  'rgba(15,23,42,0.4)',
+  border:   'rgba(148,163,184,0.15)',
+  borderMd: 'rgba(148,163,184,0.25)',
+  muted3:   '#475569',
+  muted2:   '#64748b',
+  muted1:   '#94a3b8',
+  text:     '#e2e8f0',
+  textHi:   '#f8fafc',
+  green:    '#22c55e',
+  greenDim: 'rgba(34,197,94,0.12)',
+  greenBdr: 'rgba(34,197,94,0.35)',
+  red:      '#ef4444',
+  redDim:   'rgba(239,68,68,0.12)',
+  redBdr:   'rgba(239,68,68,0.35)',
+  amber:    '#f59e0b',
+  amberDim: 'rgba(245,158,11,0.12)',
+  purple:   '#a78bfa',
+  purpleDim:'rgba(167,139,250,0.12)',
+  cyan:     '#22d3ee',
+};
+
+// ── CSV parsing ───────────────────────────────────────────────────────
+// Parses the calibration export CSV produced by handleExportCalibration in index.html.
+// Headers: ID, Logged At, Player, Stat, Side, Line, Book Odds, Model Prob%,
+//          Fair Odds, Edge%, Edge Label, Kelly Stake $, Unit Stake $, Event ID,
+//          Result, Closing Odds, Closing Line, Game Start, Projection, CV%,
+//          Dist Model, Games (CV), Game Total, Spread, Other Side Odds, Proj Minutes
+function parseCalibrationCSV(raw) {
+  const lines = raw.trim().split('\n');
+  if (lines.length < 2) throw new Error('CSV must have a header row and at least one data row.');
+
+  // Simple CSV split respecting quoted fields
+  const splitRow = line => {
+    const out = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === ',' && !inQ) { out.push(cur.trim()); cur = ''; continue; }
+      cur += ch;
+    }
+    out.push(cur.trim());
+    return out;
+  };
+
+  const headers = splitRow(lines[0]).map(h => h.toLowerCase().trim());
+  const idx = h => headers.indexOf(h);
+
+  const parseOdds = s => {
+    if (!s || s === '' || s === '-') return null;
+    const n = parseFloat(s.replace(/[^0-9.\-+]/g, ''));
+    return isNaN(n) ? null : n;
+  };
+  const parseNum = s => { const n = parseFloat(s); return isNaN(n) ? null : n; };
+
+  const bets = [];
+  for (let i = 1; i < lines.length; i++) {
+    const row = splitRow(lines[i]);
+    if (row.length < 3) continue;
+
+    const get = h => (row[idx(h)] ?? '').trim();
+    const modelProbPct = parseNum(get('model prob%'));
+    const edgePct      = parseNum(get('edge%'));
+
+    bets.push({
+      id:              get('id') || `csv_${i}`,
+      loggedAt:        get('logged at'),
+      player:          get('player'),
+      stat:            get('stat').toLowerCase().replace(/\s+/g, '').replace('points','pts').replace('rebounds','reb').replace('assists','ast').replace('steals','stl').replace('blocks','blk').replace('3-pointersmade','threes').replace('threesmade','threes'),
+      statLabel:       get('stat'),
+      side:            get('side').toUpperCase(),
+      propLine:        parseNum(get('line')),
+      bookOdds:        parseOdds(get('book odds')),
+      otherSideOdds:   parseOdds(get('other side odds')),
+      modelProb:       modelProbPct != null ? modelProbPct / 100 : null,
+      fairOdds:        parseOdds(get('fair odds')),
+      edgePct:         edgePct,
+      edgeLabel:       get('edge label'),
+      kellyStake:      parseNum(get('kelly stake $')),
+      unitStake:       parseNum(get('unit stake $')),
+      eventId:         get('event id') || null,
+      result:          get('result') || null,
+      closingOdds:     parseOdds(get('closing odds')),
+      closingLine:     parseNum(get('closing line')),
+      commenceTime:    get('game start') || null,
+      projection:      parseNum(get('projection')),
+      cvValue:         parseNum(get('cv%')),
+      distModel:       get('dist model') || null,
+      gamesAvailable:  parseNum(get('games (cv)')),
+      gameTotal:       parseNum(get('game total')),
+      spread:          parseNum(get('spread')),
+      projectedMinutes:parseNum(get('proj minutes')),
+      _source: 'csv',
+    });
+  }
+  if (bets.length === 0) throw new Error('No valid bet rows found in CSV.');
+  return bets;
+}
+
+// Parses raw JSON from localStorage (nbaSimCalibration key) — array of bet objects.
+function parseCalibrationJSON(raw) {
+  const arr = JSON.parse(raw);
+  if (!Array.isArray(arr)) throw new Error('Expected a JSON array of bet entries.');
+  if (arr.length === 0) throw new Error('Array is empty — no bets to load.');
+  // Validate a few required fields on the first entry
+  const first = arr[0];
+  if (!first.player && !first.stat && !first.side) throw new Error('JSON does not look like a calibration log. Expected fields: player, stat, side.');
+  // Normalise result casing
+  return arr.map(e => ({ ...e, result: e.result ? e.result.toLowerCase() : null, _source: 'json' }));
+}
+
+// ── DataImporter component ────────────────────────────────────────────
+function DataImporter({ onImport }) {
+  const [mode,    setMode]    = useState('json'); // 'json' | 'csv'
+  const [text,    setText]    = useState('');
+  const [error,   setError]   = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleLoad = useCallback(() => {
+    setError(null); setSuccess(false);
+    if (!text.trim()) { setError('Paste your data above first.'); return; }
+    try {
+      const bets = mode === 'csv' ? parseCalibrationCSV(text) : parseCalibrationJSON(text);
+      onImport(bets);
+      setSuccess(true);
+      setText('');
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [mode, text, onImport]);
+
+  const tab = active => ({
+    padding: '5px 14px', borderRadius: '4px 4px 0 0', cursor: 'pointer',
+    fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: 0.8,
+    background: active ? C.card : 'transparent',
+    border: active ? `1px solid ${C.border}` : '1px solid transparent',
+    borderBottom: active ? `1px solid ${C.card}` : `1px solid ${C.border}`,
+    color: active ? C.text : C.muted2,
+  });
+
+  return (
+    <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.muted1, letterSpacing: 1.5, marginBottom: 14 }}>
+        IMPORT BET LOG
+      </div>
+
+      {/* Mode tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: -1, position: 'relative', zIndex: 1 }}>
+        <div style={tab(mode === 'json')} onClick={() => { setMode('json'); setError(null); setSuccess(false); }}>JSON (LOCALSTORAGE)</div>
+        <div style={tab(mode === 'csv')}  onClick={() => { setMode('csv');  setError(null); setSuccess(false); }}>CSV EXPORT</div>
+      </div>
+
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: '0 8px 8px 8px', padding: 16, background: 'rgba(0,0,0,0.2)' }}>
+        {mode === 'json' ? (
+          <div style={{ fontSize: 11, color: C.muted2, fontFamily: MONO, marginBottom: 10, lineHeight: 1.6 }}>
+            In your browser console on the simulator tab:<br />
+            <span style={{ color: C.cyan }}>copy(localStorage.getItem('nbaSimCalibration'))</span><br />
+            Then paste the result below.
+          </div>
+        ) : (
+          <div style={{ fontSize: 11, color: C.muted2, fontFamily: MONO, marginBottom: 10, lineHeight: 1.6 }}>
+            In the simulator: open Bet Journal → click <span style={{ color: C.cyan }}>EXPORT CSV</span>.<br />
+            Paste the clipboard contents below.
+          </div>
+        )}
+
+        <textarea
+          value={text}
+          onChange={e => { setText(e.target.value); setError(null); setSuccess(false); }}
+          placeholder={mode === 'json' ? '[{"id":"bet_abc123",...}]' : 'ID,Logged At,Player,...'}
+          style={{
+            width: '100%', minHeight: 100, background: 'rgba(0,0,0,0.35)',
+            border: `1px solid ${error ? C.redBdr : C.border}`,
+            borderRadius: 6, padding: '8px 10px', color: C.text,
+            fontFamily: MONO, fontSize: 10, outline: 'none',
+          }}
+        />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+          <button
+            onClick={handleLoad}
+            style={{
+              padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontFamily: MONO,
+              fontWeight: 700, fontSize: 10, letterSpacing: 1,
+              background: C.greenDim, border: `1px solid ${C.greenBdr}`, color: C.green,
+            }}
+          >
+            LOAD DATA
+          </button>
+          {error   && <span style={{ fontFamily: MONO, fontSize: 10, color: C.red }}>⚠ {error}</span>}
+          {success && <span style={{ fontFamily: MONO, fontSize: 10, color: C.green }}>✓ Imported successfully</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── BetSummaryStrip ───────────────────────────────────────────────────
+function BetSummaryStrip({ bets }) {
+  const settled  = bets.filter(b => b.result && b.result !== 'open');
+  const open     = bets.filter(b => !b.result || b.result === 'open');
+  const won      = settled.filter(b => b.result === 'won').length;
+  const lost     = settled.filter(b => b.result === 'lost').length;
+  const pushed   = settled.filter(b => b.result === 'push').length;
+  const dates    = bets.map(b => (b.loggedAt || b.commenceTime || '').slice(0, 10)).filter(Boolean).sort();
+  const dateRange = dates.length ? `${dates[0]} → ${dates[dates.length - 1]}` : '—';
+
+  const chip = (label, value, color = C.muted1) => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color }}>{value}</span>
+      <span style={{ fontFamily: MONO, fontSize: 9, color: C.muted3, letterSpacing: 0.5 }}>{label}</span>
+    </div>
+  );
+
+  const divider = <div style={{ width: 1, height: 36, background: C.border }} />;
+
+  return (
+    <div style={{
+      backgroundColor: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 10,
+      padding: '12px 20px', marginBottom: 16,
+      display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+    }}>
+      {chip('TOTAL BETS',  bets.length,     C.textHi)}
+      {divider}
+      {chip('SETTLED',     settled.length,  C.muted1)}
+      {chip('WON',         won,             C.green)}
+      {chip('LOST',        lost,            C.red)}
+      {chip('PUSH',        pushed,          C.muted2)}
+      {divider}
+      {chip('OPEN',        open.length,     C.amber)}
+      {divider}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontFamily: MONO, fontSize: 9, color: C.muted3, letterSpacing: 0.5 }}>DATE RANGE</span>
+        <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted1 }}>{dateRange}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Root App ──────────────────────────────────────────────────────────
+function Backtester() {
+  const [allBets, setAllBets] = useState([]);
+
+  const handleImport = useCallback(bets => {
+    // Merge: dedupe by id, newest wins
+    setAllBets(prev => {
+      const map = new Map(prev.map(b => [b.id, b]));
+      bets.forEach(b => map.set(b.id, b));
+      return Array.from(map.values()).sort((a, b) => (b.loggedAt || '') > (a.loggedAt || '') ? 1 : -1);
+    });
+  }, []);
+
+  const handleClear = useCallback(() => {
+    if (window.confirm('Clear all imported bets?')) setAllBets([]);
+  }, []);
+
+  return (
+    <div style={{ minHeight: '100vh', background: `linear-gradient(180deg, #0b0f1a 0%, #111827 100%)` }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px 80px' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: 28, paddingTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'linear-gradient(135deg, #a78bfa, #7c3aed)', boxShadow: '0 0 8px rgba(167,139,250,0.5)' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.purple, letterSpacing: 2, fontFamily: MONO }}>BACKTESTER</span>
+            <a href="index.html" style={{ marginLeft: 'auto', fontSize: 10, color: C.muted2, fontFamily: MONO, textDecoration: 'none',
+              border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 8px' }}>
+              ← SIMULATOR
+            </a>
+          </div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, letterSpacing: -0.5,
+            background: 'linear-gradient(135deg, #f8fafc, #94a3b8)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            NBA Prop Backtester
+          </h1>
+          <p style={{ color: C.muted3, fontSize: 13, margin: '6px 0 0' }}>
+            Import your bet log · apply updated filters · see what P/L would have been
+          </p>
+        </div>
+
+        {/* Import */}
+        <DataImporter onImport={handleImport} />
+
+        {/* Summary + clear */}
+        {allBets.length > 0 && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button onClick={handleClear}
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 4,
+                  color: C.muted2, fontFamily: MONO, fontSize: 9, padding: '4px 10px', cursor: 'pointer', letterSpacing: 0.5 }}>
+                CLEAR ALL
+              </button>
+            </div>
+            <BetSummaryStrip bets={allBets} />
+
+            {/* Placeholder panels — built in subsequent sessions */}
+            <div style={{ backgroundColor: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
+              padding: 32, textAlign: 'center', marginBottom: 12 }}>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted3, letterSpacing: 1 }}>
+                FILTER PANEL — SESSION 2
+              </div>
+            </div>
+            <div style={{ backgroundColor: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
+              padding: 32, textAlign: 'center', marginBottom: 12 }}>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted3, letterSpacing: 1 }}>
+                BET TABLE — SESSION 3
+              </div>
+            </div>
+            <div style={{ backgroundColor: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
+              padding: 32, textAlign: 'center', marginBottom: 12 }}>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted3, letterSpacing: 1 }}>
+                ANALYSIS DASHBOARD — SESSION 4
+              </div>
+        </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Backtester />);
+  </script>
+</body>
+</html>
