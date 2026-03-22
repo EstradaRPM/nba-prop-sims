@@ -2399,7 +2399,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
             STRATEGY B
           </span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            CV ≥ 36 games · OVER edge ≥ 5% · PTS edge ≥ 5% · exclude ≥+176 · −135 to −121 edge ≥ 5%
+            CV ≥ 36 games · OVER edge ≥ 5% · exclude ≥+176 · −135 to −121 edge ≥ 5%
           </span>
         </div>
       )}
@@ -2411,7 +2411,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
             STRATEGY C
           </span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            Strategy B + no PTS · UNDER only (REB OVER exempt) · excludes THREES OVER · AST OVER
+            Strategy B + CV-backed model (no Poisson) · SOLID edge ≥3%
           </span>
         </div>
       )}
@@ -4013,57 +4013,49 @@ function CalibrationAnalysis({ stats: s }) {
 
 // ── CalibrationPanel component ────────────────────────────────────────
 // ── Strategy Filter Definitions ─────────────────────────────────────
-// Strategy B criteria are based on calibration analysis of ~1,073 bets.
-// Five structural leaks identified: (1) OVER drag across all stats,
-// (2) PTS overconfidence regardless of direction, (3) CV sample < 36 games,
-// (4) ≥+176 odds — model systematically overestimates long-shot probability,
-// (5) -135 to -121 range — model overconfident by ~9pp, requires higher edge.
-// Edit thresholds here as more data confirms or revises the signals.
+// Rebuilt 2026-03-22 after model-level fixes (KDE+, MODEL_BIAS, PROB_CEILING, LEAGUE_AVG_CV).
+// Previous strategies compensated for model bugs (KDE OVER inflation, PTS narrow distribution).
+// Those bugs are now fixed at the model level. Remaining gates reflect MARKET STRUCTURE only:
+// (1) CV sample reliability, (2) OVER is genuinely harder to predict (market structure),
+// (3) longshot model overestimation, (4) thin-chalk Kelly sizing risk.
+// PTS-specific gate removed — KDE+ fix + MODEL_BIAS address the root cause.
 const STRATEGY_B_FILTER = e => {
   const edge  = e.edgePct ?? e.edge ?? 0;  // calibration log uses edgePct; batch rows use edge
   const games = e.gamesAvailable ?? 0;
   const odds  = e.bookOdds       ?? 0;
-  if (games < 36)                               return false;  // CV sample gate (Z≈2.3, n=333 below threshold)
-  if (e.side === 'OVER' && edge < 5)            return false;  // OVER threshold raised: -5.7pp drag across all stats
-  if (e.stat === 'pts'  && edge < 5)            return false;  // PTS gate: -7.2pp gap both sides (Z≈2.3, n=248)
-  if (odds >= 176)                              return false;  // ≥+176 excluded: 25% hit rate, -29% ROI (both datasets)
-  if (odds >= -135 && odds <= -121 && edge < 5) return false;  // -135 to -121: -9.3pp overconfidence, raise edge gate
+  if (games < 36)                               return false;  // CV sample gate (Z≈2.3)
+  if (e.side === 'OVER' && edge < 5)            return false;  // OVER threshold: market structure (OVER genuinely harder)
+  if (odds >= 176)                              return false;  // ≥+176 excluded: model overestimates tail probabilities
+  if (odds >= -135 && odds <= -121 && edge < 5) return false;  // thin-chalk gate: low decimal odds amplify Kelly error
   return true;
 };
 
-// Strategy C — tightest filter, built on Strategy B baseline.
-// Data: N=668 Strategy B bets. Key additional cuts:
-// (1) PTS excluded entirely — -7.4% / -12.2% ROI both sides, model overconfident post-KDE blend removal.
-// (2) OVER side excluded for all stats except REB — UNDER +10% ROI vs OVER -0.2% in Strategy B.
-//     REB exempted: +9.6% OVER ROI in Strategy B (N=40), well-calibrated both directions.
-// (3) THREES OVER and AST OVER naturally excluded by OVER rule; redundant but intentional.
-// All Strategy B gates still apply (36+ games, ≥+176 exclusion, -135/-121 gate).
+// Strategy C — highest-confidence plays. Inherits all Strategy B market-structure gates, then adds:
+// (1) CV-backed model required — excludes Poisson fallback (was -6.3pp, -4.6% ROI). NegBin and KDE/KDE+ pass.
+// (2) SOLID edge floor (≥3%) — filters out borderline plays.
+// PTS and OVER blanket exclusions removed (2026-03-22): KDE+ fix addresses PTS root cause,
+// MODEL_BIAS handles per-stat OVER correction. Strategy B's OVER ≥5% edge gate provides market-structure protection.
 const STRATEGY_C_FILTER = e => {
   if (!STRATEGY_B_FILTER(e))                    return false;  // inherit all Strategy B gates
-  if (e.stat === 'pts')                         return false;  // PTS excluded entirely both directions
-  if (e.side === 'OVER' && e.stat !== 'reb')    return false;  // UNDER only; REB OVER exempted (+9.6% ROI, N=40)
+  if (e.distModel === 'Poisson')                return false;  // require CV-backed model (NegBin or KDE/KDE+)
+  if ((e.edgePct ?? e.edge ?? 0) < 3)           return false;  // SOLID edge floor
   return true;
 };
 
 // Strategy D — concentrated 4-12 bet slate with diversification caps.
-// Hard gates inherit all Strategy C criteria, then add:
-// (1) NegBin distribution required — theoretically correct for discrete count stats (STL/BLK/THREES);
-//     NegBin N=99-206 across strategies, consistently +9-13% ROI vs KDE -5 to -13%.
-//     Requires CV data to be loaded; bets without CV (Poisson fallback) are excluded.
-// (2) SOLID edge minimum (≥3%) — filters out borderline plays.
-// (3) Heavy chalk cap (odds ≤ -170) — excluded from straight bet slate; see STRATEGY_D_CHALK_FILTER.
-//     At -170 or worse, ¼K Kelly routinely recommends 3U+ because the low b-value (≤0.588)
-//     amplifies any edge reading into outsized stake. Even a 3pp model error erases the edge entirely.
-//     Two -175 plays parlayed together convert to near-even-money (+110–+130 range) with compounded
-//     edge and lower total exposure than two individual straight bets.
+// Inherits all Strategy C gates (CV ≥36, OVER ≥5%, no Poisson, SOLID edge ≥3%), then adds:
+// (1) NegBin distribution required — discrete count stats (STL/BLK/THREES) with CV-backed overdispersion.
+//     Consistently +9-13% ROI across strategies vs KDE -5 to -13%.
+// (2) Heavy chalk cap (odds ≤ -170) — excluded from straight bet slate; see STRATEGY_D_CHALK_FILTER.
+//     At -170 or worse, ¼K Kelly recommends 3U+ due to low decimal odds; 3pp model error erases edge.
+//     Two -175 plays parlayed together convert to ~+115 with compounded edge and lower exposure.
 // Scoring for ranking (not hard gates):
 //   +1.5pp bonus: line gap +0.3σ to +1σ (book line is 0.3–1 SD above ETR → UNDER has genuine signal)
-//   +0.5pp bonus: spread ≥ 12 (blowout dynamics; soft signal, N=156 in Strat C)
+//   +0.5pp bonus: spread ≥ 12 (blowout dynamics; soft signal)
 // Diversification caps applied after scoring: max 2/player, max 3/team, max 2/game → top 4–12 output.
 const STRATEGY_D_FILTER = e => {
-  if (!STRATEGY_C_FILTER(e))                    return false;  // inherit all Strategy C gates
+  if (!STRATEGY_C_FILTER(e))                    return false;  // inherit all Strategy C gates (includes SOLID edge ≥3%)
   if (e.distModel !== 'NegBin')                 return false;  // NegBin only — CV must be loaded and overdispersed
-  if ((e.edgePct ?? e.edge ?? 0) < 3)           return false;  // SOLID edge floor (edgePct in calibration log, edge in batch rows)
   if ((e.bookOdds ?? 0) <= -170)                return false;  // heavy chalk — routed to CHALK PARLAYS section
   return true;
 };
@@ -4072,9 +4064,8 @@ const STRATEGY_D_FILTER = e => {
 // These pass all other quality criteria but are too chalky for a straight bet in a concentrated slate.
 // Used by buildChalkParlays() to generate 2-leg / 3-leg parlay suggestions in StrategyDSlate.
 const STRATEGY_D_CHALK_FILTER = e => {
-  if (!STRATEGY_C_FILTER(e))                    return false;
+  if (!STRATEGY_C_FILTER(e))                    return false;  // inherits SOLID edge ≥3% from Strategy C
   if (e.distModel !== 'NegBin')                 return false;
-  if ((e.edgePct ?? e.edge ?? 0) < 3)           return false;  // same fix: edgePct in calibration log
   return (e.bookOdds ?? 0) <= -170;  // only heavy chalk
 };
 
@@ -4178,8 +4169,10 @@ function buildChalkParlays(chalkBets) {
 
 // ── Play Selector: Tier Classification & Slate Builder ─────────────
 // Replaces ad-hoc Strategy B/C/D for actionable play selection.
-// Tier 1 = high-confidence core (calibration-proven profitable segments).
-// Tier 2 = positive EV with higher edge requirements to compensate for model uncertainty.
+// Tier 1 = high-confidence core. Market-structure gates only (model bugs fixed at model level).
+// Tier 2 = positive EV with relaxed CV gate but higher edge bar.
+// Stat-specific exclusions removed (2026-03-22): KDE+ and MODEL_BIAS address root causes.
+// OVER ≥5% edge gate kept as market structure (OVER genuinely harder to predict).
 
 function isTier1(e) {
   const edge = e.edgePct ?? e.edge ?? 0;
@@ -4188,8 +4181,7 @@ function isTier1(e) {
   if (games < 36)                                return false;  // CV sample gate
   if (edge < 1.5)                                return false;  // minimum edge
   if (odds >= 176)                               return false;  // long-shot exclusion
-  if (e.side === 'OVER' && e.stat !== 'reb')     return false;  // UNDER only (REB OVER exempt)
-  if (e.stat === 'pts')                          return false;  // PTS excluded pending KDE+ data
+  if (e.side === 'OVER' && edge < 5)             return false;  // OVER needs higher edge (market structure)
   if (e.distModel === 'Poisson')                 return false;  // require CV-backed model
   const prob = e.modelProb ?? 0;
   if (prob > PROB_CEILING)                       return false;  // ceiling check
@@ -4203,12 +4195,9 @@ function isTier2(e) {
   if (games < 20)                                return false;  // relaxed CV gate
   if (edge < 3)                                  return false;  // higher edge required
   if (odds >= 176)                               return false;  // long-shot exclusion
-  if (e.stat === 'pts' && e.side === 'OVER')     return false;  // PTS OVER hard excluded
-  if (e.stat === 'stl' && e.side === 'OVER')     return false;  // STL OVER hard excluded (-12.1pp)
-  if (e.stat === 'threes' && e.side === 'OVER')  return false;  // THREES OVER hard excluded (-9.8pp)
+  if (e.side === 'OVER' && edge < 5)             return false;  // OVER needs 5%+ edge (market structure)
   const prob = e.modelProb ?? 0;
   if (prob > PROB_CEILING)                       return false;  // ceiling check
-  if (e.side === 'OVER' && edge < 5)             return false;  // OVER needs 5%+ edge
   return true;
 }
 
@@ -4558,7 +4547,7 @@ function CalibrationPanel({
                         STRATEGY B CRITERIA:
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        CV ≥ 36 games · OVER edge ≥ 5% · PTS edge ≥ 5% · exclude ≥+176 · -135 to -121 edge ≥ 5%
+                        CV ≥ 36 games · OVER edge ≥ 5% · exclude ≥+176 · -135 to -121 edge ≥ 5%
                       </span>
                     </div>
                   )}
@@ -4569,7 +4558,7 @@ function CalibrationPanel({
                         STRATEGY C CRITERIA:
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        Strategy B + no PTS · UNDER only (REB OVER exempt) · excludes THREES OVER · AST OVER
+                        Strategy B + CV-backed model (no Poisson) · SOLID edge ≥3%
                       </span>
                     </div>
                   )}
