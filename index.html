@@ -717,6 +717,66 @@ function calcPortfolioFactors(allBets, kellyFraction = 0.25) {
   return factors;
 }
 
+// ── Game Status & Line Shift Helpers ────────────────────────────────
+// Returns 'PRE' | 'LIVE' | 'FINAL' based on commenceTime vs now.
+// LIVE = within 3h of tip; FINAL = 3h+ past tip (approximate).
+function getGameStatus(commenceTime) {
+  if (!commenceTime) return null;
+  const tip = new Date(commenceTime).getTime();
+  const now = Date.now();
+  if (now < tip) return 'PRE';
+  if (now < tip + 3 * 60 * 60 * 1000) return 'LIVE';
+  return 'FINAL';
+}
+
+// Returns true if the game has already tipped (not PRE).
+function gameIsActive(commenceTime) {
+  if (!commenceTime) return false;
+  return new Date(commenceTime).getTime() <= Date.now();
+}
+
+// Compares two oddsIndex snapshots; returns array of detected shifts.
+// Each shift: { player, stat, prevLine, currLine, lineDelta, prevOdds, currOdds, oddsDelta }
+const LINE_SHIFT_LINE_THRESHOLD = 0.5;  // point change on the line
+const LINE_SHIFT_ODDS_THRESHOLD = 15;   // American odds point change
+function computeLineShifts(prevOdds, newOdds) {
+  if (!prevOdds || !newOdds) return [];
+  const shifts = [];
+  for (const [player, stats] of Object.entries(newOdds)) {
+    const prev = prevOdds[player];
+    if (!prev) continue;
+    for (const [stat, curr] of Object.entries(stats)) {
+      const p = prev[stat];
+      if (!p || curr.line == null || p.line == null) continue;
+      const lineDelta = curr.line - p.line;
+      const prevOv = p.overOdds ?? null;
+      const currOv = curr.overOdds ?? null;
+      const oddsDelta = (prevOv != null && currOv != null) ? currOv - prevOv : 0;
+      if (Math.abs(lineDelta) >= LINE_SHIFT_LINE_THRESHOLD || Math.abs(oddsDelta) >= LINE_SHIFT_ODDS_THRESHOLD) {
+        shifts.push({ player, stat, prevLine: p.line, currLine: curr.line, lineDelta,
+          prevOdds: prevOv, currOdds: currOv, oddsDelta });
+      }
+    }
+  }
+  return shifts;
+}
+
+// Date-gated localStorage helpers
+const TODAY = () => new Date().toISOString().slice(0, 10);
+
+function loadDateGated(key) {
+  try {
+    const d = JSON.parse(localStorage.getItem(key) || 'null');
+    if (d && d.date === TODAY()) return d;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveDateGated(key, payload) {
+  try { localStorage.setItem(key, JSON.stringify({ date: TODAY(), ...payload })); }
+  catch (e) { console.warn(`[NBA Sim] Could not save ${key}:`, e); }
+}
+
 // ── Session Persistence ──────────────────────────────────────────────
 const SESSION_KEY = 'nbaSimSession';
 
@@ -1693,16 +1753,20 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
 // ── Play Selector Component ─────────────────────────────────────────
 // Session-aware slate builder that accumulates plays across projection runs.
 function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly, scaleFactor,
-  onAddPlays, onNewRun, onLockSlate, onClearSlate, onLogSlate, locked, bankroll }) {
+  waveKelly, onAddPlays, onNewRun, onLockSlate, onClearSlate, onLogSlate, locked, bankroll, gtdFlags }) {
   const mono = "'JetBrains Mono', monospace";
   const tier1 = slate.filter(p => p.tier === 1);
   const tier2 = slate.filter(p => p.tier === 2);
   const bank = parseFloat(bankroll) || 0;
+  const maxSessions = 3;
+  const waveCaps = [config.wave1Cap ?? 7, config.wave2Cap ?? 5, config.wave3Cap ?? 3];
+  const waveCapSum = waveCaps.reduce((a, b) => a + b, 0);
+  const capWarning = waveCapSum > (config.maxBankrollPct || 15);
 
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8,
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6,
         padding: '8px 12px', borderRadius: 6, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}>
         <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 900, color: '#22c55e', letterSpacing: 1 }}>
           PLAY SELECTOR
@@ -1718,9 +1782,12 @@ function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly,
         <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
           {!locked && (
             <button onClick={onAddPlays} style={{ padding: '3px 10px', borderRadius: 4,
-              border: '1px solid rgba(34,197,94,0.5)', background: 'rgba(34,197,94,0.12)',
-              color: '#22c55e', fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>
-              + ADD PLAYS
+              border: `1px solid ${config.addTier1Only ? 'rgba(251,191,36,0.6)' : 'rgba(34,197,94,0.5)'}`,
+              background: config.addTier1Only ? 'rgba(251,191,36,0.12)' : 'rgba(34,197,94,0.12)',
+              color: config.addTier1Only ? '#fbbf24' : '#22c55e',
+              fontFamily: mono, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}
+              title={config.addTier1Only ? 'T1 ONLY MODE — adds Tier 1 plays only' : 'Adds Tier 1 + Tier 2 plays'}>
+              + ADD PLAYS{config.addTier1Only ? ' (T1)' : ''}
             </button>
           )}
           {!locked && (
@@ -1749,8 +1816,35 @@ function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly,
         </div>
       </div>
 
-      {/* Config row */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+      {/* Wave budget strip */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap',
+        padding: '5px 10px', borderRadius: 5, background: 'rgba(0,0,0,0.2)' }}>
+        {[1, 2, 3].map(w => {
+          const used = waveKelly?.[w] ?? 0;
+          const cap  = waveCaps[w - 1] ?? 0;
+          const pct  = cap > 0 ? used / cap : 0;
+          const color = pct >= 1 ? '#ef4444' : pct >= 0.8 ? '#fb923c' : '#22c55e';
+          return (
+            <span key={w} style={{ fontFamily: mono, fontSize: 8, color: w === session ? '#e2e8f0' : '#64748b' }}>
+              <span style={{ color: '#475569' }}>W{w} </span>
+              <span style={{ color, fontWeight: w === session ? 700 : 400 }}>{used.toFixed(1)}%</span>
+              <span style={{ color: '#475569' }}> / {cap}%</span>
+              {w < 3 && <span style={{ color: '#1e293b', marginLeft: 6 }}>·</span>}
+            </span>
+          );
+        })}
+        <span style={{ color: '#475569', fontFamily: mono, fontSize: 8, marginLeft: 4 }}>|</span>
+        <span style={{ fontFamily: mono, fontSize: 8, color: '#94a3b8' }}>
+          TOTAL {totalKelly.toFixed(1)}% / {config.maxBankrollPct || 15}%
+          {bank > 0 && <span style={{ color: '#64748b' }}> · ${Math.round(bank * totalKelly / 100)}</span>}
+        </span>
+        {capWarning && (
+          <span style={{ fontFamily: mono, fontSize: 7, color: '#fb923c', fontWeight: 700 }}>⚠ W1+W2+W3 &gt; MAX</span>
+        )}
+      </div>
+
+      {/* Config rows */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
         {[
           { label: 'MAX PLAYS', key: 'maxPlays', min: 8, max: 30 },
           { label: 'MAX/GAME', key: 'maxPerGame', min: 1, max: 6 },
@@ -1765,10 +1859,29 @@ function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly,
                 background: 'rgba(15,23,42,0.6)', color: '#e2e8f0', fontFamily: mono, fontSize: 9, textAlign: 'center' }} />
           </div>
         ))}
-        <div style={{ fontFamily: mono, fontSize: 8, color: '#94a3b8', marginLeft: 'auto' }}>
-          Total ¼K: {totalKelly.toFixed(1)}%
-          {bank > 0 && <span> · ${Math.round(bank * totalKelly / 100)}</span>}
-        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+        {[
+          { label: 'W1 CAP%', key: 'wave1Cap', min: 1, max: 20 },
+          { label: 'W2 CAP%', key: 'wave2Cap', min: 1, max: 20 },
+          { label: 'W3 CAP%', key: 'wave3Cap', min: 1, max: 20 },
+        ].map(({ label, key, min, max }) => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontFamily: mono, fontSize: 7, color: '#64748b' }}>{label}</span>
+            <input type="number" min={min} max={max} value={config[key] ?? (key === 'wave1Cap' ? 7 : key === 'wave2Cap' ? 5 : 3)}
+              onChange={e => setConfig(prev => ({ ...prev, [key]: parseInt(e.target.value) || min }))}
+              style={{ width: 32, padding: '2px 4px', borderRadius: 3, border: '1px solid rgba(148,163,184,0.15)',
+                background: 'rgba(15,23,42,0.6)', color: '#e2e8f0', fontFamily: mono, fontSize: 9, textAlign: 'center' }} />
+          </div>
+        ))}
+        <button onClick={() => setConfig(prev => ({ ...prev, addTier1Only: !prev.addTier1Only }))}
+          style={{ padding: '2px 8px', borderRadius: 3, fontSize: 8, fontFamily: mono, fontWeight: 700, cursor: 'pointer',
+            border: config.addTier1Only ? '1px solid rgba(251,191,36,0.5)' : '1px solid rgba(148,163,184,0.2)',
+            background: config.addTier1Only ? 'rgba(251,191,36,0.12)' : 'rgba(15,23,42,0.4)',
+            color: config.addTier1Only ? '#fbbf24' : '#64748b' }}
+          title="When on, ADD PLAYS only adds Tier 1 plays (36+ CV games, higher edge bar)">
+          T1 ONLY ADD {config.addTier1Only ? '●' : '○'}
+        </button>
       </div>
 
       {/* Empty state */}
@@ -1790,13 +1903,17 @@ function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly,
             const tierColor = r.tier === 1 ? '#22c55e' : '#fbbf24';
             const sideColor = r.side === 'OVER' ? '#4ade80' : '#f87171';
             const rankColor = i === 0 ? '#fb923c' : i < 3 ? '#fbbf24' : '#64748b';
+            const status = getGameStatus(r.commenceTime);
+            const isGtd = gtdFlags && (gtdFlags.has(r.player) || gtdFlags.has(r.team?.toUpperCase()));
+            const statusColor = status === 'LIVE' ? '#fbbf24' : status === 'FINAL' ? '#4ade80' : '#64748b';
 
             return (
               <div key={r.betId ?? `${r.player}-${r.stat}-${r.side}`} style={{
                 display: 'flex', alignItems: 'center', gap: 0, borderRadius: 5, overflow: 'hidden',
-                borderLeft: `3px solid ${tierColor}`,
-                border: `1px solid rgba(148,163,184,0.08)`,
-                background: r._updated ? 'rgba(99,102,241,0.06)' : 'rgba(15,23,42,0.5)',
+                borderLeft: `3px solid ${isGtd ? '#f59e0b' : tierColor}`,
+                border: `1px solid ${status === 'LIVE' ? 'rgba(251,191,36,0.15)' : 'rgba(148,163,184,0.08)'}`,
+                background: r._updated ? 'rgba(99,102,241,0.06)' : status === 'FINAL' ? 'rgba(15,23,42,0.3)' : 'rgba(15,23,42,0.5)',
+                opacity: status === 'FINAL' ? 0.65 : 1,
               }}>
                 {/* Rank */}
                 <div style={{ width: 24, minWidth: 24, textAlign: 'center', padding: '8px 0',
@@ -1806,10 +1923,20 @@ function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly,
                 {/* Player */}
                 <div style={{ flex: 1, minWidth: 0, padding: '4px 6px' }}>
                   <div style={{ fontSize: 9, fontFamily: mono, color: '#e2e8f0', fontWeight: 700,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.player}</div>
-                  <div style={{ fontSize: 7, fontFamily: mono, color: '#64748b', marginTop: 1 }}>
-                    {r.team ?? ''}{r.commenceTime ? ` · ${new Date(r.commenceTime).toLocaleTimeString('en-US',
-                      { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })} ET` : ''}
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.player}
+                    {isGtd && <span style={{ fontSize: 7, color: '#f59e0b', marginLeft: 4 }}>⚠ GTD</span>}
+                  </div>
+                  <div style={{ fontSize: 7, fontFamily: mono, color: statusColor, marginTop: 1, display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {status && (
+                      <span style={{ fontWeight: status === 'LIVE' ? 700 : 400 }}>
+                        {status === 'LIVE' ? '● LIVE' : status === 'FINAL' ? '✓ FINAL' : ''}
+                      </span>
+                    )}
+                    <span style={{ color: '#64748b' }}>
+                      {r.team ?? ''}{r.commenceTime ? ` · ${new Date(r.commenceTime).toLocaleTimeString('en-US',
+                        { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })} ET` : ''}
+                    </span>
                   </div>
                 </div>
                 {/* Stat + Side */}
@@ -1854,7 +1981,7 @@ function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly,
                   </span>
                   <span style={{ fontSize: 7, fontFamily: mono, padding: '1px 4px', borderRadius: 3,
                     background: 'rgba(99,102,241,0.1)', color: '#a5b4fc' }}>
-                    #{r.session}
+                    W{r.session ?? 1}
                   </span>
                   {r._updated && (
                     <span style={{ fontSize: 6, fontFamily: mono, padding: '1px 3px', borderRadius: 2,
@@ -1906,12 +2033,20 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   bankroll, onExport, csvData, csvCopied, onCopyCsv,
   tracked, onToggleTrack, onTrackSelected, onLogAll, batchLogMsg,
   viewMode, setViewMode, gameData,
+  lineShifts, gtdFlags, setGtdFlags,
   slate, slateOverflow, slateConfig, setSlateConfig, slateSession, slateTotalKelly, slateScaleFactor,
-  slateLocked, onAddPlays, onNewRun, onLockSlate, onClearSlate, onLogSlate }) {
+  slateWaveKelly, slateLocked, onAddPlays, onNewRun, onLockSlate, onClearSlate, onLogSlate }) {
   const { useMemo, useState } = React;
   const [strategyB, setStrategyB] = useState(false);
   const [strategyC, setStrategyC] = useState(false);
   const [showPlaySelector, setShowPlaySelector] = useState(false);
+
+  // Build a fast lookup: "player|stat" → shift info
+  const shiftMap = useMemo(() => {
+    const m = {};
+    (lineShifts || []).forEach(s => { m[`${s.player}|${s.stat}`] = s; });
+    return m;
+  }, [lineShifts]);
 
   const filtered = useMemo(() => {
     return results
@@ -2139,6 +2274,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           session={slateSession}
           totalKelly={slateTotalKelly}
           scaleFactor={slateScaleFactor}
+          waveKelly={slateWaveKelly}
           onAddPlays={onAddPlays}
           onNewRun={onNewRun}
           onLockSlate={onLockSlate}
@@ -2146,6 +2282,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           onLogSlate={onLogSlate}
           locked={slateLocked}
           bankroll={bankroll}
+          gtdFlags={gtdFlags}
         />
       ) : viewMode === 'game' ? (
         <GameSlateView
@@ -2174,11 +2311,15 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
               </div>
             ) : filtered.map((r, i) => {
               const edgeColor = getEdgeColor(r.edge);
-              const rowBg = r.edge >= 5 ? 'rgba(34,197,94,0.07)'
+              const isGtd = gtdFlags && (gtdFlags.has(r.player) || gtdFlags.has(r.team?.toUpperCase()));
+              const rowBg = isGtd ? 'rgba(245,158,11,0.04)'
+                : r.edge >= 5 ? 'rgba(34,197,94,0.07)'
                 : r.edge >= 3 ? 'rgba(34,197,94,0.03)' : 'transparent';
               const isTracked = tracked && tracked.has(r.betId);
+              const shift = shiftMap[`${r.player}|${r.stat}`];
               return (
-                <div key={i} style={{ display: 'flex', backgroundColor: isTracked ? 'rgba(245,158,11,0.06)' : rowBg }}>
+                <div key={i} style={{ display: 'flex', backgroundColor: isTracked ? 'rgba(245,158,11,0.06)' : rowBg,
+                  opacity: isGtd ? 0.55 : 1 }}>
                   <div style={{ ...cellStyle, ...cols[0].style }}
                     onClick={() => onToggleTrack && onToggleTrack(r.betId)}>
                     <div style={{
@@ -2191,12 +2332,37 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
                     </div>
                   </div>
                   <div style={{ ...cellStyle, ...cols[1].style, color: '#e2e8f0',
-                    overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {r.player}
+                    overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.player}</span>
+                    {setGtdFlags && (
+                      <span onClick={() => setGtdFlags(prev => {
+                          const next = new Set(prev);
+                          isGtd ? next.delete(r.player) : next.add(r.player);
+                          return next;
+                        })}
+                        title={isGtd ? 'Remove GTD flag' : 'Flag as GTD (gametime decision)'}
+                        style={{ cursor: 'pointer', fontSize: 7, padding: '0 3px', borderRadius: 2, flexShrink: 0,
+                          color: isGtd ? '#f59e0b' : '#334155',
+                          background: isGtd ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.08)',
+                          border: `1px solid ${isGtd ? 'rgba(245,158,11,0.3)' : 'rgba(148,163,184,0.1)'}`,
+                          fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+                        {isGtd ? 'GTD' : 'gtd'}
+                      </span>
+                    )}
                   </div>
                   <div style={{ ...cellStyle, ...cols[2].style, color: '#64748b' }}>{r.team}</div>
                   <div style={{ ...cellStyle, ...cols[3].style, color: '#94a3b8' }}>{r.statLabel}</div>
-                  <div style={{ ...cellStyle, ...cols[4].style, color: '#94a3b8' }}>{r.propLine}</div>
+                  <div style={{ ...cellStyle, ...cols[4].style, color: '#94a3b8' }}>
+                    {r.propLine}
+                    {shift && (
+                      <span style={{ fontSize: 7, marginLeft: 3, fontWeight: 700,
+                        color: shift.lineDelta > 0 ? '#fb923c' : '#38bdf8',
+                        fontFamily: "'JetBrains Mono', monospace" }}
+                        title={`Line moved from ${shift.prevLine} → ${shift.currLine}${shift.oddsDelta ? ` | Odds Δ${shift.oddsDelta > 0 ? '+' : ''}${shift.oddsDelta}` : ''}`}>
+                        {shift.lineDelta > 0 ? '↑' : '↓'}{Math.abs(shift.lineDelta).toFixed(1)}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ ...cellStyle, ...cols[5].style,
                     color: r.side === 'OVER' ? '#4ade80' : '#f87171',
                     fontWeight: 700, fontSize: 9 }}>
@@ -3744,13 +3910,36 @@ function scorePlay(e) {
 // Deduplicates by player+stat+side, keeping the version with best edge.
 // Applies exposure caps and scales stakes if total Kelly exceeds bankroll limit.
 function buildSlate(newBatchResults, existingSlate, config, sessionNum) {
-  // 1. Classify and score new results
-  const newPlays = newBatchResults
+  // Wave cap map: session 1 → wave1Cap, session 2 → wave2Cap, session 3+ → wave3Cap
+  const waveCaps = [
+    config.wave1Cap ?? 7,
+    config.wave2Cap ?? 5,
+    config.wave3Cap ?? 3,
+  ];
+  const getWaveCap = s => waveCaps[Math.min(s - 1, waveCaps.length - 1)] ?? 3;
+
+  // 1. Gate: reject any incoming play from a game that has already tipped
+  const pendingResults = newBatchResults.filter(r => !gameIsActive(r.commenceTime));
+
+  // 2. Optionally restrict to Tier 1 only for this add operation
+  const tierFiltered = (config.addTier1Only)
+    ? pendingResults.filter(r => isTier1(r))
+    : pendingResults;
+
+  // 3. Classify and score new results
+  const newPlays = tierFiltered
     .map(r => ({ ...r, tier: classifyTier(r) }))
     .filter(r => r.tier !== null)
     .map(r => ({ ...r, score: scorePlay(r), session: sessionNum, addedAt: new Date().toISOString() }));
 
-  // 2. Merge with existing slate (dedup: keep best edge)
+  // 4. Per-wave cap check: how much kelly has this session already committed?
+  const sessionKellyExisting = existingSlate
+    .filter(p => p.session === sessionNum)
+    .reduce((s, p) => s + (p.kellyPct || 0), 0);
+  const waveCap = getWaveCap(sessionNum);
+  const waveHeadroom = Math.max(0, waveCap - sessionKellyExisting);
+
+  // 5. Merge with existing slate (dedup: keep best edge)
   const merged = [...existingSlate];
   for (const play of newPlays) {
     const key = `${play.player}|${play.stat}|${play.side}`;
@@ -3769,38 +3958,61 @@ function buildSlate(newBatchResults, existingSlate, config, sessionNum) {
   // Rescore all (tier may have changed after merge)
   merged.forEach(p => { p.score = scorePlay(p); });
 
-  // 3. Sort by score descending
+  // 6. Sort by score descending
   merged.sort((a, b) => b.score - a.score);
 
-  // 4. Apply exposure caps
+  // 7. Apply exposure caps
   const perPlayer = {}, perGame = {};
   const selected = [], overflow = [];
+  let newSessionKelly = 0;
   for (const play of merged) {
     const pKey = play.player ?? '__';
     const gKey = play.eventId ?? play.commenceTime ?? '__';
     const atPlayerCap = (perPlayer[pKey] ?? 0) >= (config.maxPerPlayer || 2);
     const atGameCap   = (perGame[gKey]   ?? 0) >= (config.maxPerGame || 3);
     const atSlateCap  = selected.length >= (config.maxPlays || 18);
+    // Per-wave cap: only applies to new plays in the current session
+    const isNewThisSession = play.session === sessionNum && !play._updated &&
+      !existingSlate.some(e => `${e.player}|${e.stat}|${e.side}` === pKey + '|' + play.stat + '|' + play.side);
+    const atWaveCap = isNewThisSession && (newSessionKelly + (play.kellyPct || 0) > waveHeadroom);
 
-    if (atSlateCap || atPlayerCap || atGameCap) {
-      const reason = atSlateCap ? 'slate full' : atPlayerCap ? `max ${config.maxPerPlayer}/player` : `max ${config.maxPerGame}/game`;
+    if (atSlateCap || atPlayerCap || atGameCap || atWaveCap) {
+      const reason = atSlateCap ? 'slate full' : atPlayerCap ? `max ${config.maxPerPlayer}/player`
+        : atGameCap ? `max ${config.maxPerGame}/game` : `W${sessionNum} cap`;
       overflow.push({ ...play, _cutReason: reason });
       continue;
     }
     selected.push(play);
     perPlayer[pKey] = (perPlayer[pKey] ?? 0) + 1;
     perGame[gKey]   = (perGame[gKey]   ?? 0) + 1;
+    if (isNewThisSession) newSessionKelly += (play.kellyPct || 0);
   }
 
-  // 5. Bankroll exposure check — scale down if total ¼K exceeds limit
+  // 8. Global bankroll cap — only rescale pending (pre-tip) plays; committed plays are already placed
   const totalKelly = selected.reduce((s, p) => s + (p.kellyPct || 0), 0);
   let scaleFactor = 1;
   if (totalKelly > (config.maxBankrollPct || 15)) {
-    scaleFactor = (config.maxBankrollPct || 15) / totalKelly;
-    selected.forEach(p => { p.kellyPct = (p.kellyPct || 0) * scaleFactor; p._scaled = true; });
+    // Separate active (committed) from pending plays
+    const activePlays  = selected.filter(p => gameIsActive(p.commenceTime));
+    const pendingPlays = selected.filter(p => !gameIsActive(p.commenceTime));
+    const activeKelly  = activePlays.reduce((s, p) => s + (p.kellyPct || 0), 0);
+    const pendingKelly = pendingPlays.reduce((s, p) => s + (p.kellyPct || 0), 0);
+    const budgetForPending = Math.max(0, (config.maxBankrollPct || 15) - activeKelly);
+    if (pendingKelly > budgetForPending && pendingKelly > 0) {
+      scaleFactor = budgetForPending / pendingKelly;
+      pendingPlays.forEach(p => { p.kellyPct = (p.kellyPct || 0) * scaleFactor; p._scaled = true; });
+    }
   }
 
-  return { selected, overflow, totalKelly: totalKelly * scaleFactor, scaleFactor, newCount: newPlays.length };
+  const totalKellyFinal = selected.reduce((s, p) => s + (p.kellyPct || 0), 0);
+  // Compute per-wave kelly totals for display
+  const waveKelly = {};
+  selected.forEach(p => {
+    const s = p.session ?? 1;
+    waveKelly[s] = (waveKelly[s] ?? 0) + (p.kellyPct || 0);
+  });
+
+  return { selected, overflow, totalKelly: totalKellyFinal, scaleFactor, newCount: newPlays.length, waveKelly, waveCaps };
 }
 
 const STRATEGY_LABELS = {
@@ -4159,11 +4371,18 @@ function NBASimulator() {
   const [astRawDataAll, setAstRawDataAll] = useState(null);
   const [cvLoadStatus, setCvLoadStatus] = useState(null); // "found" | "found_partial" | "notfound" | null
   const [cvDivergence, setCvDivergence] = useState({}); // { [statKey]: { ratio, dir: 'up'|'down' } }
-  const [projections, setProjections] = useState(null);   // parsed ETR slate
+  const [projections, setProjections] = useState(() => {
+    const c = loadDateGated('nbaSimProjectionsCache');
+    return c?.players ?? null;
+  });
   const [projOpen, setProjOpen] = useState(false);
   const [projPasteText, setProjPasteText] = useState('');
   const [projError, setProjError] = useState(null);
-  const [projUpdatedAt, setProjUpdatedAt] = useState(null);
+  const [projUpdatedAt, setProjUpdatedAt] = useState(() => {
+    const c = loadDateGated('nbaSimProjectionsCache');
+    return c?.updatedAt ?? null;
+  });
+  const [projFromCache, setProjFromCache] = useState(() => !!loadDateGated('nbaSimProjectionsCache'));
   const [ladderOpen, setLadderOpen] = useState({});
 
   // Batch EV Hunt state
@@ -4198,11 +4417,14 @@ function NBASimulator() {
   });
   const [slateLocked, setSlateLocked] = useState(false);
   const [slateConfig, setSlateConfig] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('nbaSimSlateConfig') || 'null') || { maxPlays: 18, maxPerGame: 3, maxPerPlayer: 2, maxBankrollPct: 15 }; }
-    catch { return { maxPlays: 18, maxPerGame: 3, maxPerPlayer: 2, maxBankrollPct: 15 }; }
+    const defaults = { maxPlays: 18, maxPerGame: 3, maxPerPlayer: 2, maxBankrollPct: 15,
+      wave1Cap: 7, wave2Cap: 5, wave3Cap: 3, addTier1Only: false };
+    try { return { ...defaults, ...JSON.parse(localStorage.getItem('nbaSimSlateConfig') || 'null') }; }
+    catch { return defaults; }
   });
   const [slateTotalKelly, setSlateTotalKelly] = useState(0);
   const [slateScaleFactor, setSlateScaleFactor] = useState(1);
+  const [slateWaveKelly, setSlateWaveKelly] = useState({});  // { [session]: kellyPct }
 
   // Persist slate to localStorage on change
   React.useEffect(() => {
@@ -4229,14 +4451,31 @@ function NBASimulator() {
     try { return JSON.parse(localStorage.getItem('selectedBooks') || '["draftkings","fanduel","betmgm","caesars","betrivers","espnbet"]'); }
     catch { return ['draftkings','fanduel','betmgm','caesars','betrivers','espnbet']; }
   });
-  const [oddsData, setOddsData]           = useState(null);
-  const [gameData, setGameData]           = useState(null);
+  const [oddsData, setOddsData] = useState(() => {
+    const c = loadDateGated('nbaSimOddsCache');
+    return c?.oddsIndex ?? null;
+  });
+  const [gameData, setGameData] = useState(() => {
+    const c = loadDateGated('nbaSimOddsCache');
+    return c?.gameIndex ?? null;
+  });
   const [oddsLoading, setOddsLoading]     = useState(false);
   const [oddsError, setOddsError]         = useState(null);
-  const [oddsLastFetched, setOddsLastFetched]   = useState(null);
+  const [oddsLastFetched, setOddsLastFetched] = useState(() => {
+    const c = loadDateGated('nbaSimOddsCache');
+    return c?.fetchedAt ?? null;
+  });
+  const [oddsFromCache, setOddsFromCache] = useState(() => !!loadDateGated('nbaSimOddsCache'));
   const [oddsRequestsLeft, setOddsRequestsLeft] = useState(null);
   const [showOddsPanel, setShowOddsPanel] = useState(false);
   const [openBooksPanel, setOpenBooksPanel] = useState(null); // stat key with expanded multi-book view
+  const [lineShifts, setLineShifts]       = useState([]);     // detected line movements between fetches
+  const [lineShiftsOpen, setLineShiftsOpen] = useState(false);
+  // GTD flags: Set of player names (or team abbrs) with gametime decisions — excluded from batch
+  const [gtdFlags, setGtdFlags] = useState(() => {
+    const c = loadDateGated('nbaSimGtdFlags');
+    return new Set(c?.playerNames ?? []);
+  });
 
   React.useEffect(() => {
     fetch('./cv_data.json')
@@ -4250,6 +4489,21 @@ function NBASimulator() {
   React.useEffect(() => {
     localStorage.setItem(SESSION_KEY, JSON.stringify({ playerName, numSims, stats, comboLines, bankroll, unitSize, kellyFraction, cvWindow, parlayOdds }));
   }, [playerName, numSims, stats, comboLines, bankroll, unitSize, kellyFraction, cvWindow, parlayOdds]);
+
+  // Cache projections (date-gated — auto-invalidates next day)
+  React.useEffect(() => {
+    if (projections) saveDateGated('nbaSimProjectionsCache', { updatedAt: projUpdatedAt, players: projections });
+  }, [projections, projUpdatedAt]);
+
+  // Cache odds data (date-gated)
+  React.useEffect(() => {
+    if (oddsData && gameData) saveDateGated('nbaSimOddsCache', { fetchedAt: oddsLastFetched, oddsIndex: oddsData, gameIndex: gameData });
+  }, [oddsData, gameData, oddsLastFetched]);
+
+  // Cache GTD flags (date-gated)
+  React.useEffect(() => {
+    saveDateGated('nbaSimGtdFlags', { playerNames: Array.from(gtdFlags) });
+  }, [gtdFlags]);
 
   // ── Model Accuracy / Calibration state ─────────────────────────────
   const [calibration,         setCalibration]         = useState(() => loadCalibration());
@@ -4289,10 +4543,23 @@ function NBASimulator() {
     if (!oddsApiKey.trim()) { setOddsError('Enter your Odds API key first.'); setShowOddsPanel(true); return; }
     setOddsLoading(true); setOddsError(null);
     try {
+      // Snapshot current odds before overwriting — used for line shift detection
+      const prevOdds = oddsData;
       const result = await fetchFullSlate(oddsApiKey.trim(), selectedBooks);
-      setOddsData(result.oddsIndex);
+      const newOdds = result.oddsIndex;
+      // Detect line movements between previous and new fetch
+      if (prevOdds) {
+        const shifts = computeLineShifts(prevOdds, newOdds);
+        setLineShifts(shifts);
+        if (shifts.length > 0) setLineShiftsOpen(true);
+      } else {
+        setLineShifts([]);
+      }
+      setOddsData(newOdds);
       setGameData(result.gameIndex);
-      setOddsLastFetched(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+      const fetchedAt = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      setOddsLastFetched(fetchedAt);
+      setOddsFromCache(false);
       setOddsRequestsLeft(result.remainingRequests);
       setShowOddsPanel(false);
     } catch(e) {
@@ -4300,7 +4567,7 @@ function NBASimulator() {
     } finally {
       setOddsLoading(false);
     }
-  }, [oddsApiKey, selectedBooks]);
+  }, [oddsApiKey, selectedBooks, oddsData]);
 
   const updateStat = useCallback((key, field, value) => {
     setStats((prev) => {
@@ -4467,6 +4734,7 @@ function NBASimulator() {
     if (result.error) { setProjError(result.error); return; }
     setProjections(result.players);
     setProjError(null);
+    setProjFromCache(false);
     setProjUpdatedAt(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
     setProjOpen(false);
   }, [projPasteText]);
@@ -4882,6 +5150,7 @@ function NBASimulator() {
     setSlateOverflow(result.overflow);
     setSlateTotalKelly(result.totalKelly);
     setSlateScaleFactor(result.scaleFactor);
+    setSlateWaveKelly(result.waveKelly ?? {});
   }, [batchResults, slate, slateConfig, slateSession, slateLocked]);
 
   const handleNewSlateRun = useCallback(() => {
@@ -4900,6 +5169,7 @@ function NBASimulator() {
     setSlateLocked(false);
     setSlateTotalKelly(0);
     setSlateScaleFactor(1);
+    setSlateWaveKelly({});
   }, []);
 
   const handleLogSlate = useCallback(() => {
@@ -5319,9 +5589,14 @@ function NBASimulator() {
     setBatchResults(null);
     setBatchCsvData(null);
 
+    const BATCH_SIMS = 10000;
+    const MIN_BATCH_GAMES = 10; // require ≥10 CV-db games to trust the distribution shape
+
     // Filter to players with at least one stat that has an odds line.
-    // Also gate out players whose CV database sample is too thin to trust (< MIN_BATCH_GAMES).
-    // Players absent from the CV DB entirely still pass through (new/recent players).
+    // Also gate out:
+    //   • Players whose CV database sample is too thin (< MIN_BATCH_GAMES)
+    //   • Players flagged as GTD (gametime decision — lineup uncertainty invalidates edge premise)
+    //   • Players from games that have already tipped (lines are closed; sim output is moot)
     const eligible = projections.filter(p => {
       const normName = normalizeOddsName(p.name);
       const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
@@ -5329,11 +5604,13 @@ function NBASimulator() {
       const cvKey = p.name.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const cvEntry = cvDatabase?.[cvKey];
       if (cvEntry && cvEntry.games_available < MIN_BATCH_GAMES) return false;
+      // GTD exclusion: player name OR team abbr in gtdFlags
+      if (gtdFlags.has(p.name) || gtdFlags.has(p.team?.toUpperCase())) return false;
+      // Active game exclusion: game has already tipped
+      const gameCtxCheck = gameData?.[p.team?.toUpperCase()];
+      if (gameCtxCheck?.commenceTime && gameIsActive(gameCtxCheck.commenceTime)) return false;
       return STAT_CONFIG.some(({ key }) => playerOdds[key]?.line != null);
     });
-
-    const BATCH_SIMS = 10000;
-    const MIN_BATCH_GAMES = 10; // require ≥10 CV-db games to trust the distribution shape
     const BATCH_PROJ_FLOORS = { pts: 6, reb: 2, ast: 1.5, stl: 0.5, blk: 0.3, threes: 0.5 };
     setBatchProgress({ current: 0, total: eligible.length });
     const allRows = [];
@@ -5433,7 +5710,7 @@ function NBASimulator() {
     setBatchResults(allRows);
     setBatchProgress(null);
     setBatchRunning(false);
-  }, [projections, oddsData, cvDatabase, gameData]);
+  }, [projections, oddsData, cvDatabase, gameData, gtdFlags]);
 
   const handleExport = useCallback(() => {
     if (!results) return;
@@ -5537,7 +5814,11 @@ function NBASimulator() {
               </span>
               {projections ? (
                 <span style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
-                  {projections.length} players · updated {projUpdatedAt}
+                  {projections.length} players · {projFromCache ? (
+                    <span style={{ color: '#a78bfa' }}>CACHED {projUpdatedAt}</span>
+                  ) : (
+                    <span>updated {projUpdatedAt}</span>
+                  )}
                 </span>
               ) : (
                 <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
@@ -5613,9 +5894,10 @@ function NBASimulator() {
                 {projections.map(p => {
                   const hasOdds = !!playerHasOddsMap[p.name];
                   const hasMeta = p.pos || p.team;
+                  const isGtd = gtdFlags.has(p.name) || gtdFlags.has(p.team?.toUpperCase());
                   return (
                     <option key={p.name} value={p.name}>
-                      {hasOdds ? '● ' : ''}{p.name}{hasMeta ? ` (${p.pos ? p.pos : ''}${p.pos && p.team ? ' · ' : ''}${p.team || ''}${p.opp ? ` vs ${p.opp}` : ''})` : ''}{p.pts ? ` — ${p.pts} pts` : ''}
+                      {isGtd ? '⚠ GTD · ' : hasOdds ? '● ' : ''}{p.name}{hasMeta ? ` (${p.pos ? p.pos : ''}${p.pos && p.team ? ' · ' : ''}${p.team || ''}${p.opp ? ` vs ${p.opp}` : ''})` : ''}{p.pts ? ` — ${p.pts} pts` : ''}
                     </option>
                   );
                 })}
@@ -5637,13 +5919,24 @@ function NBASimulator() {
                 · The Odds API
               </span>
               {oddsData ? (
-                <span style={{ fontSize: 9, color: "#4ade80", fontFamily: "'JetBrains Mono', monospace" }}>
-                  {Object.keys(oddsData).length} players · {oddsLastFetched}
+                <span style={{ fontSize: 9, fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span style={{ color: oddsFromCache ? '#a78bfa' : '#4ade80' }}>
+                    {oddsFromCache ? 'CACHED' : Object.keys(oddsData).length + ' players'} · {oddsLastFetched}
+                  </span>
                   {oddsRequestsLeft != null && <span style={{ color: "#64748b" }}> · {oddsRequestsLeft} req left</span>}
                 </span>
               ) : (
                 <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
                   auto-populates lines + odds on player select
+                </span>
+              )}
+              {lineShifts.length > 0 && (
+                <span onClick={e => { e.stopPropagation(); setLineShiftsOpen(o => !o); }}
+                  style={{ cursor: 'pointer', fontSize: 8, padding: '1px 6px', borderRadius: 3,
+                    background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.35)',
+                    color: '#fb923c', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}
+                  title="Line movements detected since last fetch — click to expand">
+                  ⚡ {lineShifts.length} SHIFTS
                 </span>
               )}
             </div>
@@ -5661,6 +5954,36 @@ function NBASimulator() {
               </span>
             </div>
           </div>
+
+          {/* Line shift panel — shown when shifts detected and user has expanded */}
+          {lineShifts.length > 0 && lineShiftsOpen && (
+            <div style={{ padding: "0 16px 10px", borderTop: "1px solid rgba(251,146,60,0.1)" }}>
+              <div style={{ fontSize: 8, color: '#fb923c', fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700, marginBottom: 6, letterSpacing: 0.5 }}>
+                LINE MOVEMENTS DETECTED (vs. previous fetch)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {lineShifts.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 9,
+                    fontFamily: "'JetBrains Mono', monospace", color: '#94a3b8' }}>
+                    <span style={{ minWidth: 140, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.player}</span>
+                    <span style={{ color: '#64748b', minWidth: 32 }}>{s.stat.toUpperCase()}</span>
+                    <span style={{ color: '#475569' }}>{s.prevLine}</span>
+                    <span style={{ color: '#64748b' }}>→</span>
+                    <span style={{ color: s.lineDelta > 0 ? '#fb923c' : '#38bdf8', fontWeight: 700 }}>{s.currLine}</span>
+                    <span style={{ color: s.lineDelta > 0 ? '#fb923c' : '#38bdf8', fontWeight: 700, minWidth: 36 }}>
+                      {s.lineDelta > 0 ? '↑' : '↓'}{Math.abs(s.lineDelta).toFixed(1)}
+                    </span>
+                    {s.oddsDelta !== 0 && (
+                      <span style={{ color: '#64748b', fontSize: 8 }}>
+                        odds {s.oddsDelta > 0 ? '+' : ''}{s.oddsDelta}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {showOddsPanel && (
             <div style={{ padding: "0 16px 14px" }}>
@@ -5731,6 +6054,15 @@ function NBASimulator() {
               {batchResults && !batchRunning && (
                 <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
                   · {batchResults.filter(r => r.edge >= 1.5).length} plays with edge
+                </span>
+              )}
+              {gtdFlags.size > 0 && (
+                <span style={{ fontSize: 8, padding: '1px 6px', borderRadius: 3, cursor: 'pointer',
+                  background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)',
+                  color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}
+                  onClick={e => { e.stopPropagation(); setGtdFlags(new Set()); }}
+                  title="Click to clear all GTD flags">
+                  ⚠ GTD: {gtdFlags.size} · ✕ CLEAR
                 </span>
               )}
             </div>
@@ -5804,6 +6136,9 @@ function NBASimulator() {
                   viewMode={batchViewMode}
                   setViewMode={setBatchViewMode}
                   gameData={gameData}
+                  lineShifts={lineShifts}
+                  gtdFlags={gtdFlags}
+                  setGtdFlags={setGtdFlags}
                   slate={slate}
                   slateOverflow={slateOverflow}
                   slateConfig={slateConfig}
@@ -5811,6 +6146,7 @@ function NBASimulator() {
                   slateSession={slateSession}
                   slateTotalKelly={slateTotalKelly}
                   slateScaleFactor={slateScaleFactor}
+                  slateWaveKelly={slateWaveKelly}
                   slateLocked={slateLocked}
                   onAddPlays={handleAddPlaysToSlate}
                   onNewRun={handleNewSlateRun}
