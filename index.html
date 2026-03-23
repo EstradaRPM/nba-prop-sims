@@ -137,6 +137,52 @@ function simulateStatNegBin(mean, cvPct, n) {
   return results;
 }
 
+// ── Binomial sampler ─────────────────────────────────────────────────────────
+// Direct Bernoulli loop — correct and fast for typical shot counts (0–20 per type).
+function randBinomial(n, p) {
+  if (n <= 0 || p <= 0) return 0;
+  if (p >= 1) return Math.round(n);
+  let k = 0;
+  for (let i = 0; i < n; i++) { if (Math.random() < p) k++; }
+  return k;
+}
+
+// ── Compound NegBin × Binomial shot-based PTS model ──────────────────────────
+// Replaces KDE for PTS when shot_profile is loaded from cv_data.json.
+//
+// Why this beats KDE for points:
+//   KDE fits a bandwidth to observed totals — it has no "free" variance from
+//   the probabilistic nature of making shots. The compound model adds Binomial
+//   accuracy variance on top of NegBin attempt-volume variance:
+//     Var(M) = p·μ·(1 + (1-p) + p·μ/r) vs KDE: Var = bandwidth²·scale²
+//   The Binomial term p(1-p)·μ exists by mathematical necessity — it cannot
+//   be underfit regardless of data quality.
+//
+// Input shotProfile (pre-computed by handleSimulate from ETR + cv_data.json):
+//   mu3pa  — ETR_3PM / fg3_pct (NegBin mean for 3PA)
+//   mu2pa  — residual 2P pts / (2 × fg2_pct) (NegBin mean for 2PA)
+//   muFta  — ftaPerGame × (etrMin / meanMinutes) (NegBin mean for FTA)
+//   fg3Pct — historical 3P%   (Binomial p for makes | attempts)
+//   fg2Pct — historical 2P%
+//   ftPct  — historical FT%
+//   r3pa, r2pa, rFta — NegBin dispersion params (null → Poisson fallback)
+//
+// E[P] = 3·fg3Pct·mu3pa + ftPct·muFta + 2·fg2Pct·mu2pa = ETR_PTS exactly.
+function simulateStatCompound(shotProfile, n) {
+  const { mu3pa, mu2pa, muFta, fg3Pct, fg2Pct, ftPct, r3pa, r2pa, rFta } = shotProfile;
+  const results = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const a3  = (r3pa > 0 && mu3pa > 0) ? randNegBin(mu3pa, r3pa) : (mu3pa > 0 ? randPoisson(mu3pa) : 0);
+    const m3  = a3  > 0 ? randBinomial(a3,  fg3Pct) : 0;
+    const aFt = (rFta > 0 && muFta > 0) ? randNegBin(muFta, rFta) : (muFta > 0 ? randPoisson(muFta) : 0);
+    const mFt = aFt > 0 ? randBinomial(aFt, ftPct)  : 0;
+    const a2  = (r2pa > 0 && mu2pa > 0) ? randNegBin(mu2pa, r2pa) : (mu2pa > 0 ? randPoisson(mu2pa) : 0);
+    const m2  = a2  > 0 ? randBinomial(a2,  fg2Pct) : 0;
+    results[i] = 3 * m3 + mFt + 2 * m2;
+  }
+  return results;
+}
+
 // ── Single-draw helpers + buildKDEModel (for projection uncertainty outer loop) ─
 // buildKDEModel: precomputes the recency-weighted CDF and bandwidth once, so
 // the projection uncertainty outer loop can reuse it without O(n²) rebuilding.
@@ -322,7 +368,7 @@ const LOG_NORMAL_STATS = new Set([]);
 const POISSON_STATS    = new Set(['stl', 'blk', 'threes']);
 const KDE_STATS        = new Set(['pts', 'reb', 'ast']);
 
-function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projSDs = {}, ptsRawDataAll = null, rebRawDataAll = null, astRawDataAll = null) {
+function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projSDs = {}, ptsRawDataAll = null, rebRawDataAll = null, astRawDataAll = null, shotProfile = null) {
   const rawDataMap    = { pts: ptsRawData,    reb: rebRawData,    ast: astRawData    };
   // Unfiltered raw data map — preferred for KDE when available.
   // Contains blowout/overtime/foul-trouble games stripped by the situation filter.
@@ -367,7 +413,17 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
         const mu_i = Math.max(0, etrMean + sigmaProj * randn());
         const n_c  = Math.min(chunkSize, numSims - offset);
         let chunk;
-        if (POISSON_STATS.has(key)) {
+        // Compound PTS model: scale all shot-type means proportionally to the perturbed total.
+        if (key === 'pts' && shotProfile) {
+          const scale = etrMean > 0 ? mu_i / etrMean : 1;
+          const scaledProfile = {
+            ...shotProfile,
+            mu3pa: shotProfile.mu3pa * scale,
+            mu2pa: shotProfile.mu2pa * scale,
+            muFta: shotProfile.muFta * scale,
+          };
+          chunk = simulateStatCompound(scaledProfile, n_c);
+        } else if (POISSON_STATS.has(key)) {
           // THREES: same r=2.0 minimum overdispersion floor as the non-uncertainty path.
           if (key === 'threes' && mu_i > 0) {
             const floorCv_pu = Math.sqrt(1 / mu_i + 0.5) * 100;
@@ -403,6 +459,15 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
         const tmp = combined[i]; combined[i] = combined[j]; combined[j] = tmp;
       }
       simResults[key] = combined;
+      return;
+    }
+
+    // ── Compound PTS model (primary when shot_profile loaded from cv_data.json) ──
+    // Takes priority over KDE/Gamma — uses ETR-derived shot-type means with empirical
+    // NegBin attempt variance and Binomial accuracy variance. shotProfile is pre-computed
+    // by handleSimulate with all ETR-scaled means already resolved.
+    if (key === 'pts' && shotProfile) {
+      simResults[key] = simulateStatCompound(shotProfile, numSims);
       return;
     }
 
@@ -1481,6 +1546,7 @@ function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfoli
 
 // ── Result Row ──────────────────────────────────────────────────────
 const DIST_MODEL_STYLE = {
+  Compound:  { color: "#fb923c", bg: "rgba(251,146,60,0.08)",  border: "rgba(251,146,60,0.25)"  }, // NegBin×Binomial shot model
   "KDE+":    { color: "#34d399", bg: "rgba(52,211,153,0.08)",  border: "rgba(52,211,153,0.25)"  }, // unfiltered KDE — full empirical dist
   KDE:       { color: "#22d3ee", bg: "rgba(34,211,238,0.08)", border: "rgba(34,211,238,0.25)" },
   Gamma:     { color: "#f59e0b", bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.25)"  },
@@ -3193,11 +3259,27 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
       : null;
   };
 
+  // Extract shot profile for compound PTS model
+  const sp = cvData?.shot_profile;
+  const shotProfile = (sp && sp.fg3_pct != null && sp.fg2_pct != null && sp.ft_pct != null)
+    ? {
+        fg3Pct:      sp.fg3_pct,
+        fg2Pct:      sp.fg2_pct,
+        ftPct:       sp.ft_pct,
+        ftaPerGame:  sp.fta_per_game ?? 0,
+        meanMinutes: cvData?.mean_minutes_last20 ?? null,
+        r3pa:        sp.r_fg3a ?? null,
+        r2pa:        sp.r_fg2a ?? null,
+        rFta:        sp.r_fta  ?? null,
+      }
+    : null;
+
   return {
     stats,
     ptsRawData: loadRaw('pts_raw', 'pts_mean_raw'),
     rebRawData: loadRaw('reb_raw', 'reb_mean_raw'),
     astRawData: loadRaw('ast_raw', 'ast_mean_raw'),
+    shotProfile,
   };
 }
 
@@ -4769,6 +4851,9 @@ function NBASimulator() {
   const [ptsRawDataAll, setPtsRawDataAll] = useState(null);
   const [rebRawDataAll, setRebRawDataAll] = useState(null);
   const [astRawDataAll, setAstRawDataAll] = useState(null);
+  // Shot profile from cv_data.json — raw efficiencies and NegBin r params per shot type.
+  // Pre-processed by handleLoadCv; combined with ETR means in handleSimulate before runSimulation.
+  const [shotProfile, setShotProfile] = useState(null);
   const [cvLoadStatus, setCvLoadStatus] = useState(null); // "found" | "found_partial" | "notfound" | null
   const [cvDivergence, setCvDivergence] = useState({}); // { [statKey]: { ratio, dir: 'up'|'down' } }
   const [projections, setProjections] = useState(() => {
@@ -5151,6 +5236,24 @@ function NBASimulator() {
     loadRawData('pts_raw_all', 'pts_mean_raw_all', setPtsRawDataAll);
     loadRawData('reb_raw_all', 'reb_mean_raw_all', setRebRawDataAll);
     loadRawData('ast_raw_all', 'ast_mean_raw_all', setAstRawDataAll);
+    // Shot profile for compound PTS model — extract raw efficiencies and NegBin r params.
+    // ETR-scaled means (mu3pa/mu2pa/muFta) are computed later in handleSimulate once
+    // the user's projected minutes and stat inputs are confirmed.
+    const sp = playerData.shot_profile;
+    if (sp && sp.fg3_pct != null && sp.fg2_pct != null && sp.ft_pct != null) {
+      setShotProfile({
+        fg3Pct:     sp.fg3_pct,
+        fg2Pct:     sp.fg2_pct,
+        ftPct:      sp.ft_pct,
+        ftaPerGame: sp.fta_per_game ?? 0,
+        meanMinutes: playerData.mean_minutes_last20 ?? null,
+        r3pa:       sp.r_fg3a ?? null,
+        r2pa:       sp.r_fg2a ?? null,
+        rFta:       sp.r_fta  ?? null,
+      });
+    } else {
+      setShotProfile(null);
+    }
     setCvLoadStatus(isAuto ? 'found_auto' : cvMinRaw != null ? 'found' : 'found_partial');
   }, [cvDatabase, cvWindow, playerName]);
 
@@ -5191,6 +5294,7 @@ function NBASimulator() {
     setPtsRawDataAll(null);
     setRebRawDataAll(null);
     setAstRawDataAll(null);
+    setShotProfile(null);
     setCvDivergence({});
     // Clear stale combo lines from previous player — will re-populate from component sums below if oddsData is loaded
     setComboLines(() => {
@@ -5281,6 +5385,7 @@ function NBASimulator() {
     setPtsRawDataAll(null);
     setRebRawDataAll(null);
     setAstRawDataAll(null);
+    setShotProfile(null);
     setCvLoadStatus(null);
     setLadderOpen({});
   }, []);
@@ -5297,7 +5402,27 @@ function NBASimulator() {
         projSDs[key] = isNaN(sd) || sd <= 0 ? defaults[key] : sd;
       });
     }
-    const simResults = runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projUncertaintyMode ? projSDs : {}, ptsRawDataAll, rebRawDataAll, astRawDataAll);
+    // Resolve compound shot profile: ETR inputs → per-component attempt means.
+    // mu3pa = ETR_3PM / fg3Pct  (attempt volume implied by ETR's projected makes)
+    // muFta = ftaPerGame × (etrMin / meanMinutes)  (scaled to projected minutes)
+    // mu2pa = residual 2P pts / (2 × fg2Pct)
+    // E[P] = 3·mu3pa·fg3Pct + muFta·ftPct + 2·mu2pa·fg2Pct = ETR_PTS exactly.
+    const computedShotProfile = (() => {
+      if (!shotProfile) return null;
+      const etPts = parseFloat(stats.pts?.mean) || 0;
+      const et3pm = parseFloat(stats.threes?.mean) || 0;
+      const { fg3Pct, fg2Pct, ftPct, ftaPerGame, meanMinutes, r3pa, r2pa, rFta } = shotProfile;
+      if (!fg3Pct || !fg2Pct || !ftPct || etPts <= 0) return null;
+      const etrMin = parseFloat(projections?.find(p => p.name === playerName)?.min) || null;
+      const mu3pa  = fg3Pct > 0 && et3pm > 0 ? et3pm / fg3Pct : 0;
+      const muFta  = (etrMin && meanMinutes > 0) ? ftaPerGame * (etrMin / meanMinutes) : ftaPerGame;
+      const ptsFrom3s  = et3pm * 3;
+      const ptsFromFt  = muFta * ftPct;
+      const ptsFrom2p  = Math.max(0, etPts - ptsFrom3s - ptsFromFt);
+      const mu2pa  = fg2Pct > 0 ? ptsFrom2p / (2 * fg2Pct) : 0;
+      return { mu3pa, mu2pa, muFta, fg3Pct, fg2Pct, ftPct, r3pa, r2pa, rFta };
+    })();
+    const simResults = runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projUncertaintyMode ? projSDs : {}, ptsRawDataAll, rebRawDataAll, astRawDataAll, computedShotProfile);
 
     const statProbs = {};
     STAT_CONFIG.forEach(({ key }) => {
@@ -5309,7 +5434,7 @@ function NBASimulator() {
         // "KDE"  = situation-filtered raw data (legacy path, missing tail games)
         // All count stats now use NegBin (player CV or league-avg fallback); "NegBin*" = league-avg CV
         const distModel = POISSON_STATS.has(key) ? (usingNegBin ? "NegBin" : "NegBin*")
-          : key === 'pts' ? (ptsRawDataAll && computeEmpiricalStd(ptsRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : ptsRawData ? "KDE" : "Gamma")
+          : key === 'pts' ? (computedShotProfile ? "Compound" : ptsRawDataAll && computeEmpiricalStd(ptsRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : ptsRawData ? "KDE" : "Gamma")
           : key === 'reb' ? (rebRawDataAll && computeEmpiricalStd(rebRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : rebRawData ? "KDE" : "LogNormal")
           : key === 'ast' ? (astRawDataAll && computeEmpiricalStd(astRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : astRawData ? "KDE" : "Gamma")
           : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
@@ -5418,7 +5543,7 @@ function NBASimulator() {
     setSimTimestamp(ts);
     setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
     setResultsAreStale(false);
-  }, [stats, comboLines, numSims, kellyFraction, ptsRawData, rebRawData, astRawData, projUncertaintyMode, praDirectCv, prDirectCv, paDirectCv, raDirectCv, sbDirectCv]);
+  }, [stats, comboLines, numSims, kellyFraction, ptsRawData, rebRawData, astRawData, projUncertaintyMode, praDirectCv, prDirectCv, paDirectCv, raDirectCv, sbDirectCv, shotProfile, projections, playerName]);
 
   // ── Calibration Handlers ─────────────────────────────────────────────
   // Toggle a single betId in/out of the batchTracked selection set
@@ -6165,12 +6290,29 @@ function NBASimulator() {
       const cvData = cvDatabase?.[cvKey];
       const gameCtx = gameData?.[p.team?.toUpperCase()] || null;
 
-      // Build stats object with auto-blend CV and KDE raw data (pts/reb/ast)
-      const { stats: statsForSim, ptsRawData: bPts, rebRawData: bReb, astRawData: bAst } =
+      // Build stats object with auto-blend CV, KDE raw data, and shot profile
+      const { stats: statsForSim, ptsRawData: bPts, rebRawData: bReb, astRawData: bAst, shotProfile: bShotRaw } =
         buildPlayerStatsForSim(p, playerOdds, cvData);
 
+      // Resolve compound shot profile with ETR-projected minutes and stat means
+      const bComputedShotProfile = (() => {
+        if (!bShotRaw) return null;
+        const etPts = parseFloat(statsForSim.pts?.mean) || 0;
+        const et3pm = parseFloat(statsForSim.threes?.mean) || 0;
+        const { fg3Pct, fg2Pct, ftPct, ftaPerGame, meanMinutes, r3pa, r2pa, rFta } = bShotRaw;
+        if (!fg3Pct || !fg2Pct || !ftPct || etPts <= 0) return null;
+        const bEtrMin = parseFloat(p.min) || null;
+        const mu3pa   = fg3Pct > 0 && et3pm > 0 ? et3pm / fg3Pct : 0;
+        const muFta   = (bEtrMin && meanMinutes > 0) ? ftaPerGame * (bEtrMin / meanMinutes) : ftaPerGame;
+        const ptsFrom3s = et3pm * 3;
+        const ptsFromFt = muFta * ftPct;
+        const ptsFrom2p = Math.max(0, etPts - ptsFrom3s - ptsFromFt);
+        const mu2pa   = fg2Pct > 0 ? ptsFrom2p / (2 * fg2Pct) : 0;
+        return { mu3pa, mu2pa, muFta, fg3Pct, fg2Pct, ftPct, r3pa, r2pa, rFta };
+      })();
+
       // Pass raw data so KDE runs for pts/reb/ast — same path as individual simulation
-      const simResults = runSimulation(statsForSim, BATCH_SIMS, bPts, bReb, bAst);
+      const simResults = runSimulation(statsForSim, BATCH_SIMS, bPts, bReb, bAst, {}, null, null, null, bComputedShotProfile);
 
       STAT_CONFIG.forEach(({ key, label }) => {
         const s = statsForSim[key];
@@ -6232,7 +6374,7 @@ function NBASimulator() {
                 if (cv && mean > 0 && cv <= 1 / Math.sqrt(mean)) return 'NegBin*'; // league-avg floor
                 return 'NegBin';
               }
-              if (key === 'pts') return bPts != null ? 'KDE' : 'Gamma';
+              if (key === 'pts') return bComputedShotProfile ? 'Compound' : bPts != null ? 'KDE' : 'Gamma';
               if (key === 'reb') return bReb != null ? 'KDE' : 'LogNormal';
               if (key === 'ast') return bAst != null ? 'KDE' : 'LogNormal';
               return 'LogNormal';
