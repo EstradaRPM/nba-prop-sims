@@ -762,7 +762,10 @@ function computeLineShifts(prevOdds, newOdds) {
 }
 
 // Date-gated localStorage helpers
-const TODAY = () => new Date().toISOString().slice(0, 10);
+// Use local calendar date (not UTC) so evening bets don't roll to tomorrow's date.
+const localDateStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const TODAY = () => localDateStr();
 
 function loadDateGated(key) {
   try {
@@ -4618,7 +4621,7 @@ function NBASimulator() {
   const [slate, setSlate] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('nbaSimSlate') || 'null');
-      if (saved && saved.date === new Date().toISOString().slice(0, 10)) return saved.plays || [];
+      if (saved && saved.date === TODAY()) return saved.plays || [];
       return [];
     } catch { return []; }
   });
@@ -4626,7 +4629,7 @@ function NBASimulator() {
   const [slateSession, setSlateSession] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('nbaSimSlate') || 'null');
-      if (saved && saved.date === new Date().toISOString().slice(0, 10)) return saved.session || 1;
+      if (saved && saved.date === TODAY()) return saved.session || 1;
       return 1;
     } catch { return 1; }
   });
@@ -4644,7 +4647,7 @@ function NBASimulator() {
   const [tailedPlays, setTailedPlays] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('nbaSimTailed') || 'null');
-      if (saved && saved.date === new Date().toISOString().slice(0, 10)) return saved.plays || [];
+      if (saved && saved.date === TODAY()) return saved.plays || [];
       return [];
     } catch { return []; }
   });
@@ -4658,7 +4661,7 @@ function NBASimulator() {
   React.useEffect(() => {
     try {
       localStorage.setItem('nbaSimSlate', JSON.stringify({
-        date: new Date().toISOString().slice(0, 10),
+        date: TODAY(),
         plays: slate,
         session: slateSession,
       }));
@@ -4673,7 +4676,7 @@ function NBASimulator() {
   React.useEffect(() => {
     try {
       localStorage.setItem('nbaSimTailed', JSON.stringify({
-        date: new Date().toISOString().slice(0, 10),
+        date: TODAY(),
         plays: tailedPlays,
       }));
     } catch (e) { console.warn('Tailed plays storage write failed:', e); }
@@ -5309,14 +5312,14 @@ function NBASimulator() {
   // A line move (24.5 → 25.0) produces a different key and is logged as a new calibration event.
   const handleLogAllAboveThreshold = useCallback((threshold = 3) => {
     if (!batchResults) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = TODAY();
     const bank  = parseFloat(bankroll) || 0;
     const unit  = parseFloat(unitSize) || 20;
 
     // Semantic keys from entries already recorded today
     const existingKeys = new Set(
       calibration
-        .filter(e => (e.loggedAt || '').slice(0, 10) === today)
+        .filter(e => e.loggedAt && localDateStr(new Date(e.loggedAt)) === today)
         .map(e => `${e.player}|${e.stat}|${e.side}|${e.propLine}`)
     );
 
@@ -5451,9 +5454,9 @@ function NBASimulator() {
       tier: play.tier, slateSession: play.session, slateScore: play.score,
     };
     setCalibration(prev => {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = TODAY();
       const dupKey = `${play.player}|${play.stat}|${play.side}|${play.propLine}`;
-      if (prev.some(e => (e.loggedAt||'').slice(0,10) === today && `${e.player}|${e.stat}|${e.side}|${e.propLine}` === dupKey)) return prev;
+      if (prev.some(e => e.loggedAt && localDateStr(new Date(e.loggedAt)) === today && `${e.player}|${e.stat}|${e.side}|${e.propLine}` === dupKey)) return prev;
       return [entry, ...prev];
     });
     setCalibrationOpen(true);
@@ -5461,12 +5464,12 @@ function NBASimulator() {
 
   const handleLogSlate = useCallback(() => {
     if (slate.length === 0) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = TODAY();
     const bank  = parseFloat(bankroll) || 0;
     const unit  = parseFloat(unitSize) || 20;
     const existingKeys = new Set(
       calibration
-        .filter(e => (e.loggedAt || '').slice(0, 10) === today)
+        .filter(e => e.loggedAt && localDateStr(new Date(e.loggedAt)) === today)
         .map(e => `${e.player}|${e.stat}|${e.side}|${e.propLine}`)
     );
     let skipped = 0;
