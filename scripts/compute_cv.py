@@ -106,6 +106,25 @@ def sample_std(values: list[float]) -> float:
     return (sum((x - mean) ** 2 for x in values) / (n - 1)) ** 0.5
 
 
+def fit_negbin_r(values: list[float]) -> float | None:
+    """
+    Fit NegBin dispersion parameter r via method of moments.
+    r = μ² / (σ² − μ). Returns None if underdispersed (σ² ≤ μ)
+    or if fewer than 10 games are available.
+    """
+    if len(values) < 10:
+        return None
+    mu = sum(values) / len(values)
+    if mu <= 0:
+        return None
+    n = len(values)
+    var = sum((x - mu) ** 2 for x in values) / (n - 1)
+    if var <= mu:
+        return None  # underdispersed — Poisson is the appropriate model
+    r = mu ** 2 / (var - mu)
+    return round(max(0.1, r), 2)
+
+
 def compute_cv(values: list[float]) -> float | None:
     """
     Compute CV% = (std_dev / mean) * 100 for a list of per-36 rates.
@@ -216,6 +235,13 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
             "sb":    float(row.get("STL") or 0) + float(row.get("BLK") or 0),
             "team":  team_abbrev,
             "date":  str(row.get("GAME_DATE") or ""),
+            # Shot-type columns for compound PTS model
+            "fg3a":  float(row.get("FG3A") or 0),
+            "fga":   float(row.get("FGA")  or 0),
+            "fta":   float(row.get("FTA")  or 0),
+            "fg3m":  float(row.get("FG3M") or 0),
+            "fgm":   float(row.get("FGM")  or 0),
+            "ftm":   float(row.get("FTM")  or 0),
         })
     # Reverse to chronological
     raw_games.reverse()
@@ -326,6 +352,42 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
     reb_raw_all, reb_mean_raw_all = build_raw_windows_unfiltered("reb")
     ast_raw_all, ast_mean_raw_all = build_raw_windows_unfiltered("ast")
 
+    # ── Shot profile for compound PTS model ──────────────────────────────────────
+    # Uses all games where MIN >= 5 (true DNPs excluded only) for maximum stability.
+    # Shooting percentages use sum(makes)/sum(attempts) — more stable than averaging
+    # per-game rates, which inflate variance from small sample sizes (e.g. 1/1 = 100%).
+    # NegBin r parameters fit from per-game count variation — minimum 10 games required.
+    all_played = [g for g in raw_games if g["min"] >= 5.0]
+    shot_profile: dict | None = None
+    if len(all_played) >= 10:
+        fg3a_list = [g["fg3a"] for g in all_played]
+        fg3m_list = [g["fg3m"] for g in all_played]
+        fg2a_list = [g["fga"] - g["fg3a"] for g in all_played]
+        fg2m_list = [g["fgm"] - g["fg3m"] for g in all_played]
+        fta_list  = [g["fta"] for g in all_played]
+        ftm_list  = [g["ftm"] for g in all_played]
+
+        sum_fg3a = sum(fg3a_list)
+        sum_fg2a = sum(fg2a_list)
+        sum_fta  = sum(fta_list)
+
+        fg3_pct = round(sum(fg3m_list) / sum_fg3a, 4) if sum_fg3a > 0 else None
+        fg2_pct = round(sum(fg2m_list) / sum_fg2a, 4) if sum_fg2a > 0 else None
+        ft_pct  = round(sum(ftm_list)  / sum_fta,  4) if sum_fta  > 0 else None
+
+        # Mean FTA per game — used with mean_minutes_last20 to scale to ETR projected minutes
+        fta_per_game = round(sum_fta / len(fta_list), 3) if fta_list else None
+
+        shot_profile = {
+            "fg3_pct":     fg3_pct,
+            "fg2_pct":     fg2_pct,
+            "ft_pct":      ft_pct,
+            "fta_per_game": fta_per_game,
+            "r_fg3a":      fit_negbin_r(fg3a_list),
+            "r_fg2a":      fit_negbin_r(fg2a_list),
+            "r_fta":       fit_negbin_r(fta_list),
+        }
+
     return {
         "nba_id": player_id,
         "team": team,
@@ -346,6 +408,7 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
         "reb_mean_raw_all": reb_mean_raw_all,
         "ast_raw_all": ast_raw_all,
         "ast_mean_raw_all": ast_mean_raw_all,
+        "shot_profile": shot_profile,
     }
 
 
@@ -479,6 +542,11 @@ def main() -> None:
         assert all(
             w in sample["pts_raw_all"] for w in ["season", "last20", "last10", "last5"]
         ), "Schema error: missing window keys in pts_raw_all"
+        assert "shot_profile" in sample, "Schema error: missing 'shot_profile' key"
+        if sample["shot_profile"] is not None:
+            sp = sample["shot_profile"]
+            for field in ["fg3_pct", "fg2_pct", "ft_pct", "fta_per_game", "r_fg3a", "r_fg2a", "r_fta"]:
+                assert field in sp, f"Schema error: missing shot_profile.{field}"
         print(f"Schema check PASSED (validated against '{sample_name}')")
 
 
