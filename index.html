@@ -4485,7 +4485,7 @@ const STRATEGY_C_FILTER = e => {
 //   3. Edge ≥ 3% (SOLID+): both SOLID (3-5%) and STRONG (5%+) are consistently positive
 //      in Strat B (+3.6% and +4.9%). Combined with the other two gates, 3% is sufficient.
 const VALUE_FILTER = e => {
-  const edge = e.edge ?? 0;
+  const edge = e.edge ?? e.edgePct ?? 0;  // batch results use 'edge'; calibration entries use 'edgePct'
   if (edge < 3) return false;
   const odds = e.bookOdds;
   if (odds == null || odds < -105) return false;
