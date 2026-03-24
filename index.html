@@ -2476,6 +2476,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   const [valueFilter, setValueFilter] = useState(false);
   const [valueFilterB, setValueFilterB] = useState(false);
   const [showPlaySelector, setShowPlaySelector] = useState(false);
+  const [showAltLines, setShowAltLines] = useState(false);
 
   // Build a fast lookup: "player|stat" → shift info
   const shiftMap = useMemo(() => {
@@ -2487,6 +2488,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   const filtered = useMemo(() => {
     return results
       .filter(r =>
+        (!r.isAltLine || showAltLines) &&
         (!positiveOnly || r.edge > 0) &&
         r.edge >= minEdge &&
         statFilter.has(r.stat) &&
@@ -2502,7 +2504,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         if (typeof av === 'string') return mult * av.localeCompare(bv);
         return mult * (av - bv);
       });
-  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, valueFilter, valueFilterB]);
+  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, valueFilter, valueFilterB, showAltLines]);
 
   const trackedCount = tracked ? tracked.size : 0;
   const cols = [
@@ -2538,9 +2540,10 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
     whiteSpace: 'nowrap', overflow: 'hidden',
   };
 
-  const strongCount   = results.filter(r => r.edge >= 5).length;
-  const solidCount    = results.filter(r => r.edge >= 3 && r.edge < 5).length;
-  const marginalCount = results.filter(r => r.edge >= 1.5 && r.edge < 3).length;
+  const strongCount   = results.filter(r => !r.isAltLine && r.edge >= 5).length;
+  const solidCount    = results.filter(r => !r.isAltLine && r.edge >= 3 && r.edge < 5).length;
+  const marginalCount = results.filter(r => !r.isAltLine && r.edge >= 1.5 && r.edge < 3).length;
+  const altEvCount    = results.filter(r => r.isAltLine && r.edge > 0).length;
 
   const allStats = ['pts','reb','ast','stl','blk','threes'];
   const statLabels = { pts:'PTS', reb:'REB', ast:'AST', stl:'STL', blk:'BLK', threes:'3PM' };
@@ -2584,6 +2587,13 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           background: positiveOnly ? 'rgba(34,197,94,0.1)' : 'rgba(15,23,42,0.4)',
           color: positiveOnly ? '#4ade80' : '#475569',
         }}>+EV ONLY</button>
+        <button onClick={() => setShowAltLines(v => !v)} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: showAltLines ? '1px solid rgba(6,182,212,0.5)' : '1px solid rgba(148,163,184,0.15)',
+          background: showAltLines ? 'rgba(6,182,212,0.12)' : 'rgba(15,23,42,0.4)',
+          color: showAltLines ? '#22d3ee' : '#475569',
+        }}>ALT LINES</button>
         <button onClick={() => { setStrategyB(b => !b); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
@@ -2698,6 +2708,14 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           {marginalCount > 0 && <span style={{ fontSize: 9, color: '#86efac', fontFamily: "'JetBrains Mono', monospace" }}>
             {marginalCount} MARGINAL
           </span>}
+          {altEvCount > 0 && (
+            <span title="Alt line +EV opportunities found — toggle ALT LINES to view" style={{
+              fontSize: 9, color: '#22d3ee', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+              cursor: 'pointer', textDecoration: showAltLines ? 'none' : 'underline dotted',
+            }} onClick={() => setShowAltLines(v => !v)}>
+              {altEvCount} ALT +EV{showAltLines ? ' ✓' : ''}
+            </span>
+          )}
           {trackedCount > 0 && (
             <span style={{ fontSize: 9, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
               {trackedCount} selected
@@ -2833,8 +2851,15 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
                   </div>
                   <div style={{ ...cellStyle, ...cols[2].style, color: '#64748b' }}>{r.team}</div>
                   <div style={{ ...cellStyle, ...cols[3].style, color: '#94a3b8' }}>{r.statLabel}</div>
-                  <div style={{ ...cellStyle, ...cols[4].style, color: '#94a3b8' }}>
+                  <div style={{ ...cellStyle, ...cols[4].style, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 2 }}>
                     {r.propLine}
+                    {r.isAltLine && (
+                      <span title={r.altBook ? `Alt line · ${r.altBook}` : 'Alt line'} style={{
+                        fontSize: 7, fontWeight: 700, color: '#22d3ee',
+                        backgroundColor: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.25)',
+                        borderRadius: 2, padding: '0 2px', flexShrink: 0,
+                        fontFamily: "'JetBrains Mono', monospace" }}>ALT</span>
+                    )}
                     {shift && (
                       <span style={{ fontSize: 7, marginLeft: 3, fontWeight: 700,
                         color: shift.lineDelta > 0 ? '#fb923c' : '#38bdf8',
@@ -6687,6 +6712,75 @@ function NBASimulator() {
             })(),
           });
         });
+
+        // ── Batch alt line scan ────────────────────────────────────────────
+        // Reuse the existing simResults[key] Float64Array to evaluate P(over/under)
+        // at each Odds API alt line point. Zero additional simulation cost.
+        const oddsAltLines = playerOdds[key]?.altLines ?? [];
+        if (oddsAltLines.length > 0 && simResults[key]) {
+          const primaryPt = parseFloat(s.propLine);
+          const distModelTag = (() => {
+            if (POISSON_STATS.has(key)) {
+              const cv   = s.cvValue ? s.cvValue / 100 : null;
+              const mean = parseFloat(s.mean);
+              if (cv && mean > 0 && cv <= 1 / Math.sqrt(mean)) return 'NegBin*';
+              return 'NegBin';
+            }
+            if (key === 'pts') return bComputedShotProfile ? 'Compound' : bPts != null ? 'KDE' : 'Gamma';
+            if (key === 'reb') return bReb != null ? 'KDE' : 'LogNormal';
+            if (key === 'ast') return bAst != null ? 'KDE' : 'LogNormal';
+            return 'LogNormal';
+          })();
+          oddsAltLines.forEach(alt => {
+            if (Math.abs(alt.point - primaryPt) < 0.26) return; // skip primary line (already evaluated)
+            const altProbRaw   = calcProbability(simResults[key], alt.point);
+            const altProb      = applyModelCorrections(altProbRaw, key);
+            const altFairOver  = probToAmerican(altProb.over);
+            const altFairUnder = probToAmerican(altProb.under);
+            const overBookOdds  = alt.overOdds;
+            const underBookOdds = alt.altUnderOdds ?? null;
+            [['over', overBookOdds, underBookOdds], ['under', underBookOdds, overBookOdds]].forEach(([altSide, thisOdds, otherOdds]) => {
+              if (thisOdds == null || isNaN(parseFloat(thisOdds))) return;
+              const bookOdds    = parseFloat(thisOdds);
+              const modelProb   = altProb[altSide];
+              const bookProbRaw = americanToProb(bookOdds);
+              if (!bookProbRaw) return;
+              const otherRaw = otherOdds != null ? americanToProb(parseFloat(otherOdds)) : null;
+              const bookProb = otherRaw ? bookProbRaw / (bookProbRaw + otherRaw) : bookProbRaw;
+              const edge     = (modelProb - bookProb) * 100;
+              const kelly    = calcKelly(modelProb, bookOdds) || 0;
+              allRows.push({
+                player:    p.name,
+                team:      p.team || '',
+                stat:      key,
+                statLabel: label,
+                propLine:  alt.point,
+                side:      altSide.toUpperCase(),
+                bookOdds,
+                otherSideOdds: otherRaw != null ? parseFloat(otherOdds) : null,
+                bookProb,
+                modelProb,
+                edge,
+                edgeLabel:        getEdgeLabel(edge),
+                kellyPct:         kelly * 25,
+                gameTotal:        gameCtx?.total ?? null,
+                spread:           gameCtx?.spread ?? null,
+                projection:       projValue,
+                projectedMinutes: parseFloat(p.min) || null,
+                fairOverOdds:     altFairOver,
+                fairUnderOdds:    altFairUnder,
+                gamesAvailable:   cvData?.games_available ?? null,
+                betId: Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
+                eventId:      gameCtx?.eventId     ?? null,
+                commenceTime: gameCtx?.commenceTime ?? null,
+                std:          s.stdDev ?? null,
+                distModel:    distModelTag,
+                isAltLine:    true,
+                altBook:      alt.book || null,
+              });
+            });
+          });
+        }
       });
 
       setBatchProgress({ current: i + 1, total: eligible.length });
