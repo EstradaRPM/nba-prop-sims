@@ -2432,6 +2432,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   const { useMemo, useState } = React;
   const [strategyB, setStrategyB] = useState(false);
   const [strategyC, setStrategyC] = useState(false);
+  const [valueFilter, setValueFilter] = useState(false);
   const [showPlaySelector, setShowPlaySelector] = useState(false);
 
   // Build a fast lookup: "player|stat" → shift info
@@ -2448,7 +2449,8 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         r.edge >= minEdge &&
         statFilter.has(r.stat) &&
         (!strategyB || STRATEGY_B_FILTER(r)) &&
-        (!strategyC || STRATEGY_C_FILTER(r))
+        (!strategyC || STRATEGY_C_FILTER(r)) &&
+        (!valueFilter || VALUE_FILTER(r))
       )
       .sort((a, b) => {
         const mult = sortDir === 'desc' ? -1 : 1;
@@ -2457,7 +2459,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         if (typeof av === 'string') return mult * av.localeCompare(bv);
         return mult * (av - bv);
       });
-  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC]);
+  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, valueFilter]);
 
   const trackedCount = tracked ? tracked.size : 0;
   const cols = [
@@ -2553,6 +2555,13 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           background: strategyC ? 'rgba(45,212,191,0.12)' : 'rgba(15,23,42,0.4)',
           color: strategyC ? '#2dd4bf' : '#475569',
         }}>STRATEGY C</button>
+        <button onClick={() => setValueFilter(v => !v)} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: valueFilter ? '1px solid rgba(251,146,60,0.5)' : '1px solid rgba(148,163,184,0.15)',
+          background: valueFilter ? 'rgba(251,146,60,0.12)' : 'rgba(15,23,42,0.4)',
+          color: valueFilter ? '#fb923c' : '#475569',
+        }}>VALUE FILTER</button>
         <button onClick={() => { setShowPlaySelector(p => !p); setStrategyB(false); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
@@ -2583,7 +2592,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
             STRATEGY B
           </span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            UNDER only · CV-backed model (no Poisson/LogNormal)
+            UNDER only · CV-backed · no PTS · excl 55-60%/65-70%/75%+ prob · proj ≥22 min · ETR ≤ line
           </span>
         </div>
       )}
@@ -2595,7 +2604,19 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
             STRATEGY C
           </span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            Exclude 55-60% model probability zone (max overconfidence band)
+            Excl 55-60%/65-70%/75%+ prob · no PTS · no STL/THREES OVER
+          </span>
+        </div>
+      )}
+      {valueFilter && (
+        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
+          background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)',
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#fb923c', letterSpacing: 0.5, fontWeight: 700 }}>
+            VALUE FILTER
+          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
+            ETR aligned (OVER: proj ≥ line · UNDER: proj ≤ line) · odds ≥ −105 · edge ≥ 3%
           </span>
         </div>
       )}
@@ -4394,41 +4415,87 @@ function CalibrationAnalysis({ stats: s }) {
 
 // ── CalibrationPanel component ────────────────────────────────────────
 // ── Strategy Filter Definitions ─────────────────────────────────────
-// Rebuilt 2026-03-22 from scratch. Two independent hypotheses for isolating genuine edge vs noise.
-// Previous strategies (B/C/D) compensated for model bugs now fixed at the model level.
-// New strategies test orthogonal dimensions: B = directional asymmetry, C = calibration zone.
-//
-// Data basis (N=2211 tracked bets):
-//   OVER: N=742, HIT%=48.0, MODEL%=54.4, DIFF=-6.4pp, ROI=-4.4%
-//   UNDER: N=1469, HIT%=57.7, MODEL%=58.8, DIFF=-1.1pp, ROI=+7.4%
-//   Poisson: N=184, -6.3pp, -4.6% ROI · LogNormal: N=22, -11.5pp, -6.5% ROI
-//   55-60% prob bucket: N=546, DIFF=-6.0pp, ROI=-1.7% (max overconfidence zone)
-//
-// Strategy B — "Side Purity: UNDER Edge"
-// Hypothesis: Right-skewed distributions (log-normal, KDE, NegBin) systematically inflate
-// right-tail probability, making OVER edge unreliable. UNDER predictions are more accurate
-// because the left tail is bounded by zero, constraining probability estimation error.
-// BLK OVER (+10.9% ROI, N=83) is the one anomaly but N is too small for significance
-// (Wilson 95% CI: [32.8%, 54.5%]). Will revisit if pattern persists at N>200.
-// Also excludes Poisson/LogNormal: parametric fallbacks without CV data, both unprofitable.
+// Rebuilt 2026-03-24 from N=2716 calibration export. Two independent hypotheses.
+// Key findings vs prior build (N=2211):
+//   OVER: N=865, HIT%=48.3, MODEL%=54.3, DIFF=-6.0pp, ROI=-3.7% → BROKEN (CI confirmed)
+//   UNDER: N=1851, HIT%=56.2, MODEL%=59.0, DIFF=-2.7pp, ROI=+4.7%
+//   PTS (both dirs): OVER -8.0pp/-8.7% · UNDER -6.0pp/-4.0% → broken both directions
+//   55-60% prob: ROI=-4.4% all bets, -2.3% Strat B → dead zone across all strategies
+//   65-70% prob: ROI=-1.1% all bets, -4.0% Strat B → also underperforms
+//   75%+ prob: ROI=-9.6% all bets, -11.3% Strat B → overconfidence ceiling
+//   <22 min projected: ROI=-8.5% Strat B → variance trap
+//   STL OVER: -11.0pp, -15.7% ROI (N=47); THREES OVER: -9.8pp, -14.2% ROI (N=74)
+//   ETR misaligned UNDER (ETR > line): ROI=-11.5% Strat B · aligned (ETR ≤ line): +15.2%
+
+// Strategy B — "UNDER Purity + Alignment"
+// Core directional purity: OVER is BROKEN (CI-confirmed, N=865). UNDER only.
+// PTS excluded: broken in BOTH directions even in UNDER-only universe (-4.0% Strat B).
+// Prob dead zones explicit: 55-60% (-2.3%), 65-70% (-4.0%), 75%+ (-11.3%) all confirmed losers.
+// Low-minute players (<22 min) are variance traps: -8.5% ROI in Strat B (N=180).
+// ETR alignment gate: UNDER bets where ETR > book line show -11.5% ROI (misaligned signal);
+//   only take UNDER when ETR ≤ prop line (the model genuinely expects the player to go under).
+// Poisson/LogNormal still excluded: no CV data = unreliable distribution shape.
 const STRATEGY_B_FILTER = e => {
-  if (e.side !== 'UNDER')                       return false;  // core: UNDER only
+  if (e.side !== 'UNDER')                                          return false;  // UNDER only
   const dm = e.distModel ?? '';
-  if (dm === 'Poisson' || dm === 'LogNormal')   return false;  // require CV/empirical-backed model
+  if (dm === 'Poisson' || dm === 'LogNormal')                      return false;  // require CV-backed model
+  if (e.stat === 'pts')                                            return false;  // PTS broken both dirs
+  const prob = e.modelProb ?? 0;
+  if (prob >= 0.55 && prob < 0.60)                                 return false;  // 55-60% dead zone
+  if (prob >= 0.65 && prob < 0.70)                                 return false;  // 65-70% underperforms
+  if (prob >= 0.75)                                                return false;  // 75%+ overconfidence
+  const mins = e.projectedMinutes;
+  if (mins != null && mins < 22)                                   return false;  // <22 min variance trap
+  if (e.projection != null && e.propLine != null
+      && e.projection > e.propLine)                                return false;  // ETR must be ≤ line
   return true;
 };
 
-// Strategy C — "Calibration Zone: Exclude Overconfidence Band"
-// Hypothesis: The 55-60% model probability zone is where perceived edge is almost entirely
-// calibration error: model says 57.3% but reality is 51.3% (-6.0pp). At typical -120 to -140
-// odds in this zone, the vig requires ~55-58% to break even, so 51.3% is a consistent loss.
-// Outside this zone: <55% is well-calibrated at plus-money odds (+7.0% ROI combined),
-// 60-72% has true probability high enough to profit despite miscalibration (+4.1% ROI).
-// PROB_CEILING (0.72) already handles the 72%+ zone at the model level.
-// Independent from Strategy B: no directional filter. Tests calibration quality only.
+// Strategy C — "Calibration Quality: Expanded Dead Zones"
+// Extends the original 55-60% exclusion with newly confirmed losers from N=2716 data.
+// 65-70% zone: -1.1% all bets, -4.0% Strat B → added to dead zone.
+// 75%+ zone: -9.6% all bets → overconfidence ceiling, same as B.
+// PTS excluded both directions: -7.4pp, -7.1% ROI in Strategy C (N=310) — both OVER and UNDER.
+// STL OVER and THREES OVER: worst stat×direction combos (-15.7% and -14.2% ROI respectively).
+// No directional filter: C tests calibration quality only, not directional asymmetry.
+// OVER is still allowed for REB/BLK/AST where OVER ROI is acceptable (+1.1–+7.2%).
 const STRATEGY_C_FILTER = e => {
   const prob = e.modelProb ?? 0;
-  if (prob >= 0.55 && prob < 0.60)              return false;  // exclude overconfidence dead zone
+  if (prob >= 0.55 && prob < 0.60)                                 return false;  // 55-60% dead zone
+  if (prob >= 0.65 && prob < 0.70)                                 return false;  // 65-70% underperforms
+  if (prob >= 0.75)                                                return false;  // 75%+ overconfidence
+  if (e.stat === 'pts')                                            return false;  // PTS broken both dirs
+  if (e.side === 'OVER' && (e.stat === 'stl' || e.stat === 'threes')) return false;  // worst OVER angles
+  return true;
+};
+
+// Value Filter — "ETR Alignment + Odds Quality"
+// Independent toggle; stacks with Strategy B or C or neither.
+// Three simultaneous gates, each justified by N=2716 calibration data:
+//
+//   1. ETR alignment: take OVER only when ETR ≥ prop line; UNDER only when ETR ≤ prop line.
+//      Consensus plays (ETR within ±0.3σ of line) produce -1.3% ROI. Misaligned plays worse.
+//      ETR aligned plays (line gap in correct direction): +6–15% ROI.
+//
+//   2. Odds ≥ -105: the -120 to -106 zone loses -3.6%; -135 to -121 loses -6.8%.
+//      The -105 to +100 zone earns +6.1% ROI; +101 to +125 earns +7.3% (14.8% in Strat B).
+//      Requiring ≥ -105 eliminates expensive vig zones and keeps plays where line gap
+//      has room to express as profitable edge.
+//
+//   3. Edge ≥ 3% (SOLID+): both SOLID (3-5%) and STRONG (5%+) are consistently positive
+//      in Strat B (+3.6% and +4.9%). Combined with the other two gates, 3% is sufficient.
+const VALUE_FILTER = e => {
+  const edge = e.edge ?? 0;
+  if (edge < 3) return false;
+  const odds = e.bookOdds;
+  if (odds == null || odds < -105) return false;
+  if (e.side === 'OVER') {
+    if (e.projection == null || e.propLine == null) return false;
+    if (e.projection < e.propLine) return false;  // ETR must be ≥ prop line for OVER
+  } else if (e.side === 'UNDER') {
+    if (e.projection == null || e.propLine == null) return false;
+    if (e.projection > e.propLine) return false;  // ETR must be ≤ prop line for UNDER
+  }
   return true;
 };
 
@@ -4864,7 +4931,7 @@ function CalibrationPanel({
                         STRATEGY B CRITERIA:
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        UNDER only · CV-backed model (no Poisson/LogNormal)
+                        UNDER only · CV-backed · no PTS · excl 55-60%/65-70%/75%+ prob · proj ≥22 min · ETR ≤ line
                       </span>
                     </div>
                   )}
@@ -4875,7 +4942,7 @@ function CalibrationPanel({
                         STRATEGY C CRITERIA:
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        Exclude 55-60% model probability zone (max overconfidence band)
+                        Excl 55-60%/65-70%/75%+ prob · no PTS · no STL/THREES OVER
                       </span>
                     </div>
                   )}
