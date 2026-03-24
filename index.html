@@ -2433,6 +2433,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   const [strategyB, setStrategyB] = useState(false);
   const [strategyC, setStrategyC] = useState(false);
   const [valueFilter, setValueFilter] = useState(false);
+  const [valueFilterB, setValueFilterB] = useState(false);
   const [showPlaySelector, setShowPlaySelector] = useState(false);
 
   // Build a fast lookup: "player|stat" → shift info
@@ -2450,7 +2451,8 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         statFilter.has(r.stat) &&
         (!strategyB || STRATEGY_B_FILTER(r)) &&
         (!strategyC || STRATEGY_C_FILTER(r)) &&
-        (!valueFilter || VALUE_FILTER(r))
+        (!valueFilter || VALUE_FILTER(r)) &&
+        (!valueFilterB || VALUE_FILTER_B(r))
       )
       .sort((a, b) => {
         const mult = sortDir === 'desc' ? -1 : 1;
@@ -2459,7 +2461,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         if (typeof av === 'string') return mult * av.localeCompare(bv);
         return mult * (av - bv);
       });
-  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, valueFilter]);
+  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, valueFilter, valueFilterB]);
 
   const trackedCount = tracked ? tracked.size : 0;
   const cols = [
@@ -2562,6 +2564,13 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           background: valueFilter ? 'rgba(251,146,60,0.12)' : 'rgba(15,23,42,0.4)',
           color: valueFilter ? '#fb923c' : '#475569',
         }}>VALUE FILTER</button>
+        <button onClick={() => setValueFilterB(v => !v)} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: valueFilterB ? '1px solid rgba(251,191,36,0.5)' : '1px solid rgba(148,163,184,0.15)',
+          background: valueFilterB ? 'rgba(251,191,36,0.12)' : 'rgba(15,23,42,0.4)',
+          color: valueFilterB ? '#fbbf24' : '#475569',
+        }}>VALUE FILTER B</button>
         <button onClick={() => { setShowPlaySelector(p => !p); setStrategyB(false); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
@@ -2617,6 +2626,18 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           </span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
             ETR aligned (OVER: proj ≥ line · UNDER: proj ≤ line) · odds ≥ −105 · edge ≥ 3%
+          </span>
+        </div>
+      )}
+      {valueFilterB && (
+        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
+          background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.2)',
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#fbbf24', letterSpacing: 0.5, fontWeight: 700 }}>
+            VALUE FILTER B
+          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
+            ETR aligned · odds ≥ −105 · edge ≥ 3% · PTS UNDER only · REB O/U · AST O/U
           </span>
         </div>
       )}
@@ -4499,7 +4520,24 @@ const VALUE_FILTER = e => {
   return true;
 };
 
-// ── Play Selector: Tier Classification & Slate Builder ─────────────
+/// Value Filter B — "ETR Alignment + Odds Quality + PTS UNDER / REB / AST only"
+// Extends VALUE_FILTER with a stat/side restriction to focus on the three stats where
+// the model appears to find the most market inefficiency vs. the higher-volume,
+// more efficiently priced markets (STL/BLK/3PM) and direct PTS OVER.
+//   Allowed: pts UNDER, reb OVER, reb UNDER, ast OVER, ast UNDER
+//   Excluded: pts OVER, stl, blk, threes, and all combo props
+const VALUE_FILTER_B = e => {
+  if (!VALUE_FILTER(e)) return false;
+  const stat = e.stat;
+  const side = (e.side || '').toUpperCase();
+  if (stat === 'pts'    && side !== 'UNDER') return false;  // pts: UNDER only
+  if (stat === 'reb')                        return true;    // reb: both sides OK
+  if (stat === 'ast')                        return true;    // ast: both sides OK
+  if (stat === 'pts'    && side === 'UNDER') return true;   // pts UNDER confirmed
+  return false;  // stl, blk, threes, combo props excluded
+};
+
+/ ── Play Selector: Tier Classification & Slate Builder ─────────────
 // Replaces ad-hoc Strategy B/C/D for actionable play selection.
 // Tier 1 = high-confidence core. Market-structure gates only (model bugs fixed at model level).
 // Tier 2 = positive EV with relaxed CV gate but higher edge bar.
@@ -4687,10 +4725,11 @@ function buildSlate(newBatchResults, existingSlate, config, sessionNum, tailedKe
 }
 
 const STRATEGY_LABELS = {
-  all:   'ALL BETS',
-  b:     'STRATEGY B',
-  c:     'STRATEGY C',
-  value: 'VALUE FILTER',
+  all:    'ALL BETS',
+  b:      'STRATEGY B',
+  c:      'STRATEGY C',
+  value:  'VALUE FILTER',
+  valueB: 'VALUE FILTER B',
 };
 
 function CalibrationPanel({
@@ -4715,9 +4754,10 @@ function CalibrationPanel({
   // Strategy-filtered views — same data, different lens. Filtering happens here;
   // computeCalibrationStats handles its own settled-only filter internally.
   const strategyLog   = React.useMemo(() => {
-    if (analysisStrategy === 'b')     return log.filter(STRATEGY_B_FILTER);
-    if (analysisStrategy === 'c')     return log.filter(STRATEGY_C_FILTER);
-    if (analysisStrategy === 'value') return log.filter(VALUE_FILTER);
+    if (analysisStrategy === 'b')      return log.filter(STRATEGY_B_FILTER);
+    if (analysisStrategy === 'c')      return log.filter(STRATEGY_C_FILTER);
+    if (analysisStrategy === 'value')  return log.filter(VALUE_FILTER);
+    if (analysisStrategy === 'valueB') return log.filter(VALUE_FILTER_B);
     return log;
   }, [log, analysisStrategy]);
   const strategyStats = React.useMemo(() => computeCalibrationStats(strategyLog), [strategyLog]);
@@ -4903,12 +4943,12 @@ function CalibrationPanel({
                     </div>
                     {/* Strategy toggle — only meaningful when analysis is open */}
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {['all', 'b', 'c', 'value'].map(key => {
+                      {['all', 'b', 'c', 'value', 'valueB'].map(key => {
                         const isActive = analysisStrategy === key;
                         const n = key === 'all' ? settled.length : strategySettledN;
-                        const activeColor  = key === 'value' ? '#fb923c' : key === 'c' ? '#2dd4bf' : key === 'b' ? '#a78bfa' : '#94a3b8';
-                        const activeBorder = key === 'value' ? 'rgba(251,146,60,0.4)' : key === 'c' ? 'rgba(45,212,191,0.4)' : key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
-                        const activeBg     = key === 'value' ? 'rgba(251,146,60,0.08)' : key === 'c' ? 'rgba(45,212,191,0.08)' : key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
+                        const activeColor  = key === 'valueB' ? '#fbbf24' : key === 'value' ? '#fb923c' : key === 'c' ? '#2dd4bf' : key === 'b' ? '#a78bfa' : '#94a3b8';
+                        const activeBorder = key === 'valueB' ? 'rgba(251,191,36,0.4)' : key === 'value' ? 'rgba(251,146,60,0.4)' : key === 'c' ? 'rgba(45,212,191,0.4)' : key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
+                        const activeBg     = key === 'valueB' ? 'rgba(251,191,36,0.08)' : key === 'value' ? 'rgba(251,146,60,0.08)' : key === 'c' ? 'rgba(45,212,191,0.08)' : key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
                         return (
                           <button key={key}
                             onClick={e => { e.stopPropagation(); setAnalysisStrategy(key); if (!analysisOpen) setAnalysisOpen(true); }}
@@ -4959,6 +4999,17 @@ function CalibrationPanel({
                       </span>
                     </div>
                   )}
+                  {analysisOpen && analysisStrategy === 'valueB' && (
+                    <div style={{ margin: '0 12px 8px', padding: '6px 10px', borderRadius: 5,
+                      background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: '#fbbf24', letterSpacing: 0.5 }}>
+                        VALUE FILTER B CRITERIA:
+                      </span>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
+                        ETR aligned · odds ≥ −105 · edge ≥ 3% · PTS UNDER only · REB O/U · AST O/U
+                      </span>
+                    </div>
+                  )}
 
                   {analysisOpen && strategyStats && (
                     <div style={{ padding: '0 12px 12px' }}>
@@ -4971,6 +5022,8 @@ function CalibrationPanel({
                         ? `Strategy B has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : analysisStrategy === 'value'
                         ? `Value Filter has ${strategySettledN} settled plays — need at least 5 for analysis.`
+                        : analysisStrategy === 'valueB'
+                        ? `Value Filter B has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : analysisStrategy === 'c'
                         ? `Strategy C has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : 'Need at least 5 settled plays for analysis.'}
