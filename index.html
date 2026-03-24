@@ -1769,6 +1769,8 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
   const rungs = getAltLines(statKey, mean);
   if (rungs.length === 0) return null;
 
+  const [evFilter, setEvFilter] = React.useState(false);
+
   const hasAltLines = altLines && altLines.length > 0;
 
   const interval =
@@ -1816,6 +1818,32 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
 
   const edgeColor = (e) => e >= 3 ? "#22c55e" : e >= 1 ? "#86efac" : e >= -1 ? "#64748b" : "#ef4444";
 
+  // Pre-compute all rung data so we can filter before rendering
+  const rungData = rungs.map(rung => {
+    const p = calcProbability(simValues, rung);
+    if (!p) return null;
+    const isPrimary = !isNaN(primaryLineNum) && Math.abs(rung - primaryLineNum) < 0.01;
+    const { overEdge, underEdge, vsRef } = computeEdge(rung, p.over, p.under);
+    const altResult = computeAltEdge(rung, p.over);
+    const bestEdge = Math.max(overEdge, underEdge);
+    const bestSideLabel = overEdge >= underEdge ? "O" : "U";
+    const isGoodEdge = bestEdge >= 1 || (altResult && altResult.edge >= 1);
+    return { rung, p, isPrimary, overEdge, underEdge, vsRef, altResult, bestEdge, bestSideLabel, isGoodEdge };
+  }).filter(Boolean);
+
+  // Count rows with positive OVER edge (uses book alt edge when available, else vs -110 ref)
+  const evOverCount = rungData.filter(d => {
+    const eff = d.altResult != null ? d.altResult.edge : d.overEdge;
+    return eff > 0;
+  }).length;
+
+  const displayedRungs = evFilter
+    ? rungData.filter(d => {
+        const eff = d.altResult != null ? d.altResult.edge : d.overEdge;
+        return eff > 0;
+      })
+    : rungData;
+
   // Grid: 7 cols when alt lines available, 6 cols otherwise
   const gridCols = hasAltLines ? "55px 1fr 68px 1fr 68px 60px 90px" : "55px 1fr 68px 1fr 68px 60px";
 
@@ -1834,6 +1862,22 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
         <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
           {open ? "▲" : "▼"} ALT LINES · {interval} intervals
         </span>
+        {open && evOverCount > 0 && (
+          <button
+            onClick={e => { e.stopPropagation(); setEvFilter(v => !v); }}
+            style={{
+              fontSize: 7, fontWeight: 700, letterSpacing: 0.8,
+              padding: "2px 7px", cursor: "pointer",
+              border: `1px solid ${evFilter ? "#22c55e" : "#334155"}`,
+              borderRadius: 3,
+              backgroundColor: evFilter ? "rgba(34,197,94,0.12)" : "transparent",
+              color: evFilter ? "#22c55e" : "#475569",
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            {evFilter ? "SHOW ALL" : `+EV OVERS (${evOverCount})`}
+          </button>
+        )}
         {open && (
           <span style={{ fontSize: 7, color: "#334155", fontFamily: "'JetBrains Mono', monospace", marginLeft: "auto" }}>
             EDGE vs {(hasOver && hasUnder) ? "book" : "-110"} · primary line highlighted
@@ -1867,17 +1911,14 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
           </div>
 
           {/* Rung rows */}
-          {rungs.map((rung) => {
-            const p = calcProbability(simValues, rung);
-            if (!p) return null;
-            const isPrimary = !isNaN(primaryLineNum) && Math.abs(rung - primaryLineNum) < 0.01;
+          {displayedRungs.length === 0 && (
+            <div style={{ padding: "10px", textAlign: "center", fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+              NO +EV OVER LINES FOUND
+            </div>
+          )}
+          {displayedRungs.map(({ rung, p, isPrimary, overEdge, underEdge, vsRef, altResult, bestEdge, bestSideLabel, isGoodEdge }) => {
             const overColor  = getProbColor(p.over);
             const underColor = getProbColor(p.under);
-            const { overEdge, underEdge, vsRef } = computeEdge(rung, p.over, p.under);
-            const bestEdge = Math.max(overEdge, underEdge);
-            const bestSideLabel = overEdge >= underEdge ? "O" : "U";
-            const altResult = computeAltEdge(rung, p.over);
-            const isGoodEdge = bestEdge >= 1 || (altResult && altResult.edge >= 1);
             return (
               <div
                 key={rung}
