@@ -2637,7 +2637,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
             VALUE FILTER B
           </span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            ETR aligned · odds ≥ −105 · edge ≥ 3% · PTS UNDER only · REB O/U · AST O/U
+            ETR aligned · odds ≥ −105 · edge ≥ 3% · PTS OVER only · REB O/U · AST O/U
           </span>
         </div>
       )}
@@ -4520,20 +4520,20 @@ const VALUE_FILTER = e => {
   return true;
 };
 
-/// Value Filter B — "ETR Alignment + Odds Quality + PTS UNDER / REB / AST only"
+/// Value Filter B — "ETR Alignment + Odds Quality + PTS OVER / REB / AST only"
 // Extends VALUE_FILTER with a stat/side restriction to focus on the three stats where
 // the model appears to find the most market inefficiency vs. the higher-volume,
-// more efficiently priced markets (STL/BLK/3PM) and direct PTS OVER.
-//   Allowed: pts UNDER, reb OVER, reb UNDER, ast OVER, ast UNDER
-//   Excluded: pts OVER, stl, blk, threes, and all combo props
+// more efficiently priced markets (STL/BLK/3PM) and direct PTS UNDER.
+//   Allowed: pts OVER, reb OVER, reb UNDER, ast OVER, ast UNDER
+//   Excluded: pts UNDER, stl, blk, threes, and all combo props
 const VALUE_FILTER_B = e => {
   if (!VALUE_FILTER(e)) return false;
   const stat = e.stat;
   const side = (e.side || '').toUpperCase();
-  if (stat === 'pts'    && side !== 'UNDER') return false;  // pts: UNDER only
-  if (stat === 'reb')                        return true;    // reb: both sides OK
-  if (stat === 'ast')                        return true;    // ast: both sides OK
-  if (stat === 'pts'    && side === 'UNDER') return true;   // pts UNDER confirmed
+  if (stat === 'pts'    && side !== 'OVER') return false;   // pts: OVER only
+  if (stat === 'reb')                       return true;    // reb: both sides OK
+  if (stat === 'ast')                       return true;    // ast: both sides OK
+  if (stat === 'pts'    && side === 'OVER') return true;    // pts OVER confirmed
   return false;  // stl, blk, threes, combo props excluded
 };
 
@@ -5006,7 +5006,7 @@ function CalibrationPanel({
                         VALUE FILTER B CRITERIA:
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        ETR aligned · odds ≥ −105 · edge ≥ 3% · PTS UNDER only · REB O/U · AST O/U
+                        ETR aligned · odds ≥ −105 · edge ≥ 3% · PTS OVER only · REB O/U · AST O/U
                       </span>
                     </div>
                   )}
