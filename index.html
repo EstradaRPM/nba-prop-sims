@@ -903,6 +903,22 @@ const ODDS_MARKET_MAP = {
   blk:    'player_blocks',
 };
 
+// Alt market names for each stat key — appended to the same fetchEventProps() call (zero extra requests)
+const ALT_ODDS_MARKET_MAP = {
+  pts:    'player_points_alternate',
+  reb:    'player_rebounds_alternate',
+  ast:    'player_assists_alternate',
+  threes: 'player_threes_alternate',
+  stl:    'player_steals_alternate',
+  blk:    'player_blocks_alternate',
+};
+
+// Short book labels used in alt line cells (e.g. "+220 DK")
+const BOOK_SHORT = {
+  draftkings: 'DK', fanduel: 'FD', betmgm: 'MGM', caesars: 'CZR',
+  betrivers: 'BR', espnbet: 'ESPN', hardrock: 'HR', fanatics: 'FAN',
+};
+
 const SUPPORTED_BOOKS = [
   { key: 'draftkings',   label: 'DraftKings' },
   { key: 'fanduel',      label: 'FanDuel' },
@@ -1001,7 +1017,7 @@ async function fetchGameLines(apiKey, eventIds) {
 }
 
 async function fetchEventProps(apiKey, eventId) {
-  const markets = Object.values(ODDS_MARKET_MAP).join(',');
+  const markets = [...Object.values(ODDS_MARKET_MAP), ...Object.values(ALT_ODDS_MARKET_MAP)].join(',');
   const url = `${ODDS_API_BASE}/sports/basketball_nba/events/${eventId}/odds?apiKey=${apiKey}&regions=us&markets=${markets}&oddsFormat=american`;
   const r = await fetch(url);
   if (!r.ok) return { bookmakers: [], remainingRequests: null };
@@ -1103,27 +1119,50 @@ function resolveActualStat(statKey, playerRow) {
   }
 }
 
-// Builds { normalizedPlayerName → { pts: { line, overOdds, underOdds, overBook, underBook, allBooks[] }, ... } }
+// Builds { normalizedPlayerName → { pts: { line, overOdds, underOdds, overBook, underBook, allBooks[], altLines[] }, ... } }
 function buildOddsIndex(allPropsData, selectedBooks) {
   const index = {};
+  // altRaw accumulates alt market outcomes before deduplication:
+  // altRaw[normName][statKey][pointStr] = { overPrices: [{price, book}], underPrices: [{price, book}] }
+  const altRaw = {};
+
   allPropsData.forEach(({ bookmakers }) => {
     (bookmakers || []).forEach(bk => {
       if (selectedBooks.length > 0 && !selectedBooks.includes(bk.key)) return;
       (bk.markets || []).forEach(mkt => {
+        // Check main market first
         const statKey = Object.keys(ODDS_MARKET_MAP).find(k => ODDS_MARKET_MAP[k] === mkt.key);
-        if (!statKey) return;
+        if (statKey) {
+          (mkt.outcomes || []).forEach(outcome => {
+            const normName = normalizeOddsName(outcome.description || '');
+            if (!normName) return;
+            if (!index[normName]) index[normName] = {};
+            if (!index[normName][statKey]) index[normName][statKey] = { allBooks: [] };
+            const entry = index[normName][statKey];
+            const side = (outcome.name || '').toLowerCase();
+            entry.allBooks.push({ book: bk.key, bookLabel: bk.title, price: outcome.price, point: outcome.point, side });
+          });
+          return; // skip alt check for this market
+        }
+        // Check alt market
+        const altStatKey = Object.keys(ALT_ODDS_MARKET_MAP).find(k => ALT_ODDS_MARKET_MAP[k] === mkt.key);
+        if (!altStatKey) return;
         (mkt.outcomes || []).forEach(outcome => {
           const normName = normalizeOddsName(outcome.description || '');
-          if (!normName) return;
-          if (!index[normName]) index[normName] = {};
-          if (!index[normName][statKey]) index[normName][statKey] = { allBooks: [] };
-          const entry = index[normName][statKey];
+          if (!normName || outcome.point == null) return;
+          if (!altRaw[normName]) altRaw[normName] = {};
+          if (!altRaw[normName][altStatKey]) altRaw[normName][altStatKey] = {};
+          const ptKey = String(outcome.point);
+          if (!altRaw[normName][altStatKey][ptKey]) altRaw[normName][altStatKey][ptKey] = { overPrices: [], underPrices: [] };
           const side = (outcome.name || '').toLowerCase();
-          entry.allBooks.push({ book: bk.key, bookLabel: bk.title, price: outcome.price, point: outcome.point, side });
+          if (side === 'over')  altRaw[normName][altStatKey][ptKey].overPrices.push({ price: outcome.price, book: bk.key });
+          if (side === 'under') altRaw[normName][altStatKey][ptKey].underPrices.push({ price: outcome.price, book: bk.key });
         });
       });
     });
   });
+
+  // Resolve principal line, overOdds, underOdds for main markets
   Object.keys(index).forEach(player => {
     Object.keys(index[player]).forEach(statKey => {
       const entry = index[player][statKey];
@@ -1151,6 +1190,34 @@ function buildOddsIndex(allPropsData, selectedBooks) {
       if (bestUnder) { entry.underOdds = bestUnder.price; entry.underBook = bestUnder.bookLabel; }
     });
   });
+
+  // Attach altLines to each player/stat entry.
+  // For each unique point, keep the best (highest) over price across books; also store best under if present.
+  Object.keys(altRaw).forEach(normName => {
+    if (!index[normName]) index[normName] = {};
+    Object.keys(altRaw[normName]).forEach(statKey => {
+      if (!index[normName][statKey]) index[normName][statKey] = { allBooks: [] };
+      const pointData = altRaw[normName][statKey];
+      const altLines = Object.keys(pointData)
+        .map(ptKey => {
+          const pt = parseFloat(ptKey);
+          const { overPrices, underPrices } = pointData[ptKey];
+          const bestOver  = bestAmericanOdds(overPrices);
+          const bestUnder = bestAmericanOdds(underPrices);
+          if (!bestOver) return null; // need at least an over price
+          return {
+            point:        pt,
+            overOdds:     bestOver.price,
+            book:         BOOK_SHORT[bestOver.book] || bestOver.book.toUpperCase(),
+            altUnderOdds: bestUnder?.price ?? null,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.point - b.point);
+      index[normName][statKey].altLines = altLines;
+    });
+  });
+
   return index;
 }
 
@@ -1692,11 +1759,17 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
   );
 }
 
+// Alt line proximity threshold: within this many stat units of the main line, a paired under
+// is likely — use vigFreeProb() if altUnderOdds is present. Beyond this, always use raw prob.
+const MAIN_LINE_PROXIMITY = 2.0;
+
 // ── Alt Line Ladder ──────────────────────────────────────────────────
-function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, overOdds = null, underOdds = null }) {
+function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, overOdds = null, underOdds = null, altLines = null }) {
   if (!simValues || simValues.length === 0) return null;
   const rungs = getAltLines(statKey, mean);
   if (rungs.length === 0) return null;
+
+  const hasAltLines = altLines && altLines.length > 0;
 
   const interval =
     statKey === 'pts'                                           ? '2.5pt' :
@@ -1722,7 +1795,29 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
     return { overEdge: (modelOver - 0.50) * 100, underEdge: (modelUnder - 0.50) * 100, vsRef: true };
   };
 
+  // Compute alt line edge for a given rung. Returns null if no alt line matches.
+  // Proximity-aware devig: near main line + altUnderOdds → vigFreeProb; otherwise raw prob.
+  const computeAltEdge = (rung, modelOverProb) => {
+    if (!hasAltLines) return null;
+    const match = altLines.find(a => Math.abs(a.point - rung) < 0.26);
+    if (!match) return null;
+    const isNearMain = !isNaN(primaryLineNum) && Math.abs(match.point - primaryLineNum) <= MAIN_LINE_PROXIMITY;
+    let bookProb, devig;
+    if (isNearMain && match.altUnderOdds != null) {
+      bookProb = vigFreeProb(match.overOdds, match.altUnderOdds).over;
+      devig = 'vf';
+    } else {
+      bookProb = americanToProb(match.overOdds);
+      devig = 'raw';
+    }
+    const edge = (modelOverProb - bookProb) * 100;
+    return { edge, devig, overOdds: match.overOdds, book: match.book };
+  };
+
   const edgeColor = (e) => e >= 3 ? "#22c55e" : e >= 1 ? "#86efac" : e >= -1 ? "#64748b" : "#ef4444";
+
+  // Grid: 7 cols when alt lines available, 6 cols otherwise
+  const gridCols = hasAltLines ? "55px 1fr 68px 1fr 68px 60px 90px" : "55px 1fr 68px 1fr 68px 60px";
 
   return (
     <div style={{ marginBottom: 8, marginTop: -4 }}>
@@ -1742,6 +1837,7 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
         {open && (
           <span style={{ fontSize: 7, color: "#334155", fontFamily: "'JetBrains Mono', monospace", marginLeft: "auto" }}>
             EDGE vs {(hasOver && hasUnder) ? "book" : "-110"} · primary line highlighted
+            {hasAltLines && " · BOOK = best odds across books"}
           </span>
         )}
       </div>
@@ -1755,11 +1851,16 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
         }}>
           {/* Column headers */}
           <div style={{
-            display: "grid", gridTemplateColumns: "55px 1fr 68px 1fr 68px 60px",
+            display: "grid", gridTemplateColumns: gridCols,
             padding: "4px 10px", borderBottom: "1px solid rgba(148,163,184,0.20)",
           }}>
-            {["LINE", "OVER %", "FAIR", "UNDER %", "FAIR", "EDGE"].map((h, i) => (
-              <div key={i} style={{ fontSize: 7, fontWeight: 700, color: i === 5 ? "#6366f1" : "#475569", fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.8, textAlign: i === 0 ? "left" : "center" }}>
+            {["LINE", "OVER %", "FAIR", "UNDER %", "FAIR", "EDGE", ...(hasAltLines ? ["BOOK/EDGE"] : [])].map((h, i) => (
+              <div key={i} style={{
+                fontSize: 7, fontWeight: 700,
+                color: i === 5 ? "#6366f1" : i === 6 ? "#f59e0b" : "#475569",
+                fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.8,
+                textAlign: i === 0 ? "left" : "center",
+              }}>
                 {h}
               </div>
             ))}
@@ -1775,12 +1876,13 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
             const { overEdge, underEdge, vsRef } = computeEdge(rung, p.over, p.under);
             const bestEdge = Math.max(overEdge, underEdge);
             const bestSideLabel = overEdge >= underEdge ? "O" : "U";
-            const isGoodEdge = bestEdge >= 1;
+            const altResult = computeAltEdge(rung, p.over);
+            const isGoodEdge = bestEdge >= 1 || (altResult && altResult.edge >= 1);
             return (
               <div
                 key={rung}
                 style={{
-                  display: "grid", gridTemplateColumns: "55px 1fr 68px 1fr 68px 60px",
+                  display: "grid", gridTemplateColumns: gridCols,
                   padding: "4px 10px", alignItems: "center",
                   backgroundColor: isPrimary ? "rgba(99,102,241,0.10)" : isGoodEdge ? "rgba(34,197,94,0.03)" : "transparent",
                   borderBottom: "1px solid rgba(148,163,184,0.04)",
@@ -1810,6 +1912,26 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
                     {bestSideLabel}{vsRef && !isPrimary ? "·-110" : ""}
                   </span>
                 </div>
+                {hasAltLines && (
+                  <div style={{ textAlign: "center", fontFamily: "'JetBrains Mono', monospace" }}>
+                    {altResult ? (
+                      <>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: edgeColor(altResult.edge) }}>
+                          {altResult.overOdds >= 0 ? "+" : ""}{altResult.overOdds} {altResult.book}
+                        </span>
+                        <span style={{ fontSize: 7, display: "block" }}>
+                          <span style={{ color: edgeColor(altResult.edge), fontWeight: 700 }}>
+                            {altResult.edge >= 0 ? "+" : ""}{altResult.edge.toFixed(1)}%
+                          </span>
+                          {" "}
+                          <span style={{ color: "#475569" }}>{altResult.devig}</span>
+                        </span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 7, color: "#334155" }}>—</span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -5032,6 +5154,14 @@ function NBASimulator() {
   // ── Projection Uncertainty state ───────────────────────────────────
   const [projUncertaintyMode, setProjUncertaintyMode] = useState(false);
 
+  // Current player's odds entry — used to pass altLines down to LadderTable without
+  // repeating the fuzzy-match lookup for every stat in the render loop.
+  const currentPlayerOdds = useMemo(() => {
+    if (!oddsData || !playerName) return null;
+    const nm = normalizeOddsName(playerName);
+    return oddsData[nm] || findFuzzyOddsMatch(oddsData, nm) || null;
+  }, [oddsData, playerName]);
+
   React.useEffect(() => {
     try {
       const serialized = JSON.stringify(calibration);
@@ -7669,6 +7799,7 @@ function NBASimulator() {
                     onToggle={() => setLadderOpen(prev => ({ ...prev, [key]: !prev[key] }))}
                     overOdds={results.stats[key].overOdds}
                     underOdds={results.stats[key].underOdds}
+                    altLines={currentPlayerOdds?.[key]?.altLines ?? null}
                   />
                 </div>
               ) : null;
