@@ -6480,16 +6480,18 @@ function NBASimulator() {
     });
   }, [calibration]);
 
-  // Export analysis for ALL strategies (ALL BETS / STRATEGY B / STRATEGY C) in one CSV.
+  // Export analysis for ALL strategies (ALL BETS / STRATEGY B / STRATEGY C / VALUE FILTER / VALUE FILTER B) in one CSV.
   // Each row is prefixed with a Strategy column so the sheet can be filtered by strategy.
   // Columns: Strategy, Section, Label, N, HIT%, MODEL%, DIFF pp, 1U ROI%, ¼K ROI%, Wilson CI Lo%, Wilson CI Hi%, Severity, Notes
   //   • Severity — BROKEN / DEGRADED / SIGNAL for MODEL HEALTH rows; empty for all others
   //   • Notes    — full diagnosis + actionable text for MODEL HEALTH rows
   const handleExportAllStrategies = useCallback(() => {
     const logs = {
-      'ALL BETS':    calibration,
-      'STRATEGY B':  calibration.filter(STRATEGY_B_FILTER),
-      'STRATEGY C':  calibration.filter(STRATEGY_C_FILTER),
+      'ALL BETS':       calibration,
+      'STRATEGY B':     calibration.filter(STRATEGY_B_FILTER),
+      'STRATEGY C':     calibration.filter(STRATEGY_C_FILTER),
+      'VALUE FILTER':   calibration.filter(VALUE_FILTER),
+      'VALUE FILTER B': calibration.filter(VALUE_FILTER_B),
     };
     const esc = v => { const sv = String(v ?? ''); return (sv.includes(',') || sv.includes('"')) ? `"${sv.replace(/"/g,'""')}"` : sv; };
     const rows = [['Strategy','Section','Label','N','HIT%','MODEL%','DIFF pp','1U ROI%','¼K ROI%','Wilson CI Lo%','Wilson CI Hi%','Severity','Notes']];
