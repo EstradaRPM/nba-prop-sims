@@ -2611,23 +2611,9 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         <button onClick={() => { setStrategyC(c => !c); setStrategyB(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-          border: strategyC ? '1px solid rgba(45,212,191,0.5)' : '1px solid rgba(148,163,184,0.15)',
-          background: strategyC ? 'rgba(45,212,191,0.12)' : 'rgba(15,23,42,0.4)',
-          color: strategyC ? '#2dd4bf' : '#475569',
-        }}>STRATEGY C</button>
-        <button onClick={() => setValueFilter(v => !v)} style={{
-          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-          border: valueFilter ? '1px solid rgba(251,146,60,0.5)' : '1px solid rgba(148,163,184,0.15)',
-          background: valueFilter ? 'rgba(251,146,60,0.12)' : 'rgba(15,23,42,0.4)',
-          color: valueFilter ? '#fb923c' : '#475569',
-        }}>VALUE FILTER</button>
-        <button onClick={() => setValueFilterB(v => !v)} style={{
-          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-          border: valueFilterB ? '1px solid rgba(251,191,36,0.5)' : '1px solid rgba(148,163,184,0.15)',
-          background: valueFilterB ? 'rgba(251,191,36,0.12)' : 'rgba(15,23,42,0.4)',
-          color: valueFilterB ? '#fbbf24' : '#475569',
+          border: strategyC ? '1px solid rgba(251,191,36,0.5)' : '1px solid rgba(148,163,184,0.15)',
+          background: strategyC ? 'rgba(251,191,36,0.12)' : 'rgba(15,23,42,0.4)',
+          color: strategyC ? '#fbbf24' : '#475569',
         }}>VALUE FILTER B</button>
         <button onClick={() => { setShowPlaySelector(p => !p); setStrategyB(false); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
@@ -2664,30 +2650,6 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         </div>
       )}
       {strategyC && (
-        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
-          background: 'rgba(45,212,191,0.05)', border: '1px solid rgba(45,212,191,0.2)',
-          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#2dd4bf', letterSpacing: 0.5, fontWeight: 700 }}>
-            STRATEGY C
-          </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            Excl 55-60%/65-70%/75%+ prob · no PTS · no STL/THREES OVER
-          </span>
-        </div>
-      )}
-      {valueFilter && (
-        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
-          background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)',
-          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#fb923c', letterSpacing: 0.5, fontWeight: 700 }}>
-            VALUE FILTER
-          </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            ETR aligned (OVER: proj ≥ line · UNDER: proj ≤ line) · odds ≥ −105 · edge ≥ 3%
-          </span>
-        </div>
-      )}
-      {valueFilterB && (
         <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
           background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.2)',
           display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -3748,8 +3710,20 @@ function computeCalibrationStats(entries) {
     };
   })() : null;
 
-  // Rolling trend: last-20 hit rate in chronological order
+  // Cumulative ROI curve — running flat-stake P&L / total staked, chronological
   const chronological = [...settled].filter(e => e.result !== 'push').sort((a, b) => new Date(a.loggedAt) - new Date(b.loggedAt));
+  const cumulativeROI = chronological.length >= 2 ? (() => {
+    let totalStake = 0, totalPnL = 0;
+    return chronological.map(e => {
+      const dec  = americanToDecimal(e.bookOdds);
+      const unit = e.unitStake ?? 1;
+      totalStake += unit;
+      totalPnL   += e.result === 'won' ? unit * (dec - 1) : -unit;
+      return { roi: totalStake > 0 ? (totalPnL / totalStake) * 100 : 0 };
+    });
+  })() : null;
+
+  // Rolling trend: last-10 hit rate in chronological order
   const trend = chronological.length >= 10 ? (() => {
     const window = 10;
     const points = [];
@@ -3968,6 +3942,7 @@ function computeCalibrationStats(entries) {
     timeBuckets,     timeWithData,
     clvData,
     trend,
+    cumulativeROI,
     byDistModel,
     minutesBuckets,  minutesWithData,
     cvSampleBuckets, cvSampleWithData,
@@ -3986,7 +3961,7 @@ function CalibrationAnalysis({ stats: s }) {
   if (!s) return null;
   const mono = "'JetBrains Mono', monospace";
 
-  const ALL_SECTIONS = ['health','overall','calibration','stat','statside','side','edge','odds','total','spread','time','clv','distmodel','minutes','cvsample','linegap','trend','recent','ptsday','tier','modelver'];
+  const ALL_SECTIONS = ['health','overall','calibration','stat','statside','side','edge','odds','total','spread','time','clv','distmodel','minutes','cvsample','linegap','cumroi','trend','recent','ptsday','tier','modelver'];
   const [openSections, setOpenSections] = React.useState(() =>
     Object.fromEntries(ALL_SECTIONS.map(k => [k, true]))
   );
@@ -4419,6 +4394,52 @@ function CalibrationAnalysis({ stats: s }) {
         </>
       )}
 
+      {/* Cumulative ROI curve */}
+      {s.cumulativeROI && s.cumulativeROI.length > 1 && (() => {
+        const pts   = s.cumulativeROI;
+        const rois  = pts.map(p => p.roi);
+        const min   = Math.min(0, ...rois);
+        const max   = Math.max(0, ...rois);
+        const range = max - min || 1;
+        const finalROI = rois[rois.length - 1];
+        const finalColor = finalROI >= 0 ? '#22c55e' : '#ef4444';
+        return (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 8, fontWeight: 700, color: '#64748b', fontFamily: mono,
+              letterSpacing: 1.2, marginBottom: 6, marginTop: 14,
+              borderBottom: '1px solid rgba(148,163,184,0.1)', paddingBottom: 3,
+              display: 'flex', justifyContent: 'space-between' }}>
+              <span>CUMULATIVE ROI</span>
+              <span style={{ color: finalColor, fontWeight: 700 }}>
+                {finalROI >= 0 ? '+' : ''}{finalROI.toFixed(1)}% over {pts.length} bets
+              </span>
+            </div>
+            <div style={{ position: 'relative', height: 48 }}>
+              {/* Zero baseline */}
+              <div style={{ position: 'absolute', left: 0, right: 0,
+                bottom: `${((0 - min) / range) * 100}%`,
+                height: 1, background: 'rgba(148,163,184,0.25)' }} />
+              {/* Line segments */}
+              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}
+                viewBox={`0 0 ${pts.length - 1} 100`} preserveAspectRatio="none">
+                <polyline
+                  points={pts.map((p, i) => `${i},${100 - ((p.roi - min) / range) * 100}`).join(' ')}
+                  fill="none"
+                  stroke={finalColor}
+                  strokeWidth="1.5"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 7, color: '#475569', fontFamily: mono, marginTop: 2 }}>
+              <span>bet 1</span>
+              <span style={{ color: '#475569' }}>0% baseline</span>
+              <span>bet {pts.length}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Rolling trend mini-chart */}
       {s.trend && s.trend.length > 0 && (
         <>
@@ -4545,23 +4566,11 @@ const STRATEGY_B_FILTER = e => {
   return true;
 };
 
-// Strategy C — "Calibration Quality: Expanded Dead Zones"
-// Extends the original 55-60% exclusion with newly confirmed losers from N=2716 data.
-// 65-70% zone: -1.1% all bets, -4.0% Strat B → added to dead zone.
-// 75%+ zone: -9.6% all bets → overconfidence ceiling, same as B.
-// PTS excluded both directions: -7.4pp, -7.1% ROI in Strategy C (N=310) — both OVER and UNDER.
-// STL OVER and THREES OVER: worst stat×direction combos (-15.7% and -14.2% ROI respectively).
-// No directional filter: C tests calibration quality only, not directional asymmetry.
-// OVER is still allowed for REB/BLK/AST where OVER ROI is acceptable (+1.1–+7.2%).
-const STRATEGY_C_FILTER = e => {
-  const prob = e.modelProb ?? 0;
-  if (prob >= 0.55 && prob < 0.60)                                 return false;  // 55-60% dead zone
-  if (prob >= 0.65 && prob < 0.70)                                 return false;  // 65-70% underperforms
-  if (prob >= 0.75)                                                return false;  // 75%+ overconfidence
-  if (e.stat === 'pts')                                            return false;  // PTS broken both dirs
-  if (e.side === 'OVER' && (e.stat === 'stl' || e.stat === 'threes')) return false;  // worst OVER angles
-  return true;
-};
+// Strategy C — "Value Filter B: ETR Alignment + Odds Quality + PTS OVER / REB / AST only"
+// Replaces the old calibration dead-zone Strategy C.
+// Identical logic to VALUE_FILTER_B: ETR aligned, odds ≥ −105, edge ≥ 3%,
+// PTS OVER only · REB O/U · AST O/U. STL/BLK/THREES excluded.
+const STRATEGY_C_FILTER = e => VALUE_FILTER_B(e);
 
 // Value Filter — "ETR Alignment + Odds Quality"
 // Independent toggle; stacks with Strategy B or C or neither.
@@ -4798,11 +4807,9 @@ function buildSlate(newBatchResults, existingSlate, config, sessionNum, tailedKe
 }
 
 const STRATEGY_LABELS = {
-  all:    'ALL BETS',
-  b:      'STRATEGY B',
-  c:      'STRATEGY C',
-  value:  'VALUE FILTER',
-  valueB: 'VALUE FILTER B',
+  all: 'ALL BETS',
+  b:   'STRATEGY B',
+  c:   'VALUE FILTER B',
 };
 
 function CalibrationPanel({
@@ -5016,12 +5023,12 @@ function CalibrationPanel({
                     </div>
                     {/* Strategy toggle — only meaningful when analysis is open */}
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {['all', 'b', 'c', 'value', 'valueB'].map(key => {
+                      {['all', 'b', 'c'].map(key => {
                         const isActive = analysisStrategy === key;
                         const n = key === 'all' ? settled.length : strategySettledN;
-                        const activeColor  = key === 'valueB' ? '#fbbf24' : key === 'value' ? '#fb923c' : key === 'c' ? '#2dd4bf' : key === 'b' ? '#a78bfa' : '#94a3b8';
-                        const activeBorder = key === 'valueB' ? 'rgba(251,191,36,0.4)' : key === 'value' ? 'rgba(251,146,60,0.4)' : key === 'c' ? 'rgba(45,212,191,0.4)' : key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
-                        const activeBg     = key === 'valueB' ? 'rgba(251,191,36,0.08)' : key === 'value' ? 'rgba(251,146,60,0.08)' : key === 'c' ? 'rgba(45,212,191,0.08)' : key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
+                        const activeColor  = key === 'c' ? '#fbbf24' : key === 'b' ? '#a78bfa' : '#94a3b8';
+                        const activeBorder = key === 'c' ? 'rgba(251,191,36,0.4)' : key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
+                        const activeBg     = key === 'c' ? 'rgba(251,191,36,0.08)' : key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
                         return (
                           <button key={key}
                             onClick={e => { e.stopPropagation(); setAnalysisStrategy(key); if (!analysisOpen) setAnalysisOpen(true); }}
@@ -5052,28 +5059,6 @@ function CalibrationPanel({
                   )}
                   {analysisOpen && analysisStrategy === 'c' && (
                     <div style={{ margin: '0 12px 8px', padding: '6px 10px', borderRadius: 5,
-                      background: 'rgba(45,212,191,0.05)', border: '1px solid rgba(45,212,191,0.2)' }}>
-                      <span style={{ fontFamily: mono, fontSize: 8, color: '#2dd4bf', letterSpacing: 0.5 }}>
-                        STRATEGY C CRITERIA:
-                      </span>
-                      <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        Excl 55-60%/65-70%/75%+ prob · no PTS · no STL/THREES OVER
-                      </span>
-                    </div>
-                  )}
-                  {analysisOpen && analysisStrategy === 'value' && (
-                    <div style={{ margin: '0 12px 8px', padding: '6px 10px', borderRadius: 5,
-                      background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)' }}>
-                      <span style={{ fontFamily: mono, fontSize: 8, color: '#fb923c', letterSpacing: 0.5 }}>
-                        VALUE FILTER CRITERIA:
-                      </span>
-                      <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        ETR aligned (OVER: proj ≥ line · UNDER: proj ≤ line) · odds ≥ −105 · edge ≥ 3%
-                      </span>
-                    </div>
-                  )}
-                  {analysisOpen && analysisStrategy === 'valueB' && (
-                    <div style={{ margin: '0 12px 8px', padding: '6px 10px', borderRadius: 5,
                       background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.2)' }}>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#fbbf24', letterSpacing: 0.5 }}>
                         VALUE FILTER B CRITERIA:
@@ -5093,12 +5078,8 @@ function CalibrationPanel({
                     <div style={{ padding: '12px', fontSize: 9, color: '#475569', fontFamily: mono }}>
                       {analysisStrategy === 'b'
                         ? `Strategy B has ${strategySettledN} settled plays — need at least 5 for analysis.`
-                        : analysisStrategy === 'value'
-                        ? `Value Filter has ${strategySettledN} settled plays — need at least 5 for analysis.`
-                        : analysisStrategy === 'valueB'
-                        ? `Value Filter B has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : analysisStrategy === 'c'
-                        ? `Strategy C has ${strategySettledN} settled plays — need at least 5 for analysis.`
+                        ? `Value Filter B has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : 'Need at least 5 settled plays for analysis.'}
                     </div>
                   )}
@@ -6489,9 +6470,7 @@ function NBASimulator() {
     const logs = {
       'ALL BETS':       calibration,
       'STRATEGY B':     calibration.filter(STRATEGY_B_FILTER),
-      'STRATEGY C':     calibration.filter(STRATEGY_C_FILTER),
-      'VALUE FILTER':   calibration.filter(VALUE_FILTER),
-      'VALUE FILTER B': calibration.filter(VALUE_FILTER_B),
+      'VALUE FILTER B': calibration.filter(STRATEGY_C_FILTER),
     };
     const esc = v => { const sv = String(v ?? ''); return (sv.includes(',') || sv.includes('"')) ? `"${sv.replace(/"/g,'""')}"` : sv; };
     const rows = [['Strategy','Section','Label','N','HIT%','MODEL%','DIFF pp','1U ROI%','¼K ROI%','Wilson CI Lo%','Wilson CI Hi%','Severity','Notes']];
