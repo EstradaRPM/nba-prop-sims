@@ -6746,7 +6746,7 @@ function NBASimulator() {
             const altFairUnder = probToAmerican(altProb.under);
             const overBookOdds  = alt.overOdds;
             const underBookOdds = alt.altUnderOdds ?? null;
-            [['over', overBookOdds, underBookOdds], ['under', underBookOdds, overBookOdds]].forEach(([altSide, thisOdds, otherOdds]) => {
+            [['over', overBookOdds, underBookOdds]].forEach(([altSide, thisOdds, otherOdds]) => {
               if (thisOdds == null || isNaN(parseFloat(thisOdds))) return;
               const bookOdds    = parseFloat(thisOdds);
               const modelProb   = altProb[altSide];
