@@ -29,9 +29,9 @@ const PROB_CEILING = 0.72;
 // Applied as: correctedProb = rawProb - bias/100. Zeroed values = no correction applied.
 // PTS zeroed post-KDE+ fix (2026-03-21) — re-evaluate after 200+ new PTS bets.
 const MODEL_BIAS = {
-  pts:    { over: 0,   under: 0 },  // KDE+ fix just landed; zeroed pending new data
-  reb:    { over: 3.0, under: 0 },  // OVER -4.6pp; conservative 3pp correction
-  ast:    { over: 4.0, under: 0 },  // OVER -7.3pp; 4pp correction (preserve AST UNDER edge)
+  pts:    { over: 0,   under: 0 },  // KDE+ fix landed 2026-03-21; zeroed pending new data
+  reb:    { over: 0,   under: 0 },  // KDE+ unfiltered fix applied 2026-03-25; zeroed — re-evaluate after 200+ new REB bets
+  ast:    { over: 0,   under: 0 },  // KDE+ unfiltered fix applied 2026-03-25; zeroed — re-evaluate after 200+ new AST bets
   stl:    { over: 6.0, under: 0 },  // OVER -12.1pp; 6pp (half the gap)
   blk:    { over: 0,   under: 0 },  // OVER -1.7pp; within noise
   threes: { over: 5.0, under: 0 },  // OVER -9.8pp; 5pp correction
@@ -2552,8 +2552,9 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   const marginalCount = results.filter(r => !r.isAltLine && r.edge >= 1.5 && r.edge < 3).length;
   const altEvCount    = results.filter(r => r.isAltLine && r.edge > 0).length;
 
-  const allStats = ['pts','reb','ast','stl','blk','threes'];
-  const statLabels = { pts:'PTS', reb:'REB', ast:'AST', stl:'STL', blk:'BLK', threes:'3PM' };
+  const allStats = ['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb'];
+  const statLabels = { pts:'PTS', reb:'REB', ast:'AST', stl:'STL', blk:'BLK', threes:'3PM',
+                       pra:'PRA', pr:'P+R', pa:'P+A', ra:'R+A', sb:'S+B' };
 
   return (
     <div>
@@ -3473,11 +3474,27 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
       }
     : null;
 
+  // Compute combo direct CVs (same logic as handleLoadCv setComboDirectCv)
+  const comboCvs = {};
+  COMBO_CONFIG.forEach(({ key }) => {
+    const cvPer36 = blendCv(cvData?.cv?.[key]);
+    if (cvPer36 != null) {
+      const effective = cvMinRaw != null
+        ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
+        : Math.round(cvPer36 * 10) / 10;
+      comboCvs[key] = effective;
+    }
+  });
+
   return {
     stats,
-    ptsRawData: loadRaw('pts_raw', 'pts_mean_raw'),
-    rebRawData: loadRaw('reb_raw', 'reb_mean_raw'),
-    astRawData: loadRaw('ast_raw', 'ast_mean_raw'),
+    ptsRawData:    loadRaw('pts_raw', 'pts_mean_raw'),
+    rebRawData:    loadRaw('reb_raw', 'reb_mean_raw'),
+    astRawData:    loadRaw('ast_raw', 'ast_mean_raw'),
+    ptsRawDataAll: loadRaw('pts_raw_all', 'pts_mean_raw_all'),
+    rebRawDataAll: loadRaw('reb_raw_all', 'reb_mean_raw_all'),
+    astRawDataAll: loadRaw('ast_raw_all', 'ast_mean_raw_all'),
+    comboCvs,
     shotProfile,
   };
 }
@@ -5188,7 +5205,7 @@ function NBASimulator() {
   const [batchSortCol,      setBatchSortCol]       = useState('edge');
   const [batchSortDir,      setBatchSortDir]       = useState('desc');
   const [batchMinEdge,      setBatchMinEdge]       = useState(0);
-  const [batchStatFilter,   setBatchStatFilter]    = useState(new Set(['pts','reb','ast','stl','blk','threes']));
+  const [batchStatFilter,   setBatchStatFilter]    = useState(new Set(['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb']));
   const [batchPositiveOnly, setBatchPositiveOnly]  = useState(true);
   const [batchCsvData,      setBatchCsvData]       = useState(null);
   const [batchCsvCopied,    setBatchCsvCopied]     = useState(false);
@@ -6602,11 +6619,14 @@ function NBASimulator() {
     });
     setCalibrationOpen(true);
   }, [projections, playerName, gameData, bankroll, unitSize, kellyFraction, cvDatabase]);
-  // Loops all ETR projections that have odds, runs 10k sims each (parametric only —
-  // no KDE raw data in batch), and accumulates a flat ranked edge list.
+  // Loops all ETR projections that have odds, runs 10k sims each with full KDE+ path
+  // (unfiltered raw data + empirical std) and combo props (PRA/PR/PA/RA/SB).
+  // Accepts optional oddsOverride/gameDataOverride for Quick Slate (avoids stale state).
   // Zero additional API calls — all data is already in state.
-  const runBatchSimulation = useCallback(async () => {
-    if (!projections || !oddsData) return;
+  const runBatchSimulation = useCallback(async (oddsOverride, gameDataOverride) => {
+    const effectiveOdds    = oddsOverride    || oddsData;
+    const effectiveGameData = gameDataOverride || gameData;
+    if (!projections || !effectiveOdds) return;
     setBatchRunning(true);
     setBatchResults(null);
     setBatchCsvData(null);
@@ -6621,7 +6641,7 @@ function NBASimulator() {
     //   • Players from games that have already tipped (lines are closed; sim output is moot)
     const eligible = projections.filter(p => {
       const normName = normalizeOddsName(p.name);
-      const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
+      const playerOdds = effectiveOdds[normName] || findFuzzyOddsMatch(effectiveOdds, normName);
       if (!playerOdds) return false;
       const cvKey = p.name.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const cvEntry = cvDatabase?.[cvKey];
@@ -6629,7 +6649,7 @@ function NBASimulator() {
       // GTD exclusion: player name OR team abbr in gtdFlags
       if (gtdFlags.has(p.name) || gtdFlags.has(p.team?.toUpperCase())) return false;
       // Active game exclusion: game has already tipped
-      const gameCtxCheck = gameData?.[p.team?.toUpperCase()];
+      const gameCtxCheck = effectiveGameData?.[p.team?.toUpperCase()];
       if (gameCtxCheck?.commenceTime && gameIsActive(gameCtxCheck.commenceTime)) return false;
       return STAT_CONFIG.some(({ key }) => playerOdds[key]?.line != null);
     });
@@ -6642,12 +6662,14 @@ function NBASimulator() {
       const normName = normalizeOddsName(p.name);
       // NFD-normalize + strip diacritics for cvDatabase lookup (matches handleLoadCv + Python normalize_name)
       const cvKey = p.name.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const playerOdds = oddsData[normName] || findFuzzyOddsMatch(oddsData, normName);
+      const playerOdds = effectiveOdds[normName] || findFuzzyOddsMatch(effectiveOdds, normName);
       const cvData = cvDatabase?.[cvKey];
-      const gameCtx = gameData?.[p.team?.toUpperCase()] || null;
+      const gameCtx = effectiveGameData?.[p.team?.toUpperCase()] || null;
 
       // Build stats object with auto-blend CV, KDE raw data, and shot profile
-      const { stats: statsForSim, ptsRawData: bPts, rebRawData: bReb, astRawData: bAst, shotProfile: bShotRaw } =
+      const { stats: statsForSim, ptsRawData: bPts, rebRawData: bReb, astRawData: bAst,
+              ptsRawDataAll: bPtsAll, rebRawDataAll: bRebAll, astRawDataAll: bAstAll,
+              comboCvs: bComboCvs, shotProfile: bShotRaw } =
         buildPlayerStatsForSim(p, playerOdds, cvData);
 
       // Resolve compound shot profile with ETR-projected minutes and stat means
@@ -6667,8 +6689,9 @@ function NBASimulator() {
         return { mu3pa, mu2pa, muFta, fg3Pct, fg2Pct, ftPct, r3pa, r2pa, rFta };
       })();
 
-      // Pass raw data so KDE runs for pts/reb/ast — same path as individual simulation
-      const simResults = runSimulation(statsForSim, BATCH_SIMS, bPts, bReb, bAst, {}, null, null, null, bComputedShotProfile);
+      // Pass raw data so KDE runs for pts/reb/ast — same path as individual simulation.
+      // _raw_all data enables the KDE+ unfiltered path (empirical std from all games incl. tail events).
+      const simResults = runSimulation(statsForSim, BATCH_SIMS, bPts, bReb, bAst, {}, bPtsAll, bRebAll, bAstAll, bComputedShotProfile);
 
       STAT_CONFIG.forEach(({ key, label }) => {
         const s = statsForSim[key];
@@ -6730,9 +6753,9 @@ function NBASimulator() {
                 if (cv && mean > 0 && cv <= 1 / Math.sqrt(mean)) return 'NegBin*'; // league-avg floor
                 return 'NegBin';
               }
-              if (key === 'pts') return bComputedShotProfile ? 'Compound' : bPts != null ? 'KDE' : 'Gamma';
-              if (key === 'reb') return bReb != null ? 'KDE' : 'LogNormal';
-              if (key === 'ast') return bAst != null ? 'KDE' : 'LogNormal';
+              if (key === 'pts') return bComputedShotProfile ? 'Compound' : bPtsAll != null ? 'KDE+' : bPts != null ? 'KDE' : 'Gamma';
+              if (key === 'reb') return bRebAll != null ? 'KDE+' : bReb != null ? 'KDE' : 'LogNormal';
+              if (key === 'ast') return bAstAll != null ? 'KDE+' : bAst != null ? 'KDE' : 'LogNormal';
               return 'LogNormal';
             })(),
           });
@@ -6751,9 +6774,9 @@ function NBASimulator() {
               if (cv && mean > 0 && cv <= 1 / Math.sqrt(mean)) return 'NegBin*';
               return 'NegBin';
             }
-            if (key === 'pts') return bComputedShotProfile ? 'Compound' : bPts != null ? 'KDE' : 'Gamma';
-            if (key === 'reb') return bReb != null ? 'KDE' : 'LogNormal';
-            if (key === 'ast') return bAst != null ? 'KDE' : 'LogNormal';
+            if (key === 'pts') return bComputedShotProfile ? 'Compound' : bPtsAll != null ? 'KDE+' : bPts != null ? 'KDE' : 'Gamma';
+            if (key === 'reb') return bRebAll != null ? 'KDE+' : bReb != null ? 'KDE' : 'LogNormal';
+            if (key === 'ast') return bAstAll != null ? 'KDE+' : bAst != null ? 'KDE' : 'LogNormal';
             return 'LogNormal';
           })();
           oddsAltLines.forEach(alt => {
@@ -6808,6 +6831,80 @@ function NBASimulator() {
         }
       });
 
+      // ── Batch combo prop evaluation ──────────────────────────────────────
+      // Evaluate combo props (PRA, PR, PA, RA, SB) using existing simulation output.
+      // Prefers direct log-normal simulation with empirical combo CV (captures
+      // within-game correlation) over element-wise summing of component distributions.
+      COMBO_CONFIG.forEach(({ key: comboKey, label: comboLabel, parts }) => {
+        // Compute combo line from component sums (same as single-player auto-population)
+        if (!parts.every(pk => playerOdds[pk]?.line != null)) return;
+        const comboLine = parts.reduce((s, pk) => s + playerOdds[pk].line, 0);
+        if (comboLine <= 0) return;
+        const comboLineRounded = Math.round(comboLine * 2) / 2; // snap to 0.5 grid
+
+        // Projection floor for combos
+        const comboProj = parts.reduce((s, pk) => s + (parseFloat(p[pk]) || 0), 0);
+        if (comboProj < 5) return;
+
+        // Generate combo distribution — prefer direct CV, fall back to element-wise sum
+        let comboVals;
+        let distModel;
+        const directCv = bComboCvs?.[comboKey];
+        if (directCv != null) {
+          const meanCombo = parts.reduce((s, pk) => s + (parseFloat(statsForSim[pk]?.mean) || 0), 0);
+          const stdCombo = meanCombo * (directCv / 100);
+          comboVals = simulateStatLogNormal(meanCombo, stdCombo, BATCH_SIMS);
+          distModel = 'Direct';
+        } else {
+          comboVals = calcCombo(simResults, parts);
+          distModel = 'Summed';
+        }
+
+        const comboProbRaw = calcProbability(comboVals, comboLineRounded);
+        // Apply ceiling to combo probs (no per-stat bias correction for combos)
+        const comboProb = applyModelCorrections(comboProbRaw, null);
+        const fairOverOdds  = probToAmerican(comboProb.over);
+        const fairUnderOdds = probToAmerican(comboProb.under);
+
+        ['over', 'under'].forEach(side => {
+          const modelProb = comboProb[side];
+          // Combo lines have no direct book odds in Odds API — estimate edge vs -110/-110 reference
+          const refBookProb = 0.5; // -110/-110 vig-free baseline
+          const edge = (modelProb - refBookProb) * 100;
+          const refOdds = -110;
+          const kelly = calcKelly(modelProb, refOdds) || 0;
+          allRows.push({
+            player:    p.name,
+            team:      p.team || '',
+            stat:      comboKey,
+            statLabel: comboLabel,
+            propLine:  comboLineRounded,
+            side:      side.toUpperCase(),
+            bookOdds:  refOdds,
+            otherSideOdds: refOdds,
+            bookProb:  refBookProb,
+            modelProb,
+            edge,
+            edgeLabel: getEdgeLabel(edge),
+            kellyPct:  kelly * 25,
+            gameTotal: gameCtx?.total ?? null,
+            spread:    gameCtx?.spread ?? null,
+            projection:       comboProj,
+            projectedMinutes: parseFloat(p.min) || null,
+            fairOverOdds,
+            fairUnderOdds,
+            gamesAvailable: cvData?.games_available ?? null,
+            betId: Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
+            eventId:      gameCtx?.eventId     ?? null,
+            commenceTime: gameCtx?.commenceTime ?? null,
+            std:          directCv != null ? comboProj * (directCv / 100) : null,
+            distModel,
+            isCombo:      true,
+            cvValue:      directCv,
+          });
+        });
+      });
+
       setBatchProgress({ current: i + 1, total: eligible.length });
       // Yield to browser — allows progress counter to re-render between players
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -6818,7 +6915,62 @@ function NBASimulator() {
     setBatchResults(allRows);
     setBatchProgress(null);
     setBatchRunning(false);
+    return allRows;
   }, [projections, oddsData, cvDatabase, gameData, gtdFlags]);
+
+  // ── One-Click Slate: Fetch Odds → Batch Sim → Build Slate ────────────
+  // Chains the full pipeline into a single action. Requires projections loaded
+  // and Odds API key configured. Fetches fresh odds, runs batch sim, then
+  // auto-builds the slate using the current strategy/config.
+  const [quickSlateRunning, setQuickSlateRunning] = useState(false);
+  const [quickSlateStatus,  setQuickSlateStatus]  = useState('');
+  const handleQuickSlate = useCallback(async () => {
+    if (!projections) { setOddsError('Load ETR projections first.'); return; }
+    if (!oddsApiKey.trim()) { setOddsError('Enter your Odds API key first.'); setShowOddsPanel(true); return; }
+    setQuickSlateRunning(true);
+    setBatchOpen(true);
+    try {
+      // Step 1: Fetch fresh odds
+      setQuickSlateStatus('Fetching live odds...');
+      const prevOdds = oddsData;
+      const result = await fetchFullSlate(oddsApiKey.trim(), selectedBooks);
+      const newOdds = result.oddsIndex;
+      if (prevOdds) {
+        const shifts = computeLineShifts(prevOdds, newOdds);
+        setLineShifts(shifts);
+        if (shifts.length > 0) setLineShiftsOpen(true);
+      } else {
+        setLineShifts([]);
+      }
+      setOddsData(newOdds);
+      setGameData(result.gameIndex);
+      setOddsLastFetched(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+      setOddsFromCache(false);
+      setOddsRequestsLeft(result.remainingRequests);
+      setShowOddsPanel(false);
+
+      // Step 2: Run batch simulation with fresh odds passed directly (avoids stale React state)
+      setQuickSlateStatus('Running batch simulation...');
+      const batchRows = await runBatchSimulation(newOdds, result.gameIndex);
+
+      // Step 3: Auto-build slate from batch results
+      if (batchRows && batchRows.length > 0) {
+        setQuickSlateStatus('Building slate...');
+        const tailedKeys = new Set((tailedPlays || []).map(p => `${p.player}|${p.stat}|${p.side}`));
+        const slateResult = buildSlate(batchRows, slate, slateConfig, slateSession, tailedKeys, gtdFlags);
+        setSlate(slateResult.selected);
+        setSlateOverflow(slateResult.overflow);
+        setSlateTotalKelly(slateResult.totalKelly);
+        setSlateScaleFactor(slateResult.scaleFactor);
+        setSlateWaveKelly(slateResult.waveKelly ?? {});
+      }
+    } catch(e) {
+      setOddsError(e.message || 'Quick slate failed — check API key and network.');
+    } finally {
+      setQuickSlateRunning(false);
+      setQuickSlateStatus('');
+    }
+  }, [projections, oddsApiKey, selectedBooks, oddsData, cvDatabase, gtdFlags, slate, slateConfig, slateSession, tailedPlays]);
 
   const handleExport = useCallback(() => {
     if (!results) return;
@@ -6908,6 +7060,23 @@ function NBASimulator() {
           <p style={{ color: "#475569", fontSize: 13, margin: "6px 0 0" }}>
             Projections + lines + best available book odds → edge
           </p>
+          {/* Quick Slate — one-click pipeline */}
+          {projections && oddsApiKey && (
+            <button onClick={handleQuickSlate} disabled={quickSlateRunning || batchRunning}
+              style={{ marginTop: 12, padding: '8px 20px', borderRadius: 8, border: 'none',
+                background: quickSlateRunning ? 'rgba(99,102,241,0.3)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: '#fff', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11,
+                cursor: quickSlateRunning ? 'default' : 'pointer', letterSpacing: 1.5,
+                boxShadow: quickSlateRunning ? 'none' : '0 2px 12px rgba(99,102,241,0.3)',
+                transition: 'all 0.2s ease', width: '100%' }}>
+              {quickSlateRunning ? quickSlateStatus || 'BUILDING SLATE...' : '⚡ QUICK SLATE — FETCH + SIM + BUILD'}
+            </button>
+          )}
+          {!projections && oddsApiKey && (
+            <div style={{ marginTop: 8, fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
+              Load ETR projections to enable Quick Slate
+            </div>
+          )}
         </div>
 
         {/* ETR Projections */}

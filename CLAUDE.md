@@ -392,13 +392,58 @@ The simulator fetches this URL on load and degrades gracefully if the fetch fail
 
 ## Git Branch
 
-Most recent development branch: `claude/analyze-strategy-b-results-3gD0k`
+Most recent development branch: `claude/analyze-betting-system-CGwUh`
 
 Commit messages should be descriptive (e.g., `Add correlation banner for PRA signals`, not `Update index.html`).
 
 ---
 
 ## Recent Changes
+
+### 2026-03-25 — Three High-Impact Upgrades: KDE+ for REB/AST, Combo Batch, Quick Slate
+
+**1. KDE+ Unfiltered Path Extended to REB and AST (OVER model structural fix)**
+
+The PTS KDE+ fix (2026-03-21) used unfiltered raw scores (`_raw_all`) to capture blowout/foul-trouble/overtime tail games and empirical rate-minutes covariance. However, batch mode was still passing `null` for the `_raw_all` parameters — meaning every batch sim for PTS/REB/AST fell back to the filtered KDE or parametric fallback, missing the fix entirely.
+
+**Changes:**
+- `buildPlayerStatsForSim()` now returns `ptsRawDataAll`, `rebRawDataAll`, `astRawDataAll` alongside the filtered versions.
+- `runBatchSimulation()` passes these to `runSimulation()`, enabling the KDE+ path for all three stats in batch mode.
+- `MODEL_BIAS` for REB and AST zeroed (was 3pp and 4pp OVER corrections). The structural fix replaces the band-aid — re-evaluate after 200+ new bets per stat.
+- Distribution model badge in batch results now correctly shows "KDE+" when unfiltered path is active (was showing "KDE" for all).
+
+**Why this matters:** The previous 3-4pp bias corrections were masking a distribution width problem (same root cause as PTS). With the unfiltered empirical std, the model should be inherently better calibrated on both sides, expanding the playable OVER universe.
+
+**2. Combo Props in Batch Simulation Mode**
+
+Batch mode previously only evaluated the 6 individual stats. Combo props (PRA, PR, PA, RA, SB) — the least efficient market segment with wider vig and less sharp money — were only available in single-player mode.
+
+**Changes:**
+- `buildPlayerStatsForSim()` now computes `comboCvs` (blended empirical combo CVs from `cv_data.json`), replicating the `setComboDirectCv` logic from `handleLoadCv`.
+- After per-stat simulation, `runBatchSimulation()` evaluates all 5 combo props per player using existing `Float64Array` output — zero additional simulation cost.
+- Combo lines computed from component sum (same as single-player auto-population), snapped to 0.5 grid.
+- Prefers direct log-normal simulation with empirical combo CV (captures within-game correlation) over element-wise component summing.
+- Edge computed vs -110/-110 reference baseline (combo markets rarely have odds in Odds API).
+- `BatchResultsTable` filter toggles extended with PRA/P+R/P+A/R+A/S+B buttons.
+- Results include `isCombo: true` flag and `cvValue` for downstream filtering.
+
+**3. One-Click Quick Slate**
+
+New "QUICK SLATE" button in the header chains the full pipeline into a single action:
+1. Fetches fresh odds from Odds API (with line shift detection)
+2. Runs batch simulation across all eligible players (including combos)
+3. Auto-builds slate using current strategy/config (tier classification, exposure caps, wave Kelly)
+
+**Changes:**
+- `handleQuickSlate` orchestrates: `fetchFullSlate()` → `runBatchSimulation(oddsOverride, gameDataOverride)` → `buildSlate()`.
+- `runBatchSimulation()` refactored to accept optional `oddsOverride`/`gameDataOverride` params — when provided, uses fresh data directly instead of reading from (potentially stale) React state.
+- Status indicator shows current step: "Fetching live odds..." → "Running batch simulation..." → "Building slate..."
+- Button appears only when projections are loaded and Odds API key is configured.
+- Eliminates code duplication — single batch function serves both manual RUN BATCH and Quick Slate flows.
+
+**What was NOT changed:** STL/BLK NegBin, THREES NegBin floor, Strategy B filter logic, single-player simulation paths, calibration journal.
+
+---
 
 ### 2026-03-21 — PTS KDE Root Cause Fix: Unfiltered Raw Scores + Empirical TargetStd
 
