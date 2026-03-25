@@ -1764,7 +1764,7 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
 const MAIN_LINE_PROXIMITY = 2.0;
 
 // ── Alt Line Ladder ──────────────────────────────────────────────────
-function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, overOdds = null, underOdds = null, altLines = null }) {
+function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, overOdds = null, underOdds = null, altLines = null, onLogBetAltOver = null }) {
   if (!simValues || simValues.length === 0) return null;
   const rungs = getAltLines(statKey, mean);
   if (rungs.length === 0) return null;
@@ -1967,6 +1967,13 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
                           {" "}
                           <span style={{ color: "#475569" }}>{altResult.devig}</span>
                         </span>
+                        {onLogBetAltOver && altResult.edge >= 1.5 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onLogBetAltOver({ side: "over", modelProb: p.over, bookOdds: altResult.overOdds, otherSideOdds: null, fairOdds: probToAmerican(p.over), edgePct: altResult.edge, propLine: rung, betId: generateBetId() }); }}
+                            style={{ marginTop: 2, width: "100%", padding: "2px 0", borderRadius: 3, fontWeight: 700, fontSize: 7, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: "pointer", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
+                            + LOG
+                          </button>
+                        )}
                       </>
                     ) : (
                       <span style={{ fontSize: 7, color: "#334155" }}>—</span>
@@ -8070,6 +8077,7 @@ function NBASimulator() {
                     overOdds={results.stats[key].overOdds}
                     underOdds={results.stats[key].underOdds}
                     altLines={currentPlayerOdds?.[key]?.altLines ?? null}
+                    onLogBetAltOver={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null })}
                   />
                 </div>
               ) : null;
@@ -8099,6 +8107,7 @@ function NBASimulator() {
                     onToggle={() => setLadderOpen(prev => ({ ...prev, [key]: !prev[key] }))}
                     overOdds={results.combos[key].overOdds}
                     underOdds={results.combos[key].underOdds}
+                    onLogBetAltOver={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, projection: parseFloat(results.combos[key].mean) || null, distModel: results.combos[key].distModel || null, cvValue: null, std: results.combos[key].std ?? null })}
                   />
                 </div>
               ) : null
