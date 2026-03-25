@@ -2611,23 +2611,9 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         <button onClick={() => { setStrategyC(c => !c); setStrategyB(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-          border: strategyC ? '1px solid rgba(45,212,191,0.5)' : '1px solid rgba(148,163,184,0.15)',
-          background: strategyC ? 'rgba(45,212,191,0.12)' : 'rgba(15,23,42,0.4)',
-          color: strategyC ? '#2dd4bf' : '#475569',
-        }}>STRATEGY C</button>
-        <button onClick={() => setValueFilter(v => !v)} style={{
-          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-          border: valueFilter ? '1px solid rgba(251,146,60,0.5)' : '1px solid rgba(148,163,184,0.15)',
-          background: valueFilter ? 'rgba(251,146,60,0.12)' : 'rgba(15,23,42,0.4)',
-          color: valueFilter ? '#fb923c' : '#475569',
-        }}>VALUE FILTER</button>
-        <button onClick={() => setValueFilterB(v => !v)} style={{
-          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-          border: valueFilterB ? '1px solid rgba(251,191,36,0.5)' : '1px solid rgba(148,163,184,0.15)',
-          background: valueFilterB ? 'rgba(251,191,36,0.12)' : 'rgba(15,23,42,0.4)',
-          color: valueFilterB ? '#fbbf24' : '#475569',
+          border: strategyC ? '1px solid rgba(251,191,36,0.5)' : '1px solid rgba(148,163,184,0.15)',
+          background: strategyC ? 'rgba(251,191,36,0.12)' : 'rgba(15,23,42,0.4)',
+          color: strategyC ? '#fbbf24' : '#475569',
         }}>VALUE FILTER B</button>
         <button onClick={() => { setShowPlaySelector(p => !p); setStrategyB(false); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
@@ -2664,30 +2650,6 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         </div>
       )}
       {strategyC && (
-        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
-          background: 'rgba(45,212,191,0.05)', border: '1px solid rgba(45,212,191,0.2)',
-          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#2dd4bf', letterSpacing: 0.5, fontWeight: 700 }}>
-            STRATEGY C
-          </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            Excl 55-60%/65-70%/75%+ prob · no PTS · no STL/THREES OVER
-          </span>
-        </div>
-      )}
-      {valueFilter && (
-        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
-          background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)',
-          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#fb923c', letterSpacing: 0.5, fontWeight: 700 }}>
-            VALUE FILTER
-          </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
-            ETR aligned (OVER: proj ≥ line · UNDER: proj ≤ line) · odds ≥ −105 · edge ≥ 3%
-          </span>
-        </div>
-      )}
-      {valueFilterB && (
         <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
           background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.2)',
           display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
