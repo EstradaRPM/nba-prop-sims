@@ -6176,9 +6176,46 @@ function NBASimulator() {
     setTimeout(() => setBatchLogMsg(null), 5000);
   }, [slate, calibration, bankroll, unitSize, kellyFraction]);
 
-  // Mark result on a calibration entry
+  // Mark result on a calibration entry, with logical cascade for related alt lines.
+  // Same player + stat + game (commenceTime match, or same log date as fallback).
+  // OVER X won  → all open OVER Y (Y ≤ X) same game = won
+  // OVER X lost → all open OVER Y (Y ≥ X) same game = lost
+  // UNDER X won  → all open UNDER Y (Y ≥ X) same game = won
+  // UNDER X lost → all open UNDER Y (Y ≤ X) same game = lost
+  // Push: only settles the clicked entry.
   const handleSetResult = useCallback((id, result) => {
-    setCalibration(prev => prev.map(e => e.id !== id ? e : { ...e, result }));
+    setCalibration(prev => {
+      const anchor = prev.find(e => e.id === id);
+      if (!anchor || result === 'push') {
+        return prev.map(e => e.id !== id ? e : { ...e, result });
+      }
+      const anchorLine = parseFloat(anchor.propLine);
+      const anchorSide = (anchor.side || '').toUpperCase();
+      const anchorDate = anchor.commenceTime
+        ? anchor.commenceTime.slice(0, 10)
+        : (anchor.loggedAt ? anchor.loggedAt.slice(0, 10) : null);
+      return prev.map(e => {
+        if (e.id === id) return { ...e, result };
+        if (e.result) return e; // already settled — don't overwrite
+        if (e.player !== anchor.player || e.stat !== anchor.stat) return e;
+        if ((e.side || '').toUpperCase() !== anchorSide) return e;
+        // Game match: prefer commenceTime equality; fall back to same calendar date
+        const eDate = e.commenceTime
+          ? e.commenceTime.slice(0, 10)
+          : (e.loggedAt ? e.loggedAt.slice(0, 10) : null);
+        if (anchorDate && eDate && anchorDate !== eDate) return e;
+        const eLine = parseFloat(e.propLine);
+        if (isNaN(eLine) || isNaN(anchorLine)) return e;
+        if (anchorSide === 'OVER') {
+          if (result === 'won'  && eLine <= anchorLine) return { ...e, result: 'won' };
+          if (result === 'lost' && eLine >= anchorLine) return { ...e, result: 'lost' };
+        } else {
+          if (result === 'won'  && eLine >= anchorLine) return { ...e, result: 'won' };
+          if (result === 'lost' && eLine <= anchorLine) return { ...e, result: 'lost' };
+        }
+        return e;
+      });
+    });
   }, []);
 
   // Fetch closing odds via Odds API historical endpoint for all entries (open or settled) with eventIds and no closing odds yet
