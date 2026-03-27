@@ -3753,7 +3753,7 @@ function computeCalibrationStats(entries) {
 
   // By distribution model — separates KDE era (PTS/REB/AST post-3/17) from earlier batch math
   const byDistModel = {};
-  ['KDE','LogNormal','NegBin','Poisson','Direct','Summed','Gamma'].forEach(m => {
+  ['KDE','KDE+','LogNormal','NegBin','NegBin*','Poisson','Direct','Summed','Gamma','Compound'].forEach(m => {
     const grp = groupStats(wl.filter(e => e.distModel === m));
     if (grp) byDistModel[m] = grp;
   });
@@ -3845,6 +3845,44 @@ function computeCalibrationStats(entries) {
       return { dateStr, label, over, under };
     })
     .filter(d => d.over || d.under);
+
+  // By player — per-player hit rate/ROI (min 1 entry to appear; sorted by N desc in render)
+  const allPlayers = [...new Set(wl.map(e => e.player).filter(Boolean))];
+  const byPlayer = {};
+  allPlayers.forEach(pl => {
+    const g = groupStats(wl.filter(e => e.player === pl));
+    if (g) byPlayer[pl] = g;
+  });
+
+  // By day of week — derivable from commenceTime
+  const DOW_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const byDayOfWeek = {};
+  DOW_LABELS.forEach(d => {
+    const g = groupStats(wl.filter(e => {
+      const ts = e.commenceTime || e.loggedAt;
+      if (!ts) return false;
+      return DOW_LABELS[new Date(ts).getDay()] === d;
+    }));
+    if (g) byDayOfWeek[d] = g;
+  });
+
+  // By NegBin r bucket — overdispersion level vs accuracy (only for entries with negBinR)
+  const negBinRBuckets = [
+    { label: 'r < 1 (very overdispersed)', min: 0,   max: 1   },
+    { label: '1 ≤ r < 3 (moderate)',       min: 1,   max: 3   },
+    { label: 'r ≥ 3 (near-Poisson)',       min: 3,   max: Infinity },
+  ].map(b => ({
+    label: b.label,
+    ...groupStats(wl.filter(e => e.negBinR != null && e.negBinR >= b.min && e.negBinR < b.max)) || {},
+  }));
+  const negBinRWithData = wl.filter(e => e.negBinR != null).length;
+
+  // By home/away — player home vs away (requires playerIsHome stored at log time)
+  const byHomeAway = {
+    Home: groupStats(wl.filter(e => e.playerIsHome === true)),
+    Away: groupStats(wl.filter(e => e.playerIsHome === false)),
+  };
+  const homeAwayWithData = wl.filter(e => e.playerIsHome != null).length;
 
   // BY TIER — Play Selector tier segmentation
   const byTier = {};
@@ -3970,6 +4008,10 @@ function computeCalibrationStats(entries) {
     byTier,
     byModelVersion,
     modelHealth,
+    byPlayer,
+    byDayOfWeek,
+    negBinRBuckets,  negBinRWithData,
+    byHomeAway,      homeAwayWithData,
   };
 }
 
@@ -3978,7 +4020,7 @@ function CalibrationAnalysis({ stats: s }) {
   if (!s) return null;
   const mono = "'JetBrains Mono', monospace";
 
-  const ALL_SECTIONS = ['health','overall','calibration','stat','statside','side','edge','odds','total','spread','time','clv','distmodel','minutes','cvsample','linegap','cumroi','trend','recent','ptsday','tier','modelver'];
+  const ALL_SECTIONS = ['health','overall','calibration','stat','statside','side','edge','odds','total','spread','time','clv','distmodel','minutes','cvsample','linegap','negbinr','homeaway','cumroi','trend','recent','ptsday','tier','modelver','dayofweek','player'];
   const [openSections, setOpenSections] = React.useState(() =>
     Object.fromEntries(ALL_SECTIONS.map(k => [k, true]))
   );
@@ -4539,6 +4581,58 @@ function CalibrationAnalysis({ stats: s }) {
           {openSections.modelver && Object.entries(s.byModelVersion).map(([v, g]) => g && (
             <GroupRow key={v} label={v} g={g} />
           ))}
+        </>
+      )}
+
+      {/* By NegBin R Bucket */}
+      {s.negBinRWithData > 0 && (
+        <>
+          <SectionHeader id="negbinr">
+            BY NEGBIN OVERDISPERSION (r)
+            <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+              — {s.negBinRWithData} entries with r value
+            </span>
+          </SectionHeader>
+          {openSections.negbinr && s.negBinRBuckets.map(b => b.n > 0 && (
+            <GroupRow key={b.label} label={b.label} g={b} />
+          ))}
+        </>
+      )}
+
+      {/* By Home/Away */}
+      {s.homeAwayWithData > 0 && (
+        <>
+          <SectionHeader id="homeaway">
+            BY HOME / AWAY
+            <span style={{ fontWeight: 400, color: '#475569', marginLeft: 6 }}>
+              — {s.homeAwayWithData} entries with location data
+            </span>
+          </SectionHeader>
+          {openSections.homeaway && Object.entries(s.byHomeAway).map(([k, g]) => g && (
+            <GroupRow key={k} label={k} g={g} />
+          ))}
+        </>
+      )}
+
+      {/* By Day of Week */}
+      {s.byDayOfWeek && Object.keys(s.byDayOfWeek).length > 0 && (
+        <>
+          <SectionHeader id="dayofweek">BY DAY OF WEEK</SectionHeader>
+          {openSections.dayofweek && Object.entries(s.byDayOfWeek).map(([d, g]) => g && (
+            <GroupRow key={d} label={d} g={g} />
+          ))}
+        </>
+      )}
+
+      {/* By Player */}
+      {s.byPlayer && Object.keys(s.byPlayer).length > 0 && (
+        <>
+          <SectionHeader id="player">BY PLAYER</SectionHeader>
+          {openSections.player && Object.entries(s.byPlayer)
+            .sort((a, b) => (b[1]?.n ?? 0) - (a[1]?.n ?? 0))
+            .map(([pl, g]) => g && (
+              <GroupRow key={pl} label={pl} g={g} />
+            ))}
         </>
       )}
     </div>
@@ -5927,12 +6021,15 @@ function NBASimulator() {
         projection:       r.projection       ?? null,
         distModel:        r.distModel        ?? null,
         cvValue:          null,  // batch CV is embedded in modelProb; not stored separately
-        std:              r.std              ?? null,
-        gamesAvailable:   r.gamesAvailable   ?? null,
-        gameTotal:        r.gameTotal        ?? null,
-        spread:           r.spread           ?? null,
-        otherSideOdds:    r.otherSideOdds    ?? null,
-        projectedMinutes: r.projectedMinutes ?? null,
+        std:              r.std               ?? null,
+        negBinR:          r.negBinR           ?? null,
+        gamesAvailable:   r.gamesAvailable    ?? null,
+        gameTotal:        r.gameTotal         ?? null,
+        spread:           r.spread            ?? null,
+        otherSideOdds:    r.otherSideOdds     ?? null,
+        projectedMinutes: r.projectedMinutes  ?? null,
+        playerIsHome:     r.playerIsHome      ?? null,
+        modelVersion:     MODEL_VERSION,
       });
     });
     if (newEntries.length === 0) return;
@@ -6471,6 +6568,42 @@ function NBASimulator() {
         rows.push(['MODEL HEALTH','No flags — all segments within normal range', '', '', '', '', '', '', '', '', 'OK', '']);
       }
     }
+    // CLV
+    if (s.clvData) {
+      const cd = s.clvData;
+      rows.push(['CLV', 'Avg CLV', cd.n, '', '', cd.avgCLV != null ? cd.avgCLV.toFixed(1) : '', '', '', '', '', '', '']);
+      rows.push(['CLV', `+CLV hit rate (n=${cd.posN})`, cd.posN, cd.posClvHitRate != null ? (cd.posClvHitRate*100).toFixed(1) : '', '', '', '', '', '', '', '', '']);
+      rows.push(['CLV', `-CLV hit rate (n=${cd.negN})`, cd.negN, cd.negClvHitRate != null ? (cd.negClvHitRate*100).toFixed(1) : '', '', '', '', '', '', '', '', '']);
+    }
+    // Recent days
+    if (s.recentDays && s.recentDays.length > 0) {
+      addRows('RECENT DAYS', s.recentDays.map(d => ({ ...d, label: d.label })));
+    }
+    // PTS by day
+    if (s.ptsDays && s.ptsDays.length > 0) {
+      s.ptsDays.forEach(d => {
+        if (d.over)  addRows('PTS BY DAY', [{ ...d.over,  label: `${d.label} OVER`  }]);
+        if (d.under) addRows('PTS BY DAY', [{ ...d.under, label: `${d.label} UNDER` }]);
+      });
+    }
+    // NegBin R buckets
+    if (s.negBinRWithData > 0) {
+      addRows('BY NEGBIN R', s.negBinRBuckets.filter(b => b.n > 0));
+    }
+    // Home/Away
+    if (s.homeAwayWithData > 0) {
+      addRows('BY HOME/AWAY', Object.entries(s.byHomeAway).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+    }
+    // By day of week
+    if (s.byDayOfWeek) {
+      addRows('BY DAY OF WEEK', Object.entries(s.byDayOfWeek).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+    }
+    // By player
+    if (s.byPlayer) {
+      addRows('BY PLAYER', Object.entries(s.byPlayer)
+        .sort((a, b) => (b[1]?.n ?? 0) - (a[1]?.n ?? 0))
+        .map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+    }
     const csv = rows.map(r => r.map(esc).join(',')).join('\n');
     navigator.clipboard.writeText(csv).then(() => {
       setAnalysisExportCopied(true);
@@ -6556,6 +6689,42 @@ function NBASimulator() {
           rows.push([stratLabel, 'MODEL HEALTH', 'No flags — all segments within normal range', '', '', '', '', '', '', '', '', 'OK', '']);
         }
       }
+      // CLV
+      if (s.clvData) {
+        const cd = s.clvData;
+        rows.push([stratLabel, 'CLV', 'Avg CLV', cd.n, '', '', cd.avgCLV != null ? cd.avgCLV.toFixed(1) : '', '', '', '', '', '', '']);
+        rows.push([stratLabel, 'CLV', `+CLV hit rate (n=${cd.posN})`, cd.posN, cd.posClvHitRate != null ? (cd.posClvHitRate*100).toFixed(1) : '', '', '', '', '', '', '', '']);
+        rows.push([stratLabel, 'CLV', `-CLV hit rate (n=${cd.negN})`, cd.negN, cd.negClvHitRate != null ? (cd.negClvHitRate*100).toFixed(1) : '', '', '', '', '', '', '', '']);
+      }
+      // Recent days
+      if (s.recentDays && s.recentDays.length > 0) {
+        addRows('RECENT DAYS', s.recentDays.map(d => ({ ...d, label: d.label })));
+      }
+      // PTS by day
+      if (s.ptsDays && s.ptsDays.length > 0) {
+        s.ptsDays.forEach(d => {
+          if (d.over)  addRows('PTS BY DAY', [{ ...d.over,  label: `${d.label} OVER`  }]);
+          if (d.under) addRows('PTS BY DAY', [{ ...d.under, label: `${d.label} UNDER` }]);
+        });
+      }
+      // NegBin R buckets
+      if (s.negBinRWithData > 0) {
+        addRows('BY NEGBIN R', s.negBinRBuckets.filter(b => b.n > 0));
+      }
+      // Home/Away
+      if (s.homeAwayWithData > 0) {
+        addRows('BY HOME/AWAY', Object.entries(s.byHomeAway).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+      }
+      // By day of week
+      if (s.byDayOfWeek) {
+        addRows('BY DAY OF WEEK', Object.entries(s.byDayOfWeek).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+      }
+      // By player
+      if (s.byPlayer) {
+        addRows('BY PLAYER', Object.entries(s.byPlayer)
+          .sort((a, b) => (b[1]?.n ?? 0) - (a[1]?.n ?? 0))
+          .map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+      }
     });
     const csv = rows.map(r => r.map(esc).join(',')).join('\n');
     navigator.clipboard.writeText(csv).then(() => {
@@ -6601,11 +6770,13 @@ function NBASimulator() {
       distModel:        data.distModel      ?? null,
       cvValue:          data.cvValue        ?? null,
       std:              data.std            ?? null,
+      negBinR:          data.negBinR        ?? null,
       gamesAvailable:   gamesAvailable,
       gameTotal:        gameCtx?.total      ?? null,
       spread:           gameCtx?.spread     ?? null,
       otherSideOdds:    data.otherSideOdds  ?? null,
       projectedMinutes: projectedMinutes,
+      playerIsHome:     (playerTeam != null && gameCtx?.homeTeam != null) ? playerTeam === gameCtx.homeTeam : null,
       modelVersion:     MODEL_VERSION,
     };
     setCalibration(prev => {
@@ -6745,6 +6916,19 @@ function NBASimulator() {
             eventId:      gameCtx?.eventId     ?? null,
             commenceTime: gameCtx?.commenceTime ?? null,
             std: s.stdDev ?? null,
+            negBinR: (() => {
+              if (!POISSON_STATS.has(key)) return null;
+              const cv = s.cvValue ? s.cvValue / 100 : null;
+              const mean = s.mean;
+              if (!cv || !mean || mean <= 0) return null;
+              const r = 1 / (cv * cv - 1 / mean);
+              return r > 0 ? Math.round(r * 10) / 10 : null;
+            })(),
+            playerIsHome: (() => {
+              const team = (p.team || '').toUpperCase();
+              const home = gameCtx?.homeTeam;
+              return (team && home) ? team === home : null;
+            })(),
             distModel: (() => {
               if (POISSON_STATS.has(key)) {
                 // All count stats now use NegBin (player CV or league-avg fallback)
@@ -6823,6 +7007,19 @@ function NBASimulator() {
                 commenceTime: gameCtx?.commenceTime ?? null,
                 std:          s.stdDev ?? null,
                 distModel:    distModelTag,
+                negBinR:      (() => {
+                  if (!POISSON_STATS.has(key)) return null;
+                  const cv = s.cvValue ? s.cvValue / 100 : null;
+                  const mean = s.mean;
+                  if (!cv || !mean || mean <= 0) return null;
+                  const r = 1 / (cv * cv - 1 / mean);
+                  return r > 0 ? Math.round(r * 10) / 10 : null;
+                })(),
+                playerIsHome: (() => {
+                  const team = (p.team || '').toUpperCase();
+                  const home = gameCtx?.homeTeam;
+                  return (team && home) ? team === home : null;
+                })(),
                 isAltLine:    true,
                 altBook:      alt.book || null,
               });
@@ -8249,8 +8446,8 @@ function NBASimulator() {
                     sensitivity={results.stats[key].sensitivity ?? null}
                     negBinR={results.stats[key].negBinR ?? null}
                     divergence={cvDivergence[key] ?? null}
-                    onLogBetOver={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdOver, fairOdds: results.stats[key].fairOverOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null })}
-                    onLogBetUnder={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdUnder, fairOdds: results.stats[key].fairUnderOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null })}
+                    onLogBetOver={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdOver, fairOdds: results.stats[key].fairOverOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null, negBinR: results.stats[key].negBinR ?? null })}
+                    onLogBetUnder={resultsAreStale ? null : (data) => handleLogBetToCalibration({ ...data, player: playerName, stat: key, statLabel: label, propLine: parseFloat(results.stats[key].propLine), betId: results.stats[key].betIdUnder, fairOdds: results.stats[key].fairUnderOdds, projection: parseFloat(results.stats[key].mean) || null, distModel: results.stats[key].distModel || null, cvValue: results.stats[key].cvValue || null, std: results.stats[key].std ?? null, negBinR: results.stats[key].negBinR ?? null })}
                     historicalBiasOver={biasOver}
                     historicalBiasUnder={biasUnder}
                   />
