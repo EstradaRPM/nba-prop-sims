@@ -3974,6 +3974,43 @@ function computeCalibrationStats(entries) {
       return { segment: seg.category, label: seg.label, severity, diff, roi: seg.unitROI, n: seg.n, ci, diagnosis, actionable };
     }).filter(Boolean);
   };
+  // ETR direction vs book line — does the projection support the bet direction?
+  // "ETR confirms"    = (OVER && projection > propLine) || (UNDER && projection < propLine)
+  // "ETR contradicts" = (OVER && projection ≤ propLine) || (UNDER && projection ≥ propLine)
+  const etrConfirms    = e => e.projection != null && e.propLine != null &&
+    (e.side === 'OVER' ? e.projection > parseFloat(e.propLine) : e.projection < parseFloat(e.propLine));
+  const etrContradicts = e => e.projection != null && e.propLine != null &&
+    (e.side === 'OVER' ? e.projection <= parseFloat(e.propLine) : e.projection >= parseFloat(e.propLine));
+
+  const byEtrDirection = {
+    'ETR confirms':    groupStats(wl.filter(etrConfirms)),
+    'ETR contradicts': groupStats(wl.filter(etrContradicts)),
+  };
+  const etrWithData = wl.filter(e => e.projection != null && e.propLine != null).length;
+
+  // ETR direction × stat × side — which stat/direction combos manufacture edge
+  // when ETR doesn't even support the bet direction (pure distribution inflation)
+  const statEtrRows = [];
+  ['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb'].forEach(stat => {
+    ['OVER','UNDER'].forEach(side => {
+      const conf = groupStats(wl.filter(e => e.stat === stat && e.side === side && etrConfirms(e)));
+      const cont = groupStats(wl.filter(e => e.stat === stat && e.side === side && etrContradicts(e)));
+      if (conf) statEtrRows.push({ label: `${stat.toUpperCase()} ${side} ETR confirms`,    stat, side, etrDir: 'confirms',    ...conf });
+      if (cont) statEtrRows.push({ label: `${stat.toUpperCase()} ${side} ETR contradicts`, stat, side, etrDir: 'contradicts', ...cont });
+    });
+  });
+
+  // distModel × stat × direction cross-tab — isolates which model paths drive broken stat/dir combos
+  const distModelStatRows = [];
+  ['KDE','KDE+','NegBin','NegBin*','Direct','LogNormal','Poisson'].forEach(model => {
+    ['pts','reb','ast','stl','blk','threes'].forEach(stat => {
+      ['OVER','UNDER'].forEach(side => {
+        const g = groupStats(wl.filter(e => e.distModel === model && e.stat === stat && e.side === side));
+        if (g && g.n >= 5) distModelStatRows.push({ label: `${model} ${stat.toUpperCase()} ${side}`, model, stat, side, ...g });
+      });
+    });
+  });
+
   const modelHealthFlags = buildHealthFlags();
   const modelHealth = {
     flags: modelHealthFlags,
@@ -4012,6 +4049,9 @@ function computeCalibrationStats(entries) {
     byDayOfWeek,
     negBinRBuckets,  negBinRWithData,
     byHomeAway,      homeAwayWithData,
+    byEtrDirection,  etrWithData,
+    statEtrRows,
+    distModelStatRows,
   };
 }
 
@@ -6539,6 +6579,11 @@ function NBASimulator() {
     addRows('PROB BUCKET', s.probBuckets);
     addRows('BY STAT', Object.entries(s.byStat).map(([k, v]) => v ? { ...v, label: k.toUpperCase() } : null).filter(Boolean));
     addRows('STAT × DIR', s.statSideRows);
+    if (s.etrWithData > 0) {
+      addRows('ETR VS LINE', Object.entries(s.byEtrDirection).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+      addRows('STAT×DIR ETR', s.statEtrRows.filter(r => r.n >= 5));
+    }
+    addRows('DIST×STAT×DIR', s.distModelStatRows);
     addRows('BY SIDE', Object.entries(s.bySide).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
     addRows('BY EDGE', Object.entries(s.byEdge).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
     addRows('BY ODDS', s.oddsBuckets);
@@ -6660,6 +6705,11 @@ function NBASimulator() {
       addRows('PROB BUCKET', s.probBuckets);
       addRows('BY STAT', Object.entries(s.byStat).map(([k, v]) => v ? { ...v, label: k.toUpperCase() } : null).filter(Boolean));
       addRows('STAT × DIR', s.statSideRows);
+      if (s.etrWithData > 0) {
+        addRows('ETR VS LINE', Object.entries(s.byEtrDirection).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
+        addRows('STAT×DIR ETR', s.statEtrRows.filter(r => r.n >= 5));
+      }
+      addRows('DIST×STAT×DIR', s.distModelStatRows);
       addRows('BY SIDE', Object.entries(s.bySide).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
       addRows('BY EDGE', Object.entries(s.byEdge).map(([k, v]) => v ? { ...v, label: k } : null).filter(Boolean));
       addRows('BY ODDS', s.oddsBuckets);
