@@ -39,7 +39,9 @@ const MODEL_BIAS = {
 
 // League-average CVs for NegBin fallback when player CV data unavailable.
 // Replaces pure Poisson (which was -6.3pp, -4.6% ROI). From cv_data.json aggregates.
-const LEAGUE_AVG_CV = { stl: 111, blk: 182, threes: 95 };
+// BLK reduced 182→145: calibration showed NegBin* BLK UNDER model 66.8% vs 53.8% actual
+// (-13pp miss). 182% → r≈0.485 → P(X=0|μ=0.8)≈62%; 145% → r≈1.17 → P(X=0)≈54% (matches).
+const LEAGUE_AVG_CV = { stl: 111, blk: 145, threes: 95 };
 
 // Apply probability ceiling and bias correction to raw simulation probabilities.
 // Returns { over, under, push } with corrections applied.
@@ -6981,10 +6983,11 @@ function NBASimulator() {
             })(),
             distModel: (() => {
               if (POISSON_STATS.has(key)) {
-                // All count stats now use NegBin (player CV or league-avg fallback)
+                // "NegBin*" = no player CV data (league-avg fallback) OR underdispersed (Poisson fallback)
                 const cv = s.cvValue ? s.cvValue / 100 : null;
                 const mean = s.mean;
-                if (cv && mean > 0 && cv <= 1 / Math.sqrt(mean)) return 'NegBin*'; // league-avg floor
+                if (!cv) return 'NegBin*'; // no player CV data — simulation uses LEAGUE_AVG_CV
+                if (mean > 0 && cv <= 1 / Math.sqrt(mean)) return 'NegBin*'; // underdispersed → Poisson fallback
                 return 'NegBin';
               }
               if (key === 'pts') return bComputedShotProfile ? 'Compound' : bPtsAll != null ? 'KDE+' : bPts != null ? 'KDE' : 'Gamma';
@@ -7005,7 +7008,8 @@ function NBASimulator() {
             if (POISSON_STATS.has(key)) {
               const cv   = s.cvValue ? s.cvValue / 100 : null;
               const mean = parseFloat(s.mean);
-              if (cv && mean > 0 && cv <= 1 / Math.sqrt(mean)) return 'NegBin*';
+              if (!cv) return 'NegBin*'; // no player CV data — league-avg fallback
+              if (mean > 0 && cv <= 1 / Math.sqrt(mean)) return 'NegBin*'; // underdispersed
               return 'NegBin';
             }
             if (key === 'pts') return bComputedShotProfile ? 'Compound' : bPtsAll != null ? 'KDE+' : bPts != null ? 'KDE' : 'Gamma';
