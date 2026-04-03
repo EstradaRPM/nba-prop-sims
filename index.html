@@ -2971,14 +2971,19 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
 
   const bLookup = useMemo(() => {
     const m = {};
-    (resultsB || []).forEach(r => { m[`${r.player}|${r.stat}|${r.side}`] = r; });
+    // Key on player|stat|side|propLine — excludes alt lines and prevents
+    // a different-line alt result overwriting the primary line in the lookup.
+    (resultsB || []).filter(r => !r.isAltLine).forEach(r => {
+      m[`${r.player}|${r.stat}|${r.side}|${r.propLine}`] = r;
+    });
     return m;
   }, [resultsB]);
 
   const rows = useMemo(() => {
     const EDGE_THRESHOLD = 1.5;
-    return filteredA.map(a => {
-      const b = bLookup[`${a.player}|${a.stat}|${a.side}`] || null;
+    // Exclude alt lines from compare — primary market lines only
+    return filteredA.filter(a => !a.isAltLine).map(a => {
+      const b = bLookup[`${a.player}|${a.stat}|${a.side}|${a.propLine}`] || null;
       const aGood = a.edge >= EDGE_THRESHOLD;
       const bGood = b != null && b.edge >= EDGE_THRESHOLD;
       const status = aGood && bGood ? 'ROBUST'
@@ -3137,7 +3142,9 @@ function GameSlateView({ filtered, gameData, tracked, onToggleTrack, resultsB })
 
   const bLookupGame = useMemo(() => {
     const m = {};
-    (resultsB || []).forEach(r => { m[`${r.player}|${r.stat}|${r.side}`] = r; });
+    (resultsB || []).filter(r => !r.isAltLine).forEach(r => {
+      m[`${r.player}|${r.stat}|${r.side}|${r.propLine}`] = r;
+    });
     return m;
   }, [resultsB]);
 
@@ -3393,7 +3400,7 @@ function GameSlateView({ filtered, gameData, tracked, onToggleTrack, resultsB })
                         )}
                         {/* Scenario B edge comparison */}
                         {resultsB && (() => {
-                          const b = bLookupGame[`${r.player}|${r.stat}|${r.side}`];
+                          const b = bLookupGame[`${r.player}|${r.stat}|${r.side}|${r.propLine}`];
                           if (!b) return (
                             <span style={{ ...cellSt, color: '#334155', fontSize: 8 }}>B:—</span>
                           );
