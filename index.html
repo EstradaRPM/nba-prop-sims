@@ -2470,7 +2470,7 @@ function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly,
 }
 
 // ── Batch Results Table ──────────────────────────────────────────────
-function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinEdge,
+function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdge, setMinEdge,
   statFilter, setStatFilter, positiveOnly, setPositiveOnly,
   bankroll, onExport, csvData, csvCopied, onCopyCsv,
   tracked, onToggleTrack, onTrackSelected, onLogAll, batchLogMsg,
@@ -2484,6 +2484,7 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   const [strategyC, setStrategyC] = useState(false);
   const [valueFilter, setValueFilter] = useState(false);
   const [valueFilterB, setValueFilterB] = useState(false);
+  const [etrGate, setEtrGate] = useState(false);
   const [showPlaySelector, setShowPlaySelector] = useState(false);
   const [showAltLines, setShowAltLines] = useState(false);
 
@@ -2504,7 +2505,8 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         (!strategyB || STRATEGY_B_FILTER(r)) &&
         (!strategyC || STRATEGY_C_FILTER(r)) &&
         (!valueFilter || VALUE_FILTER(r)) &&
-        (!valueFilterB || VALUE_FILTER_B(r))
+        (!valueFilterB || VALUE_FILTER_B(r)) &&
+        (!etrGate || r.etrConfirms !== false)
       )
       .sort((a, b) => {
         const mult = sortDir === 'desc' ? -1 : 1;
@@ -2618,6 +2620,14 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           background: strategyC ? 'rgba(251,191,36,0.12)' : 'rgba(15,23,42,0.4)',
           color: strategyC ? '#fbbf24' : '#475569',
         }}>VALUE FILTER B</button>
+        <button onClick={() => setEtrGate(v => !v)} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: etrGate ? '1px solid rgba(34,197,94,0.6)' : '1px solid rgba(148,163,184,0.15)',
+          background: etrGate ? 'rgba(34,197,94,0.12)' : 'rgba(15,23,42,0.4)',
+          color: etrGate ? '#4ade80' : '#475569',
+          title: 'Hide plays where ETR projection contradicts the bet direction',
+        }}>ETR GATE</button>
         <button onClick={() => { setShowPlaySelector(p => !p); setStrategyB(false); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
@@ -2627,7 +2637,10 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
         }}>PLAY SELECTOR</button>
         {/* View mode toggle */}
         <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
-          {[['list','≡ LIST'],['game','⬡ GAME']].map(([mode, label]) => (
+          {(resultsB
+            ? [['list','≡ LIST'],['game','⬡ GAME'],['compare','⊕ A·B']]
+            : [['list','≡ LIST'],['game','⬡ GAME']]
+          ).map(([mode, label]) => (
             <button key={mode} onClick={() => setViewMode && setViewMode(mode)} style={{
               padding: '2px 9px', borderRadius: 4, fontSize: 8, fontWeight: 700,
               fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
@@ -2640,6 +2653,18 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
       </div>
 
       {/* Strategy criteria chip */}
+      {etrGate && (
+        <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
+          background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.2)',
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#4ade80', letterSpacing: 0.5, fontWeight: 700 }}>
+            ETR GATE
+          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
+            OVER only when ETR projection &gt; line · UNDER only when ETR projection &lt; line · removes ETR-contradicts plays
+          </span>
+        </div>
+      )}
       {strategyB && (
         <div style={{ marginBottom: 8, padding: '5px 10px', borderRadius: 5,
           background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.15)',
@@ -2755,12 +2780,15 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
           riskMode={riskMode}
           setRiskMode={onSetRiskMode}
         />
+      ) : viewMode === 'compare' && resultsB ? (
+        <ScenarioCompareView filteredA={filtered} resultsB={resultsB} gameData={gameData} />
       ) : viewMode === 'game' ? (
         <GameSlateView
           filtered={filtered}
           gameData={gameData}
           tracked={tracked}
           onToggleTrack={onToggleTrack}
+          resultsB={resultsB}
         />
       ) : (
       <div style={{ overflowX: 'auto', borderRadius: 6, border: '1px solid rgba(148,163,184,0.20)' }}>
@@ -2843,8 +2871,16 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
                   </div>
                   <div style={{ ...cellStyle, ...cols[5].style,
                     color: r.side === 'OVER' ? '#4ade80' : '#f87171',
-                    fontWeight: 700, fontSize: 9 }}>
+                    fontWeight: 700, fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
                     {r.side}
+                    {r.etrConfirms === true && (
+                      <span title="ETR projection confirms this direction" style={{
+                        fontSize: 7, color: '#4ade80', opacity: 0.7, lineHeight: 1 }}>✓</span>
+                    )}
+                    {r.etrConfirms === false && (
+                      <span title="ETR projection contradicts this direction" style={{
+                        fontSize: 7, color: '#f87171', opacity: 0.7, lineHeight: 1 }}>✗</span>
+                    )}
                   </div>
                   <div style={{ ...cellStyle, ...cols[6].style, color: '#94a3b8' }}>
                     {fmtOdds(r.bookOdds)}
@@ -2923,11 +2959,187 @@ function BatchResultsTable({ results, sortCol, sortDir, onSort, minEdge, setMinE
   );
 }
 
+// ── Scenario A vs B Comparison View ─────────────────────────────────────
+// Flat cross-scenario table grouped by event. For each Scenario A row, looks up
+// the matching Scenario B row (player + stat + side) and classifies:
+//   ROBUST    — edge ≥ 1.5% in BOTH scenarios → fire immediately on lineup confirm
+//   A ONLY    — edge in A, not B → hold until injury report clears
+//   B ONLY    — edge in B, not A → only valid in the injury scenario
+//   NEITHER   — no edge in either scenario
+function ScenarioCompareView({ filteredA, resultsB, gameData }) {
+  const { useMemo } = React;
+
+  const bLookup = useMemo(() => {
+    const m = {};
+    (resultsB || []).forEach(r => { m[`${r.player}|${r.stat}|${r.side}`] = r; });
+    return m;
+  }, [resultsB]);
+
+  const rows = useMemo(() => {
+    const EDGE_THRESHOLD = 1.5;
+    return filteredA.map(a => {
+      const b = bLookup[`${a.player}|${a.stat}|${a.side}`] || null;
+      const aGood = a.edge >= EDGE_THRESHOLD;
+      const bGood = b != null && b.edge >= EDGE_THRESHOLD;
+      const status = aGood && bGood ? 'ROBUST'
+        : aGood ? 'A ONLY'
+        : bGood ? 'B ONLY'
+        : 'NEITHER';
+      const delta = b != null ? b.edge - a.edge : null;
+      return { ...a, bEdge: b?.edge ?? null, bModelProb: b?.bModelProb ?? b?.modelProb ?? null,
+        bProjection: b?.projection ?? null, status, delta };
+    });
+  }, [filteredA, bLookup]);
+
+  // Group by event (same logic as GameSlateView)
+  const gameGroups = useMemo(() => {
+    const groups = new Map();
+    rows.forEach(r => {
+      const key = r.eventId || r.commenceTime || '__unknown__';
+      if (!groups.has(key)) {
+        const teamCtx = gameData?.[r.team?.toUpperCase()];
+        groups.set(key, {
+          key, commenceTime: r.commenceTime, gameTotal: r.gameTotal,
+          homeTeam: teamCtx?.homeTeam ?? null, awayTeam: teamCtx?.awayTeam ?? null, rows: [],
+        });
+      }
+      groups.get(key).rows.push(r);
+    });
+    const result = [];
+    groups.forEach(g => {
+      const matchup = g.homeTeam && g.awayTeam ? `${g.awayTeam} @ ${g.homeTeam}` : 'Unknown Matchup';
+      // Sort within game: ROBUST first, then A ONLY, then by A edge desc
+      const order = { ROBUST: 0, 'A ONLY': 1, 'B ONLY': 2, NEITHER: 3 };
+      g.rows.sort((a, b) => (order[a.status] - order[b.status]) || (b.edge - a.edge));
+      result.push({ ...g, matchup });
+    });
+    result.sort((a, b) => {
+      if (!a.commenceTime && !b.commenceTime) return 0;
+      if (!a.commenceTime) return 1;
+      if (!b.commenceTime) return -1;
+      return new Date(a.commenceTime) - new Date(b.commenceTime);
+    });
+    return result;
+  }, [rows, gameData]);
+
+  const statusStyle = {
+    ROBUST:  { color: '#4ade80', bg: 'rgba(34,197,94,0.12)',   border: 'rgba(34,197,94,0.3)'   },
+    'A ONLY':{ color: '#facc15', bg: 'rgba(250,204,21,0.10)',  border: 'rgba(250,204,21,0.3)'  },
+    'B ONLY':{ color: '#38bdf8', bg: 'rgba(56,189,248,0.10)',  border: 'rgba(56,189,248,0.3)'  },
+    NEITHER: { color: '#475569', bg: 'transparent',            border: 'transparent'            },
+  };
+  const cellSt = { fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: '2px 5px', whiteSpace: 'nowrap' };
+
+  if (gameGroups.length === 0) {
+    return (<div style={{ padding: '20px', textAlign: 'center', fontSize: 10,
+      color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>No results match current filters</div>);
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', padding: '4px 0 2px' }}>
+        {[['ROBUST','Both A & B have edge — fire on lineup confirm'],
+          ['A ONLY','Edge in A only — wait for injury update'],
+          ['B ONLY','Edge in B only — valid only in injury scenario'],
+          ['NEITHER','No edge in either scenario']].map(([label, tip]) => {
+          const s = statusStyle[label];
+          return (
+            <span key={label} title={tip} style={{
+              fontSize: 8, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+              color: s.color, background: s.bg, border: `1px solid ${s.border}`,
+              padding: '1px 6px', borderRadius: 3, cursor: 'help',
+            }}>{label}</span>
+          );
+        })}
+        <span style={{ fontSize: 8, fontFamily: "'JetBrains Mono', monospace", color: '#475569', alignSelf: 'center' }}>
+          — edge threshold 1.5% · rows sorted: ROBUST → A ONLY → B ONLY → NEITHER by A edge
+        </span>
+      </div>
+      {gameGroups.map(game => (
+        <div key={game.key} style={{
+          borderRadius: 8, border: '1px solid rgba(148,163,184,0.12)',
+          backgroundColor: 'rgba(15,23,42,0.5)', overflow: 'hidden',
+        }}>
+          {/* Game header */}
+          <div style={{ padding: '6px 12px', backgroundColor: 'rgba(11,15,26,0.7)',
+            borderBottom: '1px solid rgba(148,163,184,0.08)',
+            display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0',
+              fontFamily: "'JetBrains Mono', monospace" }}>{game.matchup}</span>
+            {game.gameTotal != null && (
+              <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: "'JetBrains Mono', monospace",
+                background: 'rgba(148,163,184,0.07)', padding: '1px 5px', borderRadius: 3 }}>
+                O/U {game.gameTotal}</span>
+            )}
+            <span style={{ fontSize: 9, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
+              {game.rows.length} plays · {game.rows.filter(r => r.status === 'ROBUST').length} robust</span>
+          </div>
+          {/* Column headers */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '3px 12px',
+            borderBottom: '1px solid rgba(148,163,184,0.06)',
+            backgroundColor: 'rgba(11,15,26,0.4)' }}>
+            {[['STATUS',64],['PLAYER',110],['TM',28],['STAT',28],['SIDE',40],
+              ['LINE',36],['A PROJ',44],['B PROJ',44],['A EDGE',52],['B EDGE',52],['Δ',44]].map(([h,w]) => (
+              <span key={h} style={{ ...cellSt, width: w, flexShrink: 0, fontSize: 8,
+                color: '#475569', fontWeight: 700, letterSpacing: 0.5 }}>{h}</span>
+            ))}
+          </div>
+          {/* Rows */}
+          {game.rows.map((r, i) => {
+            const s = statusStyle[r.status];
+            const aEdgeColor = getEdgeColor(r.edge);
+            const bEdgeColor = r.bEdge != null ? getEdgeColor(r.bEdge) : '#475569';
+            const deltaColor = r.delta == null ? '#475569' : r.delta > 0 ? '#4ade80' : r.delta < 0 ? '#f87171' : '#64748b';
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '3px 12px',
+                borderTop: i > 0 ? '1px solid rgba(148,163,184,0.04)' : 'none',
+                borderLeft: `2px solid ${r.status === 'ROBUST' ? '#22c55e55' : r.status === 'A ONLY' ? '#facc1533' : 'transparent'}`,
+              }}>
+                <span style={{ ...cellSt, width: 64, flexShrink: 0 }}>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: s.color,
+                    background: s.bg, border: `1px solid ${s.border}`,
+                    padding: '1px 4px', borderRadius: 3 }}>{r.status}</span>
+                </span>
+                <span style={{ ...cellSt, width: 110, flexShrink: 0, color: '#cbd5e1',
+                  overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.player}</span>
+                <span style={{ ...cellSt, width: 28, flexShrink: 0, color: '#64748b' }}>{r.team}</span>
+                <span style={{ ...cellSt, width: 28, flexShrink: 0, color: '#94a3b8' }}>{r.statLabel}</span>
+                <span style={{ ...cellSt, width: 40, flexShrink: 0, fontWeight: 700, fontSize: 9,
+                  color: r.side === 'OVER' ? '#4ade80' : '#f87171' }}>{r.side}</span>
+                <span style={{ ...cellSt, width: 36, flexShrink: 0, color: '#94a3b8', textAlign: 'right' }}>{r.propLine}</span>
+                <span style={{ ...cellSt, width: 44, flexShrink: 0, color: '#64748b', textAlign: 'right' }}>
+                  {r.projection != null ? r.projection : '—'}</span>
+                <span style={{ ...cellSt, width: 44, flexShrink: 0, textAlign: 'right',
+                  color: r.bProjection != null ? (r.bProjection !== r.projection ? '#facc15' : '#64748b') : '#334155' }}>
+                  {r.bProjection != null ? r.bProjection : '—'}</span>
+                <span style={{ ...cellSt, width: 52, flexShrink: 0, color: aEdgeColor, fontWeight: 700, textAlign: 'right' }}>
+                  {r.edge >= 0 ? '+' : ''}{r.edge.toFixed(1)}%</span>
+                <span style={{ ...cellSt, width: 52, flexShrink: 0, textAlign: 'right',
+                  color: r.bEdge != null ? bEdgeColor : '#334155', fontWeight: r.bEdge != null ? 700 : 400 }}>
+                  {r.bEdge != null ? ((r.bEdge >= 0 ? '+' : '') + r.bEdge.toFixed(1) + '%') : '—'}</span>
+                <span style={{ ...cellSt, width: 44, flexShrink: 0, color: deltaColor, textAlign: 'right', fontWeight: 700 }}>
+                  {r.delta != null ? ((r.delta >= 0 ? '+' : '') + r.delta.toFixed(1) + 'pp') : '—'}</span>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Game Slate View ───────────────────────────────────────────────────
 // Groups filtered batch rows by game, surfacing matchup context, directional
 // game-lean signals, and per-player multi-leg grouping.
-function GameSlateView({ filtered, gameData, tracked, onToggleTrack }) {
+function GameSlateView({ filtered, gameData, tracked, onToggleTrack, resultsB }) {
   const { useMemo } = React;
+
+  const bLookupGame = useMemo(() => {
+    const m = {};
+    (resultsB || []).forEach(r => { m[`${r.player}|${r.stat}|${r.side}`] = r; });
+    return m;
+  }, [resultsB]);
 
   function fmtTipTime(isoStr) {
     if (!isoStr) return null;
@@ -3179,6 +3391,32 @@ function GameSlateView({ filtered, gameData, tracked, onToggleTrack }) {
                             ¼K {r.kellyPct.toFixed(2)}%
                           </span>
                         )}
+                        {/* Scenario B edge comparison */}
+                        {resultsB && (() => {
+                          const b = bLookupGame[`${r.player}|${r.stat}|${r.side}`];
+                          if (!b) return (
+                            <span style={{ ...cellSt, color: '#334155', fontSize: 8 }}>B:—</span>
+                          );
+                          const bEdgeColor = getEdgeColor(b.edge);
+                          const delta = b.edge - r.edge;
+                          const robust = r.edge >= 1.5 && b.edge >= 1.5;
+                          return (
+                            <span style={{ ...cellSt, fontSize: 8, display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <span style={{ color: '#475569' }}>B:</span>
+                              <span style={{ color: bEdgeColor, fontWeight: 700 }}>
+                                {b.edge >= 0 ? '+' : ''}{b.edge.toFixed(1)}%
+                              </span>
+                              {robust && (
+                                <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700 }}>✓ROBUST</span>
+                              )}
+                              {!robust && b.bProjection !== r.projection && b.projection != null && (
+                                <span style={{ color: '#facc15', fontSize: 7 }}>
+                                  B:{b.projection}
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })()}
                       </div>
                     );
                   })}
@@ -5346,7 +5584,16 @@ function NBASimulator() {
   const [batchCsvData,      setBatchCsvData]       = useState(null);
   const [batchCsvCopied,    setBatchCsvCopied]     = useState(false);
   const [batchOpen,         setBatchOpen]          = useState(false);
-  const [batchViewMode,     setBatchViewMode]      = useState('list'); // 'list' | 'game'
+  const [batchViewMode,     setBatchViewMode]      = useState('list'); // 'list' | 'game' | 'compare'
+
+  // Scenario B — alternative lineup projections for injury/GTD comparison
+  const [projectionsB,     setProjectionsB]     = useState(null);
+  const [projPasteTextB,   setProjPasteTextB]   = useState('');
+  const [projErrorB,       setProjErrorB]       = useState(null);
+  const [projBOpen,        setProjBOpen]        = useState(false);
+  const [batchResultsB,    setBatchResultsB]    = useState(null);
+  const [batchRunningB,    setBatchRunningB]    = useState(false);
+  const [batchProgressB,   setBatchProgressB]  = useState(null);
 
   // Play Selector slate state — persisted to localStorage, auto-cleared on date change
   const [slate, setSlate] = useState(() => {
@@ -5753,6 +6000,31 @@ function NBASimulator() {
     reader.readAsText(file);
     e.target.value = ''; // allow re-uploading same file
   }, [handleParseProjections]);
+
+  // Scenario B handlers — parse second ETR export (injury/alternate lineup scenario)
+  const handleParseProjB = useCallback((textOverride) => {
+    const text = textOverride !== undefined ? textOverride : projPasteTextB;
+    if (!text?.trim()) { setProjErrorB("Paste or upload Scenario B projection data first."); return; }
+    const result = parseETRProjections(text);
+    if (result.error) { setProjErrorB(result.error); return; }
+    setProjectionsB(result.players);
+    setProjErrorB(null);
+    setProjBOpen(false);
+    setBatchResultsB(null); // clear stale results when projections change
+  }, [projPasteTextB]);
+
+  const handleProjFileB = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      setProjPasteTextB(text);
+      handleParseProjB(text);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }, [handleParseProjB]);
 
   const handleSelectProjection = useCallback((name) => {
     const p = projections?.find(pl => pl.name === name);
@@ -6846,13 +7118,20 @@ function NBASimulator() {
   // (unfiltered raw data + empirical std) and combo props (PRA/PR/PA/RA/SB).
   // Accepts optional oddsOverride/gameDataOverride for Quick Slate (avoids stale state).
   // Zero additional API calls — all data is already in state.
-  const runBatchSimulation = useCallback(async (oddsOverride, gameDataOverride) => {
+  // runBatchSimulation accepts an optional 3rd argument for Scenario B overrides:
+  //   { projectionsOverride, onSetResults, onSetRunning, onSetProgress, skipCsvReset }
+  // When omitted, runs Scenario A (default: uses `projections` state, sets batchResults).
+  const runBatchSimulation = useCallback(async (oddsOverride, gameDataOverride, scenarioOpts) => {
     const effectiveOdds    = oddsOverride    || oddsData;
     const effectiveGameData = gameDataOverride || gameData;
-    if (!projections || !effectiveOdds) return;
-    setBatchRunning(true);
-    setBatchResults(null);
-    setBatchCsvData(null);
+    const effectiveProjections = scenarioOpts?.projectionsOverride || projections;
+    const setResults  = scenarioOpts?.onSetResults  || setBatchResults;
+    const setRunning  = scenarioOpts?.onSetRunning  || setBatchRunning;
+    const setProgress = scenarioOpts?.onSetProgress || setBatchProgress;
+    if (!effectiveProjections || !effectiveOdds) return;
+    setRunning(true);
+    setResults(null);
+    if (!scenarioOpts?.skipCsvReset) setBatchCsvData(null);
 
     const BATCH_SIMS = 10000;
     const MIN_BATCH_GAMES = 10; // require ≥10 CV-db games to trust the distribution shape
@@ -6862,7 +7141,7 @@ function NBASimulator() {
     //   • Players whose CV database sample is too thin (< MIN_BATCH_GAMES)
     //   • Players flagged as GTD (gametime decision — lineup uncertainty invalidates edge premise)
     //   • Players from games that have already tipped (lines are closed; sim output is moot)
-    const eligible = projections.filter(p => {
+    const eligible = effectiveProjections.filter(p => {
       const normName = normalizeOddsName(p.name);
       const playerOdds = effectiveOdds[normName] || findFuzzyOddsMatch(effectiveOdds, normName);
       if (!playerOdds) return false;
@@ -6877,7 +7156,7 @@ function NBASimulator() {
       return STAT_CONFIG.some(({ key }) => playerOdds[key]?.line != null);
     });
     const BATCH_PROJ_FLOORS = { pts: 6, reb: 2, ast: 1.5, stl: 0.5, blk: 0.3, threes: 0.5 };
-    setBatchProgress({ current: 0, total: eligible.length });
+    setProgress({ current: 0, total: eligible.length });
     const allRows = [];
 
     for (let i = 0; i < eligible.length; i++) {
@@ -6967,6 +7246,9 @@ function NBASimulator() {
             betId: Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
             eventId:      gameCtx?.eventId     ?? null,
             commenceTime: gameCtx?.commenceTime ?? null,
+            etrConfirms: (projValue != null && parseFloat(s.propLine) > 0)
+              ? (side === 'over' ? projValue > parseFloat(s.propLine) : projValue < parseFloat(s.propLine))
+              : null,
             std: s.stdDev ?? null,
             negBinR: (() => {
               if (!POISSON_STATS.has(key)) return null;
@@ -7156,18 +7438,31 @@ function NBASimulator() {
         });
       });
 
-      setBatchProgress({ current: i + 1, total: eligible.length });
+      setProgress({ current: i + 1, total: eligible.length });
       // Yield to browser — allows progress counter to re-render between players
       await new Promise(resolve => setTimeout(resolve, 0));
     }
 
     // Default sort: best edge first
     allRows.sort((a, b) => b.edge - a.edge);
-    setBatchResults(allRows);
-    setBatchProgress(null);
-    setBatchRunning(false);
+    setResults(allRows);
+    setProgress(null);
+    setRunning(false);
     return allRows;
   }, [projections, oddsData, cvDatabase, gameData, gtdFlags]);
+
+  // ── Scenario B batch simulation runner ───────────────────────────────
+  const handleRunBatchB = useCallback(async () => {
+    if (!projectionsB || !oddsData) return;
+    setBatchViewMode('compare'); // auto-switch to compare view when B completes
+    await runBatchSimulation(null, null, {
+      projectionsOverride: projectionsB,
+      onSetResults:  setBatchResultsB,
+      onSetRunning:  setBatchRunningB,
+      onSetProgress: setBatchProgressB,
+      skipCsvReset:  true,
+    });
+  }, [projectionsB, oddsData, runBatchSimulation]);
 
   // ── One-Click Slate: Fetch Odds → Batch Sim → Build Slate ────────────
   // Chains the full pipeline into a single action. Requires projections loaded
@@ -7581,7 +7876,8 @@ function NBASimulator() {
               </span>
               {batchResults && !batchRunning && (
                 <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
-                  · {batchResults.filter(r => r.edge >= 1.5).length} plays with edge
+                  · {batchResults.filter(r => r.edge >= 1.5).length} A plays with edge
+                  {batchResultsB && ` · ${batchResultsB.filter(r => r.edge >= 1.5).length} B plays`}
                 </span>
               )}
               {gtdFlags.size > 0 && (
@@ -7631,9 +7927,107 @@ function NBASimulator() {
                   </div>
                 </div>
               )}
+              {/* ── Scenario B upload panel ── */}
+              {projections && oddsData && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8,
+                  border: `1px solid ${batchResultsB ? 'rgba(56,189,248,0.4)' : 'rgba(148,163,184,0.15)'}`,
+                  background: 'rgba(11,15,26,0.4)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9,
+                      color: batchResultsB ? '#38bdf8' : '#475569', letterSpacing: 0.8 }}>
+                      SCENARIO B
+                    </span>
+                    <span style={{ fontSize: 8, color: '#334155', fontFamily: "'JetBrains Mono', monospace" }}>
+                      Alternate lineup projections for injury/GTD comparison
+                    </span>
+                    {projectionsB && (
+                      <span style={{ fontSize: 8, color: '#38bdf8', fontFamily: "'JetBrains Mono', monospace",
+                        background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.25)',
+                        padding: '1px 6px', borderRadius: 3 }}>
+                        {projectionsB.length} players loaded
+                      </span>
+                    )}
+                    {batchResultsB && !batchRunningB && (
+                      <span style={{ fontSize: 8, color: '#38bdf8', fontFamily: "'JetBrains Mono', monospace" }}>
+                        · {batchResultsB.filter(r => r.edge >= 1.5).length} plays with edge
+                      </span>
+                    )}
+                    {/* Upload button */}
+                    <label style={{ padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+                      fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+                      border: '1px solid rgba(56,189,248,0.3)',
+                      background: 'rgba(56,189,248,0.08)', color: '#38bdf8' }}>
+                      UPLOAD B
+                      <input type="file" accept=".csv,.tsv,.txt" onChange={handleProjFileB}
+                        style={{ display: 'none' }} />
+                    </label>
+                    {/* Paste toggle */}
+                    <button onClick={() => setProjBOpen(o => !o)} style={{ padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+                      fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+                      border: projBOpen ? '1px solid rgba(56,189,248,0.5)' : '1px solid rgba(148,163,184,0.15)',
+                      background: projBOpen ? 'rgba(56,189,248,0.1)' : 'rgba(15,23,42,0.4)',
+                      color: projBOpen ? '#38bdf8' : '#475569' }}>
+                      PASTE B
+                    </button>
+                    {/* Run Scenario B */}
+                    {projectionsB && oddsData && !batchRunningB && (
+                      <button onClick={handleRunBatchB}
+                        style={{ padding: '2px 10px', borderRadius: 4, border: 'none',
+                          background: '#0e7490', color: '#fff',
+                          fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 8,
+                          cursor: 'pointer', letterSpacing: 0.8 }}>
+                        RUN B
+                      </button>
+                    )}
+                    {batchRunningB && batchProgressB && (
+                      <span style={{ fontSize: 8, color: '#38bdf8', fontFamily: "'JetBrains Mono', monospace" }}>
+                        B: {batchProgressB.current}/{batchProgressB.total}
+                      </span>
+                    )}
+                    {/* Clear B */}
+                    {(projectionsB || batchResultsB) && (
+                      <button onClick={() => { setProjectionsB(null); setBatchResultsB(null);
+                        setProjPasteTextB(''); setProjErrorB(null); }}
+                        style={{ padding: '2px 6px', borderRadius: 4, fontSize: 8,
+                          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+                          border: '1px solid rgba(239,68,68,0.25)', background: 'transparent', color: '#64748b' }}>
+                        CLEAR B
+                      </button>
+                    )}
+                  </div>
+                  {/* Paste textarea */}
+                  {projBOpen && (
+                    <div style={{ marginTop: 8 }}>
+                      <textarea
+                        value={projPasteTextB}
+                        onChange={e => setProjPasteTextB(e.target.value)}
+                        placeholder="Paste Scenario B ETR projections (CSV/TSV)..."
+                        rows={4}
+                        style={{ width: '100%', background: 'rgba(11,15,26,0.8)',
+                          border: '1px solid rgba(148,163,184,0.2)', borderRadius: 4,
+                          color: '#e2e8f0', fontSize: 10, padding: '6px 8px', resize: 'vertical',
+                          fontFamily: "'JetBrains Mono', monospace", boxSizing: 'border-box' }} />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                        <button onClick={() => handleParseProjB()}
+                          style={{ padding: '3px 10px', borderRadius: 4, border: 'none',
+                            background: '#0e7490', color: '#fff',
+                            fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 8, cursor: 'pointer' }}>
+                          PARSE
+                        </button>
+                        {projErrorB && (
+                          <span style={{ fontSize: 9, color: '#f87171', fontFamily: "'JetBrains Mono', monospace",
+                            alignSelf: 'center' }}>{projErrorB}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {batchResults && !batchRunning && (
                 <BatchResultsTable
                   results={batchResults}
+                  resultsB={batchResultsB}
                   sortCol={batchSortCol}
                   sortDir={batchSortDir}
                   onSort={col => {
