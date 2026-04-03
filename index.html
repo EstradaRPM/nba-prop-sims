@@ -2979,6 +2979,14 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
     return m;
   }, [resultsB]);
 
+  // Build a set of player names that appear anywhere in resultsB (any stat) — used to
+  // distinguish "player absent from B entirely" from "player in B but edge dropped".
+  const bPlayers = useMemo(() => {
+    const s = new Set();
+    (resultsB || []).filter(r => !r.isAltLine).forEach(r => s.add(r.player));
+    return s;
+  }, [resultsB]);
+
   const rows = useMemo(() => {
     const EDGE_THRESHOLD = 1.5;
     // Exclude alt lines from compare — primary market lines only
@@ -2986,15 +2994,18 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
       const b = bLookup[`${a.player}|${a.stat}|${a.side}|${a.propLine}`] || null;
       const aGood = a.edge >= EDGE_THRESHOLD;
       const bGood = b != null && b.edge >= EDGE_THRESHOLD;
+      // bAbsent: player not simulated in B at all (sitting/out) vs. just low edge in B
+      const bAbsent = b === null && !bPlayers.has(a.player);
       const status = aGood && bGood ? 'ROBUST'
+        : aGood && bAbsent ? 'NO B'
         : aGood ? 'A ONLY'
         : bGood ? 'B ONLY'
         : 'NEITHER';
       const delta = b != null ? b.edge - a.edge : null;
-      return { ...a, bEdge: b?.edge ?? null, bModelProb: b?.bModelProb ?? b?.modelProb ?? null,
-        bProjection: b?.projection ?? null, status, delta };
+      return { ...a, bEdge: b?.edge ?? null, bModelProb: b?.modelProb ?? null,
+        bProjection: b?.projection ?? null, bAbsent, status, delta };
     });
-  }, [filteredA, bLookup]);
+  }, [filteredA, bLookup, bPlayers]);
 
   // Group by event (same logic as GameSlateView)
   const gameGroups = useMemo(() => {
@@ -3013,8 +3024,8 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
     const result = [];
     groups.forEach(g => {
       const matchup = g.homeTeam && g.awayTeam ? `${g.awayTeam} @ ${g.homeTeam}` : 'Unknown Matchup';
-      // Sort within game: ROBUST first, then A ONLY, then by A edge desc
-      const order = { ROBUST: 0, 'A ONLY': 1, 'B ONLY': 2, NEITHER: 3 };
+      // Sort within game: ROBUST → NO B → A ONLY → B ONLY → NEITHER, then by A edge desc
+      const order = { ROBUST: 0, 'NO B': 1, 'A ONLY': 2, 'B ONLY': 3, NEITHER: 4 };
       g.rows.sort((a, b) => (order[a.status] - order[b.status]) || (b.edge - a.edge));
       result.push({ ...g, matchup });
     });
@@ -3029,6 +3040,7 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
 
   const statusStyle = {
     ROBUST:  { color: '#4ade80', bg: 'rgba(34,197,94,0.12)',   border: 'rgba(34,197,94,0.3)'   },
+    'NO B':  { color: '#f97316', bg: 'rgba(249,115,22,0.10)',  border: 'rgba(249,115,22,0.3)'  },
     'A ONLY':{ color: '#facc15', bg: 'rgba(250,204,21,0.10)',  border: 'rgba(250,204,21,0.3)'  },
     'B ONLY':{ color: '#38bdf8', bg: 'rgba(56,189,248,0.10)',  border: 'rgba(56,189,248,0.3)'  },
     NEITHER: { color: '#475569', bg: 'transparent',            border: 'transparent'            },
@@ -3045,7 +3057,8 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
       {/* Legend */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', padding: '4px 0 2px' }}>
         {[['ROBUST','Both A & B have edge — fire on lineup confirm'],
-          ['A ONLY','Edge in A only — wait for injury update'],
+          ['NO B','Player not in Scenario B at all (sitting/out) — only valid if they play'],
+          ['A ONLY','Player in B but edge drops — monitor injury context'],
           ['B ONLY','Edge in B only — valid only in injury scenario'],
           ['NEITHER','No edge in either scenario']].map(([label, tip]) => {
           const s = statusStyle[label];
@@ -3078,7 +3091,12 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
                 O/U {game.gameTotal}</span>
             )}
             <span style={{ fontSize: 9, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
-              {game.rows.length} plays · {game.rows.filter(r => r.status === 'ROBUST').length} robust</span>
+              {game.rows.length} plays · {game.rows.filter(r => r.status === 'ROBUST').length} robust
+              {game.rows.filter(r => r.status === 'NO B').length > 0 && (
+                <span style={{ color: '#f97316' }}>
+                  {' '}· {game.rows.filter(r => r.status === 'NO B').length} absent from B
+                </span>
+              )}</span>
           </div>
           {/* Column headers */}
           <div style={{ display: 'flex', alignItems: 'center', padding: '3px 12px',
