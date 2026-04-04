@@ -2515,7 +2515,7 @@ function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdg
         if (typeof av === 'string') return mult * av.localeCompare(bv);
         return mult * (av - bv);
       });
-  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, valueFilter, valueFilterB, showAltLines]);
+  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, valueFilter, valueFilterB, showAltLines, etrGate]);
 
   const trackedCount = tracked ? tracked.size : 0;
   const cols = [
@@ -2967,7 +2967,8 @@ function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdg
 //   B ONLY    — edge in B, not A → only valid in the injury scenario
 //   NEITHER   — no edge in either scenario
 function ScenarioCompareView({ filteredA, resultsB, gameData }) {
-  const { useMemo } = React;
+  const { useMemo, useState } = React;
+  const [hideNeither, setHideNeither] = useState(false);
 
   const bLookup = useMemo(() => {
     const m = {};
@@ -3004,8 +3005,8 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
       const delta = b != null ? b.edge - a.edge : null;
       return { ...a, bEdge: b?.edge ?? null, bModelProb: b?.modelProb ?? null,
         bProjection: b?.projection ?? null, bAbsent, status, delta };
-    });
-  }, [filteredA, bLookup, bPlayers]);
+    }).filter(r => !hideNeither || r.status !== 'NEITHER');
+  }, [filteredA, bLookup, bPlayers, hideNeither]);
 
   // Group by event (same logic as GameSlateView)
   const gameGroups = useMemo(() => {
@@ -3047,6 +3048,36 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
   };
   const cellSt = { fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: '2px 5px', whiteSpace: 'nowrap' };
 
+  // Column definitions: [header, width, align]
+  const COLS = [
+    ['STATUS',  62, 'left'  ],
+    ['PLAYER',  106,'left'  ],
+    ['TM',      26, 'center'],
+    ['STAT',    28, 'center'],
+    ['SIDE',    36, 'center'],
+    ['LINE',    36, 'right' ],
+    ['ODDS',    44, 'right' ],
+    ['A PROJ',  40, 'right' ],
+    ['B PROJ',  40, 'right' ],
+    ['A MDL%',  44, 'right' ],
+    ['B MDL%',  44, 'right' ],
+    ['A EDGE',  48, 'right' ],
+    ['B EDGE',  48, 'right' ],
+    ['Δ EDGE',  42, 'right' ],
+    ['¼K%',     36, 'right' ],
+    ['ETR',     28, 'center'],
+  ];
+  const MIN_TABLE_WIDTH = COLS.reduce((s, [,w]) => s + w, 0) + 24; // +24 for row padding
+
+  const neitherCount = useMemo(() =>
+    filteredA.filter(a => !a.isAltLine).reduce((n, a) => {
+      const b = bLookup[`${a.player}|${a.stat}|${a.side}|${a.propLine}`] || null;
+      const aGood = a.edge >= 1.5;
+      const bGood = b != null && b.edge >= 1.5;
+      return (!aGood && !bGood) ? n + 1 : n;
+    }, 0),
+  [filteredA, bLookup]);
+
   if (gameGroups.length === 0) {
     return (<div style={{ padding: '20px', textAlign: 'center', fontSize: 10,
       color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>No results match current filters</div>);
@@ -3054,8 +3085,8 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Legend */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', padding: '4px 0 2px' }}>
+      {/* Legend + view controls */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '4px 0 2px' }}>
         {[['ROBUST','Both A & B have edge — fire on lineup confirm'],
           ['NO B','Player not in Scenario B at all (sitting/out) — only valid if they play'],
           ['A ONLY','Player in B but edge drops — monitor injury context'],
@@ -3070,84 +3101,145 @@ function ScenarioCompareView({ filteredA, resultsB, gameData }) {
             }}>{label}</span>
           );
         })}
-        <span style={{ fontSize: 8, fontFamily: "'JetBrains Mono', monospace", color: '#475569', alignSelf: 'center' }}>
-          — edge threshold 1.5% · rows sorted: ROBUST → A ONLY → B ONLY → NEITHER by A edge
+        <span style={{ fontSize: 8, fontFamily: "'JetBrains Mono', monospace", color: '#475569' }}>
+          — 1.5% edge threshold · sorted: ROBUST → A ONLY → B ONLY → NEITHER
         </span>
+        {/* HIDE NEITHER toggle */}
+        {neitherCount > 0 && (
+          <button onClick={() => setHideNeither(h => !h)} style={{
+            marginLeft: 'auto', padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+            fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+            border: hideNeither ? '1px solid rgba(71,85,105,0.5)' : '1px solid rgba(148,163,184,0.15)',
+            background: hideNeither ? 'rgba(71,85,105,0.2)' : 'rgba(15,23,42,0.4)',
+            color: hideNeither ? '#94a3b8' : '#475569',
+          }}>HIDE NEITHER ({neitherCount})</button>
+        )}
       </div>
-      {gameGroups.map(game => (
-        <div key={game.key} style={{
-          borderRadius: 8, border: '1px solid rgba(148,163,184,0.12)',
-          backgroundColor: 'rgba(15,23,42,0.5)', overflow: 'hidden',
-        }}>
-          {/* Game header */}
-          <div style={{ padding: '6px 12px', backgroundColor: 'rgba(11,15,26,0.7)',
-            borderBottom: '1px solid rgba(148,163,184,0.08)',
-            display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0',
-              fontFamily: "'JetBrains Mono', monospace" }}>{game.matchup}</span>
-            {game.gameTotal != null && (
-              <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: "'JetBrains Mono', monospace",
-                background: 'rgba(148,163,184,0.07)', padding: '1px 5px', borderRadius: 3 }}>
-                O/U {game.gameTotal}</span>
-            )}
-            <span style={{ fontSize: 9, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
-              {game.rows.length} plays · {game.rows.filter(r => r.status === 'ROBUST').length} robust
-              {game.rows.filter(r => r.status === 'NO B').length > 0 && (
-                <span style={{ color: '#f97316' }}>
-                  {' '}· {game.rows.filter(r => r.status === 'NO B').length} absent from B
-                </span>
-              )}</span>
-          </div>
-          {/* Column headers */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '3px 12px',
-            borderBottom: '1px solid rgba(148,163,184,0.06)',
-            backgroundColor: 'rgba(11,15,26,0.4)' }}>
-            {[['STATUS',64],['PLAYER',110],['TM',28],['STAT',28],['SIDE',40],
-              ['LINE',36],['A PROJ',44],['B PROJ',44],['A EDGE',52],['B EDGE',52],['Δ',44]].map(([h,w]) => (
-              <span key={h} style={{ ...cellSt, width: w, flexShrink: 0, fontSize: 8,
-                color: '#475569', fontWeight: 700, letterSpacing: 0.5 }}>{h}</span>
-            ))}
-          </div>
-          {/* Rows */}
-          {game.rows.map((r, i) => {
-            const s = statusStyle[r.status];
-            const aEdgeColor = getEdgeColor(r.edge);
-            const bEdgeColor = r.bEdge != null ? getEdgeColor(r.bEdge) : '#475569';
-            const deltaColor = r.delta == null ? '#475569' : r.delta > 0 ? '#4ade80' : r.delta < 0 ? '#f87171' : '#64748b';
-            return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '3px 12px',
-                borderTop: i > 0 ? '1px solid rgba(148,163,184,0.04)' : 'none',
-                borderLeft: `2px solid ${r.status === 'ROBUST' ? '#22c55e55' : r.status === 'A ONLY' ? '#facc1533' : 'transparent'}`,
-              }}>
-                <span style={{ ...cellSt, width: 64, flexShrink: 0 }}>
-                  <span style={{ fontSize: 8, fontWeight: 700, color: s.color,
-                    background: s.bg, border: `1px solid ${s.border}`,
-                    padding: '1px 4px', borderRadius: 3 }}>{r.status}</span>
-                </span>
-                <span style={{ ...cellSt, width: 110, flexShrink: 0, color: '#cbd5e1',
-                  overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.player}</span>
-                <span style={{ ...cellSt, width: 28, flexShrink: 0, color: '#64748b' }}>{r.team}</span>
-                <span style={{ ...cellSt, width: 28, flexShrink: 0, color: '#94a3b8' }}>{r.statLabel}</span>
-                <span style={{ ...cellSt, width: 40, flexShrink: 0, fontWeight: 700, fontSize: 9,
-                  color: r.side === 'OVER' ? '#4ade80' : '#f87171' }}>{r.side}</span>
-                <span style={{ ...cellSt, width: 36, flexShrink: 0, color: '#94a3b8', textAlign: 'right' }}>{r.propLine}</span>
-                <span style={{ ...cellSt, width: 44, flexShrink: 0, color: '#64748b', textAlign: 'right' }}>
-                  {r.projection != null ? r.projection : '—'}</span>
-                <span style={{ ...cellSt, width: 44, flexShrink: 0, textAlign: 'right',
-                  color: r.bProjection != null ? (r.bProjection !== r.projection ? '#facc15' : '#64748b') : '#334155' }}>
-                  {r.bProjection != null ? r.bProjection : '—'}</span>
-                <span style={{ ...cellSt, width: 52, flexShrink: 0, color: aEdgeColor, fontWeight: 700, textAlign: 'right' }}>
-                  {r.edge >= 0 ? '+' : ''}{r.edge.toFixed(1)}%</span>
-                <span style={{ ...cellSt, width: 52, flexShrink: 0, textAlign: 'right',
-                  color: r.bEdge != null ? bEdgeColor : '#334155', fontWeight: r.bEdge != null ? 700 : 400 }}>
-                  {r.bEdge != null ? ((r.bEdge >= 0 ? '+' : '') + r.bEdge.toFixed(1) + '%') : '—'}</span>
-                <span style={{ ...cellSt, width: 44, flexShrink: 0, color: deltaColor, textAlign: 'right', fontWeight: 700 }}>
-                  {r.delta != null ? ((r.delta >= 0 ? '+' : '') + r.delta.toFixed(1) + 'pp') : '—'}</span>
+      {/* Note: all filters above (MIN EDGE, STAT, STRATEGY B, ETR GATE, etc.) apply here */}
+      <div style={{ fontSize: 8, fontFamily: "'JetBrains Mono', monospace", color: '#334155',
+        padding: '2px 4px', background: 'rgba(99,102,241,0.04)', borderRadius: 4,
+        border: '1px solid rgba(99,102,241,0.1)' }}>
+        ↑ filters above apply to all views — use ETR GATE, STRATEGY B, MIN EDGE, etc. to narrow this list
+      </div>
+      {/* Horizontal scroll wrapper */}
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ minWidth: MIN_TABLE_WIDTH, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {gameGroups.map(game => (
+            <div key={game.key} style={{
+              borderRadius: 8, border: '1px solid rgba(148,163,184,0.12)',
+              backgroundColor: 'rgba(15,23,42,0.5)',
+            }}>
+              {/* Game header — not scrolled, stays full width within card */}
+              <div style={{ padding: '6px 12px', backgroundColor: 'rgba(11,15,26,0.7)',
+                borderBottom: '1px solid rgba(148,163,184,0.08)', borderRadius: '8px 8px 0 0',
+                display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0',
+                  fontFamily: "'JetBrains Mono', monospace" }}>{game.matchup}</span>
+                {game.gameTotal != null && (
+                  <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: "'JetBrains Mono', monospace",
+                    background: 'rgba(148,163,184,0.07)', padding: '1px 5px', borderRadius: 3 }}>
+                    O/U {game.gameTotal}</span>
+                )}
+                <span style={{ fontSize: 9, color: '#475569', fontFamily: "'JetBrains Mono', monospace" }}>
+                  {game.rows.length} plays · {game.rows.filter(r => r.status === 'ROBUST').length} robust
+                  {game.rows.filter(r => r.status === 'NO B').length > 0 && (
+                    <span style={{ color: '#f97316' }}>
+                      {' '}· {game.rows.filter(r => r.status === 'NO B').length} absent from B
+                    </span>
+                  )}</span>
               </div>
-            );
-          })}
+              {/* Column headers */}
+              <div style={{ display: 'flex', alignItems: 'center', padding: '3px 12px',
+                borderBottom: '1px solid rgba(148,163,184,0.06)',
+                backgroundColor: 'rgba(11,15,26,0.4)' }}>
+                {COLS.map(([h, w, align]) => (
+                  <span key={h} style={{ ...cellSt, width: w, flexShrink: 0, fontSize: 8,
+                    color: h === 'ODDS' ? '#a78bfa' : h.includes('MDL') ? '#22d3ee' : h === '¼K%' ? '#f59e0b' : h === 'ETR' ? '#4ade80' : '#475569',
+                    fontWeight: 700, letterSpacing: 0.4, textAlign: align }}>{h}</span>
+                ))}
+              </div>
+              {/* Rows */}
+              {game.rows.map((r, i) => {
+                const s = statusStyle[r.status];
+                const aEdgeColor = getEdgeColor(r.edge);
+                const bEdgeColor = r.bEdge != null ? getEdgeColor(r.bEdge) : '#475569';
+                const deltaColor = r.delta == null ? '#475569' : r.delta > 0.5 ? '#4ade80' : r.delta < -0.5 ? '#f87171' : '#64748b';
+                const oddsDisplay = r.bookOdds != null ? fmtOdds(r.bookOdds) : '—';
+                const oddsColor = r.bookOdds != null && r.bookOdds >= 0 ? '#c4b5fd' : '#a78bfa';
+                const aModelDisplay = r.modelProb != null ? (r.modelProb * 100).toFixed(1) + '%' : '—';
+                const bModelDisplay = r.bModelProb != null ? (r.bModelProb * 100).toFixed(1) + '%' : '—';
+                const kellyDisplay = r.kellyPct != null && r.kellyPct > 0 ? r.kellyPct.toFixed(2) + '%' : '—';
+                const etrColor = r.etrConfirms === true ? '#4ade80' : r.etrConfirms === false ? '#f87171' : '#475569';
+                const etrLabel = r.etrConfirms === true ? '✓' : r.etrConfirms === false ? '✗' : '·';
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '3px 12px',
+                    borderTop: i > 0 ? '1px solid rgba(148,163,184,0.04)' : 'none',
+                    borderLeft: `2px solid ${r.status === 'ROBUST' ? '#22c55e55' : r.status === 'A ONLY' ? '#facc1533' : r.status === 'NO B' ? '#f9731633' : 'transparent'}`,
+                  }}>
+                    {/* STATUS */}
+                    <span style={{ ...cellSt, width: 62, flexShrink: 0 }}>
+                      <span style={{ fontSize: 8, fontWeight: 700, color: s.color,
+                        background: s.bg, border: `1px solid ${s.border}`,
+                        padding: '1px 4px', borderRadius: 3 }}>{r.status}</span>
+                    </span>
+                    {/* PLAYER */}
+                    <span style={{ ...cellSt, width: 106, flexShrink: 0, color: '#cbd5e1',
+                      overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.player}</span>
+                    {/* TM */}
+                    <span style={{ ...cellSt, width: 26, flexShrink: 0, color: '#64748b', textAlign: 'center' }}>{r.team}</span>
+                    {/* STAT */}
+                    <span style={{ ...cellSt, width: 28, flexShrink: 0, color: '#94a3b8', textAlign: 'center' }}>{r.statLabel}</span>
+                    {/* SIDE */}
+                    <span style={{ ...cellSt, width: 36, flexShrink: 0, fontWeight: 700, fontSize: 9, textAlign: 'center',
+                      color: r.side === 'OVER' ? '#4ade80' : '#f87171' }}>{r.side}</span>
+                    {/* LINE */}
+                    <span style={{ ...cellSt, width: 36, flexShrink: 0, color: '#94a3b8', textAlign: 'right' }}>{r.propLine}</span>
+                    {/* ODDS — book odds generating the edge */}
+                    <span style={{ ...cellSt, width: 44, flexShrink: 0, color: oddsColor, textAlign: 'right', fontWeight: 700 }}
+                      title="Book odds for this side">
+                      {oddsDisplay}
+                    </span>
+                    {/* A PROJ */}
+                    <span style={{ ...cellSt, width: 40, flexShrink: 0, color: '#64748b', textAlign: 'right' }}>
+                      {r.projection != null ? r.projection : '—'}</span>
+                    {/* B PROJ */}
+                    <span style={{ ...cellSt, width: 40, flexShrink: 0, textAlign: 'right',
+                      color: r.bProjection != null ? (r.bProjection !== r.projection ? '#facc15' : '#64748b') : '#334155' }}>
+                      {r.bProjection != null ? r.bProjection : '—'}</span>
+                    {/* A MDL% */}
+                    <span style={{ ...cellSt, width: 44, flexShrink: 0, color: '#67e8f9', textAlign: 'right' }}
+                      title="Model probability — Scenario A">
+                      {aModelDisplay}</span>
+                    {/* B MDL% */}
+                    <span style={{ ...cellSt, width: 44, flexShrink: 0, textAlign: 'right',
+                      color: r.bModelProb != null ? '#22d3ee' : '#334155' }}
+                      title="Model probability — Scenario B">
+                      {bModelDisplay}</span>
+                    {/* A EDGE */}
+                    <span style={{ ...cellSt, width: 48, flexShrink: 0, color: aEdgeColor, fontWeight: 700, textAlign: 'right' }}>
+                      {r.edge >= 0 ? '+' : ''}{r.edge.toFixed(1)}%</span>
+                    {/* B EDGE */}
+                    <span style={{ ...cellSt, width: 48, flexShrink: 0, textAlign: 'right',
+                      color: r.bEdge != null ? bEdgeColor : '#334155', fontWeight: r.bEdge != null ? 700 : 400 }}>
+                      {r.bEdge != null ? ((r.bEdge >= 0 ? '+' : '') + r.bEdge.toFixed(1) + '%') : '—'}</span>
+                    {/* Δ EDGE */}
+                    <span style={{ ...cellSt, width: 42, flexShrink: 0, color: deltaColor, textAlign: 'right', fontWeight: 700 }}>
+                      {r.delta != null ? ((r.delta >= 0 ? '+' : '') + r.delta.toFixed(1) + 'pp') : '—'}</span>
+                    {/* ¼K% */}
+                    <span style={{ ...cellSt, width: 36, flexShrink: 0, color: r.kellyPct > 0 ? '#fbbf24' : '#334155', textAlign: 'right' }}
+                      title="Quarter-Kelly stake percentage">
+                      {kellyDisplay}</span>
+                    {/* ETR alignment */}
+                    <span style={{ ...cellSt, width: 28, flexShrink: 0, color: etrColor, textAlign: 'center', fontWeight: 700, fontSize: 11 }}
+                      title={r.etrConfirms === true ? 'ETR projection confirms this bet direction' : r.etrConfirms === false ? 'ETR projection contradicts this bet — use ETR GATE filter to exclude' : 'ETR alignment unknown'}>
+                      {etrLabel}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 }
