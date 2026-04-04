@@ -5324,7 +5324,7 @@ function CalibrationPanel({
   log, open, onToggle,
   onSetResult, onFetchClosing, closingFetching, closingFetchMsg,
   onAutoSettle, autoSettleFetching, autoSettleMsg,
-  onDelete, onExport, csvCopied, onExportAnalysis, analysisCopied,
+  onDelete, onClearAll, onExport, csvCopied, onExportAnalysis, analysisCopied,
   onExportAll, allStrategiesCopied,
   unitSize, bankroll, kellyFraction,
 }) {
@@ -5425,11 +5425,20 @@ function CalibrationPanel({
                     {allStrategiesCopied ? '✓ COPIED' : 'EXPORT ALL STRATEGIES'}
                   </button>
                   <button onClick={onExport}
+                    title="Copies CSV to clipboard — paste into Google Sheets with Ctrl+Shift+V"
                     style={{ padding: '5px 12px', borderRadius: 5,
                       border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(15,23,42,0.4)',
                       color: csvCopied ? '#4ade80' : '#94a3b8', fontFamily: mono, fontWeight: 700, fontSize: 9,
                       cursor: 'pointer' }}>
                     {csvCopied ? '✓ COPIED' : 'EXPORT CSV'}
+                  </button>
+                  <button onClick={onClearAll}
+                    title="Export CSV first — this permanently deletes all journal entries"
+                    style={{ padding: '5px 12px', borderRadius: 5,
+                      border: '1px solid rgba(239,68,68,0.35)', background: 'rgba(239,68,68,0.08)',
+                      color: '#f87171', fontFamily: mono, fontWeight: 700, fontSize: 9,
+                      cursor: 'pointer' }}>
+                    CLEAR ALL
                   </button>
                 </div>
               </div>
@@ -6883,6 +6892,12 @@ function NBASimulator() {
     setCalibration(prev => prev.filter(e => e.id !== id));
   }, []);
 
+  // Clear entire calibration journal (with confirmation guard)
+  const handleClearAllCalibration = useCallback(() => {
+    if (!window.confirm(`Delete all ${calibration.length} journal entries? Export CSV first if you want to keep the data.`)) return;
+    setCalibration([]);
+  }, [calibration.length]);
+
   // Export calibration log as CSV → clipboard
   const handleExportCalibration = useCallback(() => {
     const headers = [
@@ -8216,6 +8231,7 @@ function NBASimulator() {
           autoSettleFetching={autoSettleFetching}
           autoSettleMsg={autoSettleMsg}
           onDelete={handleDeleteCalibration}
+          onClearAll={handleClearAllCalibration}
           onExport={handleExportCalibration}
           csvCopied={calibrationCsvCopied}
           onExportAnalysis={handleExportAnalysis}
