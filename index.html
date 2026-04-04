@@ -27,14 +27,14 @@ const PROB_CEILING = 0.72;
 
 // Empirical bias corrections (percentage points). Positive = model overestimates that side.
 // Applied as: correctedProb = rawProb - bias/100. Zeroed values = no correction applied.
-// PTS zeroed post-KDE+ fix (2026-03-21) — re-evaluate after 200+ new PTS bets.
+// Last updated 2026-04-04 from N=6959 all-bets calibration export.
 const MODEL_BIAS = {
-  pts:    { over: 0,   under: 0 },  // KDE+ fix landed 2026-03-21; zeroed pending new data
-  reb:    { over: 0,   under: 0 },  // KDE+ unfiltered fix applied 2026-03-25; zeroed — re-evaluate after 200+ new REB bets
-  ast:    { over: 0,   under: 0 },  // KDE+ unfiltered fix applied 2026-03-25; zeroed — re-evaluate after 200+ new AST bets
-  stl:    { over: 6.0, under: 0 },  // OVER -12.1pp; 6pp (half the gap)
-  blk:    { over: 0,   under: 0 },  // OVER -1.7pp; within noise
-  threes: { over: 5.0, under: 0 },  // OVER -9.8pp; 5pp correction
+  pts:    { over: 0,   under: 0 },  // PTS OVER -1.8pp (near noise); PTS UNDER -8.9pp DEGRADED but driven by Gamma/non-KDE paths — monitor
+  reb:    { over: 7.0, under: 0 },  // REB OVER -8.6pp, -14.5% ROI confirmed N=1487 post-KDE+ fix (2026-03-25). KDE+ fix insufficient. Restore correction.
+  ast:    { over: 0,   under: 0 },  // AST OVER KDE+ +26.5% ROI (book underprices); UNDER well-calibrated — no correction
+  stl:    { over: 9.0, under: 0 },  // STL OVER -11.4pp, -22.4% ROI (N=60). Increased from 6pp.
+  blk:    { over: 0,   under: 0 },  // BLK UNDER +13.9% ROI Strategy B — hands off
+  threes: { over: 2.0, under: 0 },  // Reduced from 5pp. NegBin THREES OVER: only +0.7pp gap, +37.7% ROI — 5pp was blocking profitable bets.
 };
 
 // League-average CVs for NegBin fallback when player CV data unavailable.
@@ -426,16 +426,10 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
           };
           chunk = simulateStatCompound(scaledProfile, n_c);
         } else if (POISSON_STATS.has(key)) {
-          // THREES: same r=2.0 minimum overdispersion floor as the non-uncertainty path.
-          if (key === 'threes' && mu_i > 0) {
-            const floorCv_pu = Math.sqrt(1 / mu_i + 0.5) * 100;
-            const effectiveCvPct_pu = Math.max(cvPct_nb || 0, floorCv_pu);
-            chunk = simulateStatNegBin(mu_i, effectiveCvPct_pu, n_c);
-          } else {
-            // League-avg NegBin fallback instead of Poisson (Poisson was -6.3pp calibration)
-            const effectiveCv_pu = (cvPct_nb > 0) ? cvPct_nb : (LEAGUE_AVG_CV[key] || 100);
-            chunk = simulateStatNegBin(mu_i, effectiveCv_pu, n_c);
-          }
+          // League-avg NegBin fallback instead of Poisson (Poisson was -6.3pp calibration).
+          // THREES r≤2.0 floor removed 2026-04-04 — see main sim path for rationale.
+          const effectiveCv_pu = (cvPct_nb > 0) ? cvPct_nb : (LEAGUE_AVG_CV[key] || 100);
+          chunk = simulateStatNegBin(mu_i, effectiveCv_pu, n_c);
         } else if (KDE_STATS.has(key)) {
           if (kdeModel) {
             chunk = new Float64Array(n_c);
@@ -476,24 +470,15 @@ function runSimulation(stats, numSims, ptsRawData, rebRawData, astRawData, projS
     if (POISSON_STATS.has(key)) {
       const cvPct = cvMode && cvValue ? parseFloat(cvValue) : null;
       const mu = parseFloat(mean) || 0;
-      // THREES: enforce minimum NegBin overdispersion corresponding to r = 2.0, applied even
-      // when no CV data is loaded. Per-36 CV blending consistently underestimates game-level
-      // THREES variance — calibration data shows THREES OVER hits 10-15pp below Poisson
-      // predictions at typical 2.5–3.5 lines. Pure Poisson with λ=2.5 gives P(X≥3) = 54%
-      // while observed hit rate is ~43%. r=2.0 (empirically calibrated minimum) gives
-      // P(X≥3) ≈ 40%, matching observed rates. CV floor derivation: NegBin variance =
-      // μ + μ²/r, so CV = sqrt(1/μ + 1/r). At r=2: floorCV = sqrt(1/μ + 0.5) × 100.
-      // STL/BLK are unaffected — their NegBin is well-calibrated and should not be floored.
-      if (key === 'threes' && mu > 0) {
-        const floorCv = Math.sqrt(1 / mu + 0.5) * 100;
-        const effectiveCvPct = Math.max(cvPct || 0, floorCv);
-        simResults[key] = simulateStatNegBin(mean, effectiveCvPct, numSims);
-      } else {
-        // Use player CV when available; fall back to league-average NegBin (not Poisson).
-        // Poisson fallback was -6.3pp, -4.6% ROI in calibration. League-avg NegBin is strictly better.
-        const effectiveCv = (cvPct > 0) ? cvPct : (LEAGUE_AVG_CV[key] || 100);
-        simResults[key] = simulateStatNegBin(mean, effectiveCv, numSims);
-      }
+      // Use player CV when available; fall back to league-average NegBin (not Poisson).
+      // Poisson fallback was -6.3pp, -4.6% ROI in calibration. League-avg NegBin is strictly better.
+      // THREES r≤2.0 floor REMOVED 2026-04-04: calibration showed NegBin* THREES UNDER was
+      // catastrophically miscalibrated (-19.5pp, -20.1% ROI in Strategy B) while natural NegBin
+      // THREES UNDER was near-perfect (+0.7pp gap, +6.3% ROI). The floor over-dispersed consistent
+      // THREES shooters (low CV). LEAGUE_AVG_CV[threes]=95% already gives r≈2 at typical means
+      // for no-CV players — the floor was redundant for those and harmful for CV-loaded players.
+      const effectiveCv = (cvPct > 0) ? cvPct : (LEAGUE_AVG_CV[key] || 100);
+      simResults[key] = simulateStatNegBin(mean, effectiveCv, numSims);
     } else if (KDE_STATS.has(key)) {
       // Fallback chain for pts/reb/ast:
       // 1. KDE hybrid (unfiltered) — empirical shape from all played games (MIN ≥ 5),
@@ -1724,7 +1709,12 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               </div>
             )}
           </div>
-          {hasOver ? <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} otherSideOdds={hasUnder ? parseFloat(underOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorOver} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetOver} side="over" historicalBias={historicalBiasOver} /> : (
+          {hasOver ? (distModel === 'Summed' ? (
+            <div style={{ marginTop: 6, padding: '7px 10px', borderRadius: 5, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 8, color: '#f87171', fontFamily: "'JetBrains Mono', monospace", textAlign: 'center', lineHeight: 1.6 }}>
+              SUMMED MODEL — no combo CV loaded<br/>
+              <span style={{ color: '#94a3b8' }}>Edge estimate invalid · Load CV data to enable Direct simulation</span>
+            </div>
+          ) : <EdgeBox modelProb={prob.over} bookOdds={parseFloat(overOdds)} otherSideOdds={hasUnder ? parseFloat(underOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorOver} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetOver} side="over" historicalBias={historicalBiasOver} />) : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No over odds entered
             </div>
@@ -1749,7 +1739,12 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
               </div>
             )}
           </div>
-          {hasUnder ? <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} otherSideOdds={hasOver ? parseFloat(overOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetUnder} side="under" historicalBias={historicalBiasUnder} /> : (
+          {hasUnder ? (distModel === 'Summed' ? (
+            <div style={{ marginTop: 6, padding: '7px 10px', borderRadius: 5, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 8, color: '#f87171', fontFamily: "'JetBrains Mono', monospace", textAlign: 'center', lineHeight: 1.6 }}>
+              SUMMED MODEL — no combo CV loaded<br/>
+              <span style={{ color: '#94a3b8' }}>Edge estimate invalid · Load CV data to enable Direct simulation</span>
+            </div>
+          ) : <EdgeBox modelProb={prob.under} bookOdds={parseFloat(underOdds)} otherSideOdds={hasOver ? parseFloat(overOdds) : null} bankroll={bankroll} portfolioFactor={portfolioFactorUnder} kellyFraction={kellyFraction} unitSize={unitSize} ladderMode={ladderMode} onLogBet={onLogBetUnder} side="under" historicalBias={historicalBiasUnder} />) : (
             <div style={{ marginTop: 6, fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", textAlign: "center", fontStyle: "italic" }}>
               No under odds entered
             </div>
