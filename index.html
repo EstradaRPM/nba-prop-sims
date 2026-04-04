@@ -30,7 +30,7 @@ const PROB_CEILING = 0.72;
 // Last updated 2026-04-04 from N=6959 all-bets calibration export.
 const MODEL_BIAS = {
   pts:    { over: 0,   under: 0 },  // PTS OVER -1.8pp (near noise); PTS UNDER -8.9pp DEGRADED but driven by Gamma/non-KDE paths — monitor
-  reb:    { over: 7.0, under: 0 },  // REB OVER -8.6pp, -14.5% ROI confirmed N=1487 post-KDE+ fix (2026-03-25). KDE+ fix insufficient. Restore correction.
+  reb:    { over: 0,   under: 0 },  // REB OVER broken in ALL BETS but +6.9% ROI in Value Filter B (ETR confirms + good odds). Bias correction would suppress profitable plays. Filter is the fix, not bias.
   ast:    { over: 0,   under: 0 },  // AST OVER KDE+ +26.5% ROI (book underprices); UNDER well-calibrated — no correction
   stl:    { over: 9.0, under: 0 },  // STL OVER -11.4pp, -22.4% ROI (N=60). Increased from 6pp.
   blk:    { over: 0,   under: 0 },  // BLK UNDER +13.9% ROI Strategy B — hands off
