@@ -1653,7 +1653,7 @@ const DIST_MODEL_STYLE = {
   Summed:    { color: "#94a3b8", bg: "rgba(148,163,184,0.06)", border: "rgba(148,163,184,0.18)" },
 };
 
-function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null, distModel = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false, onLogBetOver = null, onLogBetUnder = null, ciOver = null, ciUnder = null, projUncertaintyMode = false, statKey = null, discreteDist = null, sensitivity = null, negBinR = null, divergence = null, historicalBiasOver = null, historicalBiasUnder = null }) {
+function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bankroll, portfolioFactorOver = null, portfolioFactorUnder = null, distModel = null, kellyFraction = 0.25, unitSize = "20", ladderMode = false, onLogBetOver = null, onLogBetUnder = null, ciOver = null, ciUnder = null, projUncertaintyMode = false, statKey = null, discreteDist = null, sensitivity = null, negBinR = null, divergence = null, historicalBiasOver = null, historicalBiasUnder = null, mean = null }) {
   if (!prob) return null;
   const overPct = (prob.over * 100).toFixed(1);
   const underPct = (prob.under * 100).toFixed(1);
@@ -1684,6 +1684,12 @@ function ResultRow({ label, prob, propLine, simValues, overOdds, underOdds, bank
             {label}
           </span>
           <span style={{ fontSize: 12, color: "#64748b" }}>LINE {propLine}</span>
+          {mean != null && parseFloat(mean) > 0 && (
+            <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, color: "#818cf8", letterSpacing: 0.3 }}
+              title="ETR projection (input mean)">
+              ETR {parseFloat(mean).toFixed(1)}
+            </span>
+          )}
           {modelStyle && (
             <span style={{
               fontSize: 8, fontWeight: 700, letterSpacing: 0.8, fontFamily: "'JetBrains Mono', monospace",
@@ -6069,6 +6075,20 @@ function NBASimulator() {
     if (results !== null) setResultsAreStale(true);
   }, [stats, comboLines]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-rerun simulation when CV is loaded and results already exist.
+  // Tracks previous cvLoadStatus via ref to fire only on transitions (not on every render).
+  // handleSimulate reads fresh stats/rawData from its own closure after the re-render that
+  // applied the CV updates, so all KDE/NegBin paths use the newly loaded data.
+  const cvLoadStatusRef = React.useRef(null);
+  React.useEffect(() => {
+    const prev = cvLoadStatusRef.current;
+    cvLoadStatusRef.current = cvLoadStatus;
+    const isFound = cvLoadStatus === 'found' || cvLoadStatus === 'found_auto' || cvLoadStatus === 'found_partial';
+    if (isFound && cvLoadStatus !== prev && results !== null) {
+      handleSimulate();
+    }
+  }, [cvLoadStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleFetchLines = useCallback(async () => {
     if (!oddsApiKey.trim()) { setOddsError('Enter your Odds API key first.'); setShowOddsPanel(true); return; }
     setOddsLoading(true); setOddsError(null);
@@ -9189,6 +9209,7 @@ function NBASimulator() {
                   <ResultRow label={label} prob={results.stats[key].prob}
                     propLine={results.stats[key].propLine} simValues={results.stats[key].simValues}
                     overOdds={results.stats[key].overOdds} underOdds={results.stats[key].underOdds}
+                    mean={results.stats[key].mean != null ? results.stats[key].mean : null}
                     bankroll={bankroll}
                     portfolioFactorOver={results.portfolioFactors?.[`${key}_over`] ?? null}
                     portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
@@ -9228,6 +9249,7 @@ function NBASimulator() {
                   <ResultRow label={label} prob={results.combos[key].prob}
                     propLine={results.combos[key].propLine} simValues={results.combos[key].simValues}
                     overOdds={results.combos[key].overOdds} underOdds={results.combos[key].underOdds}
+                    mean={results.combos[key].mean != null ? results.combos[key].mean : null}
                     bankroll={bankroll}
                     portfolioFactorOver={results.portfolioFactors?.[`${key}_over`] ?? null}
                     portfolioFactorUnder={results.portfolioFactors?.[`${key}_under`] ?? null}
