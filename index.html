@@ -5400,6 +5400,24 @@ const STRATEGY_LABELS = {
   c:   'VALUE FILTER B',
 };
 
+// Bet type segmentation — primary lines, alt lines, and combo props are structurally
+// different bet types with different model accuracy profiles. Mixing them in calibration
+// analysis makes it impossible to diagnose what's actually working.
+//
+// Primary: individual stat bets at the book's main line (not an alt rung, not a combo)
+// Alt:     alt line rungs fetched from Odds API (isAltLine flag set by batch sim)
+// Combo:   PRA/PR/PA/RA/SB combo props (identified by stat key regardless of logging path)
+//
+// Note: single-player ladder logs don't carry isAltLine; they are classified as primary
+// if their stat is an individual stat key, which is correct for manual single-player use.
+const _COMBO_STAT_KEYS = new Set(['pra','pr','pa','ra','sb']);
+const filterByBetType = (entries, type) => {
+  if (type === 'primary') return entries.filter(e => e.isAltLine !== true && !_COMBO_STAT_KEYS.has(e.stat));
+  if (type === 'alt')     return entries.filter(e => e.isAltLine === true);
+  if (type === 'combo')   return entries.filter(e => _COMBO_STAT_KEYS.has(e.stat));
+  return entries; // 'all'
+};
+
 function CalibrationPanel({
   log, open, onToggle,
   onSetResult, onFetchClosing, closingFetching, closingFetchMsg,
@@ -5411,6 +5429,7 @@ function CalibrationPanel({
 }) {
   const [analysisOpen,     setAnalysisOpen]     = React.useState(false);
   const [analysisStrategy, setAnalysisStrategy] = React.useState('all');
+  const [betTypeFilter,    setBetTypeFilter]    = React.useState('all');
   const mono = "'JetBrains Mono', monospace";
 
   const open_entries      = log.filter(e => !e.result);
@@ -5418,17 +5437,32 @@ function CalibrationPanel({
   const canFetchClose     = log.some(e => e.eventId && e.commenceTime && e.closingOdds == null);
   const canAutoSettle     = open_entries.some(e => e.commenceTime);
 
-  const stats = React.useMemo(() => computeCalibrationStats(log), [log]);
+  // Bet type filter applies first — narrows the data pool before strategy filter runs.
+  // This gives independent calibration views: primary lines vs alt lines vs combos.
+  const betTypeLog = React.useMemo(() => filterByBetType(log, betTypeFilter), [log, betTypeFilter]);
 
-  // Strategy-filtered views — same data, different lens. Filtering happens here;
-  // computeCalibrationStats handles its own settled-only filter internally.
+  // Counts for each bet type bucket (settled only) — used for button labels.
+  const betTypeCounts = React.useMemo(() => {
+    const s = e => e.result === 'won' || e.result === 'lost' || e.result === 'push';
+    return {
+      all:     log.filter(s).length,
+      primary: filterByBetType(log, 'primary').filter(s).length,
+      alt:     filterByBetType(log, 'alt').filter(s).length,
+      combo:   filterByBetType(log, 'combo').filter(s).length,
+    };
+  }, [log]);
+
+  const stats = React.useMemo(() => computeCalibrationStats(betTypeLog), [betTypeLog]);
+
+  // Strategy-filtered views — same data, different lens. Bet type filter applies first,
+  // strategy filter stacks on top. computeCalibrationStats handles settled-only internally.
   const strategyLog   = React.useMemo(() => {
-    if (analysisStrategy === 'b')      return log.filter(STRATEGY_B_FILTER);
-    if (analysisStrategy === 'c')      return log.filter(STRATEGY_C_FILTER);
-    if (analysisStrategy === 'value')  return log.filter(VALUE_FILTER);
-    if (analysisStrategy === 'valueB') return log.filter(VALUE_FILTER_B);
-    return log;
-  }, [log, analysisStrategy]);
+    if (analysisStrategy === 'b')      return betTypeLog.filter(STRATEGY_B_FILTER);
+    if (analysisStrategy === 'c')      return betTypeLog.filter(STRATEGY_C_FILTER);
+    if (analysisStrategy === 'value')  return betTypeLog.filter(VALUE_FILTER);
+    if (analysisStrategy === 'valueB') return betTypeLog.filter(VALUE_FILTER_B);
+    return betTypeLog;
+  }, [betTypeLog, analysisStrategy]);
   const strategyStats = React.useMemo(() => computeCalibrationStats(strategyLog), [strategyLog]);
   const strategySettledN = React.useMemo(
     () => strategyLog.filter(e => e.result === 'won' || e.result === 'lost' || e.result === 'push').length,
@@ -5451,6 +5485,17 @@ function CalibrationPanel({
             <span style={{ fontFamily: mono, fontSize: 9, color: '#64748b' }}>
               {settled.length} settled · {open_entries.length} open
               {stats && stats.actualRate != null ? ` · ${(stats.actualRate * 100).toFixed(1)}% hit` : ''}
+              {betTypeFilter !== 'all' && (
+                <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 3,
+                  background: betTypeFilter === 'primary' ? 'rgba(96,165,250,0.12)' :
+                              betTypeFilter === 'alt'     ? 'rgba(245,158,11,0.12)'  :
+                                                            'rgba(45,212,191,0.12)',
+                  color: betTypeFilter === 'primary' ? '#60a5fa' :
+                         betTypeFilter === 'alt'     ? '#f59e0b' : '#2dd4bf',
+                  fontSize: 8, fontWeight: 700, letterSpacing: 0.5 }}>
+                  {betTypeFilter === 'primary' ? 'PRIMARY ONLY' : betTypeFilter === 'alt' ? 'ALT LINES ONLY' : 'COMBOS ONLY'}
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -5618,6 +5663,29 @@ function CalibrationPanel({
                         ACCURACY ANALYSIS
                       </span>
                       <span style={{ fontSize: 9, color: '#475569' }}>{analysisOpen ? '▲' : '▼'}</span>
+                    </div>
+                    {/* Bet type filter — separates primary lines / alt lines / combos before strategy analysis */}
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                      {[
+                        { key: 'all',     label: 'ALL',       color: '#94a3b8', border: 'rgba(148,163,184,0.3)', bg: 'rgba(148,163,184,0.08)' },
+                        { key: 'primary', label: 'PRIMARY',   color: '#60a5fa', border: 'rgba(96,165,250,0.4)',  bg: 'rgba(96,165,250,0.1)'   },
+                        { key: 'alt',     label: 'ALT LINES', color: '#f59e0b', border: 'rgba(245,158,11,0.4)',  bg: 'rgba(245,158,11,0.08)'  },
+                        { key: 'combo',   label: 'COMBOS',    color: '#2dd4bf', border: 'rgba(45,212,191,0.4)',  bg: 'rgba(45,212,191,0.08)'  },
+                      ].map(({ key, label, color, border, bg }) => {
+                        const isActive = betTypeFilter === key;
+                        return (
+                          <button key={key}
+                            onClick={e => { e.stopPropagation(); setBetTypeFilter(key); if (!analysisOpen) setAnalysisOpen(true); }}
+                            style={{ padding: '3px 8px', borderRadius: 4, fontFamily: mono, fontSize: 8, fontWeight: 700,
+                              letterSpacing: 0.5, cursor: 'pointer',
+                              color:      isActive ? color  : '#475569',
+                              border:     `1px solid ${isActive ? border : 'rgba(71,85,105,0.3)'}`,
+                              background: isActive ? bg     : 'transparent',
+                              transition: 'all 0.15s' }}>
+                            {label} <span style={{ opacity: 0.7 }}>({betTypeCounts[key]})</span>
+                          </button>
+                        );
+                      })}
                     </div>
                     {/* Strategy toggle — only meaningful when analysis is open */}
                     <div style={{ display: 'flex', gap: 4 }}>
