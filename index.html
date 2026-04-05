@@ -30,7 +30,7 @@ const PROB_CEILING = 0.72;
 // Last updated 2026-04-04 from N=6959 all-bets calibration export.
 const MODEL_BIAS = {
   pts:    { over: 0,   under: 0 },  // PTS OVER -1.8pp (near noise); PTS UNDER -8.9pp DEGRADED but driven by Gamma/non-KDE paths — monitor
-  reb:    { over: 7.0, under: 0 },  // REB OVER -8.6pp, -14.5% ROI confirmed N=1487 post-KDE+ fix (2026-03-25). KDE+ fix insufficient. Restore correction.
+  reb:    { over: 0,   under: 0 },  // REB OVER broken in ALL BETS but +6.9% ROI in Value Filter B (ETR confirms + good odds). Bias correction would suppress profitable plays. Filter is the fix, not bias.
   ast:    { over: 0,   under: 0 },  // AST OVER KDE+ +26.5% ROI (book underprices); UNDER well-calibrated — no correction
   stl:    { over: 9.0, under: 0 },  // STL OVER -11.4pp, -22.4% ROI (N=60). Increased from 6pp.
   blk:    { over: 0,   under: 0 },  // BLK UNDER +13.9% ROI Strategy B — hands off
@@ -43,9 +43,47 @@ const MODEL_BIAS = {
 // (-13pp miss). 182% → r≈0.485 → P(X=0|μ=0.8)≈62%; 145% → r≈1.17 → P(X=0)≈54% (matches).
 const LEAGUE_AVG_CV = { stl: 111, blk: 145, threes: 95 };
 
-// Apply probability ceiling and bias correction to raw simulation probabilities.
-// Returns { over, under, push } with corrections applied.
-function applyModelCorrections(rawProb, statKey) {
+// ── Temperature Scaling ────────────────────────────────────────────────────
+// Fits calibration temperature T via gradient descent (binary cross-entropy).
+// T > 1 → model overconfident (compresses extremes toward 50%).
+// T < 1 → model underconfident (rare). T = 1 → no change (identity).
+// Strictly superior to additive MODEL_BIAS: captures non-linear overconfidence
+// at extremes (75%+ bucket -9.1pp vs 45-50% bucket +0.2pp are one-parameter issue).
+const TEMP_MIN_N = 50; // minimum settled bets to trust a learned temperature
+
+function fitTemperature(bets) {
+  if (!bets || bets.length < TEMP_MIN_N) return null;
+  const eps = 1e-7;
+  let T = 1.0;
+  const lr = 0.08;
+  for (let iter = 0; iter < 500; iter++) {
+    let grad = 0;
+    for (const { p, y } of bets) {
+      const pc = Math.max(eps, Math.min(1 - eps, p));
+      const logit = Math.log(pc / (1 - pc));
+      const pCal = 1 / (1 + Math.exp(-logit / T));
+      grad += (pCal - y) * logit / (T * T);
+    }
+    const delta = (grad / bets.length) * lr;
+    T -= delta;
+    T = Math.max(0.3, Math.min(5.0, T));
+    if (Math.abs(delta) < 1e-7) break;
+  }
+  return Math.round(T * 100) / 100;
+}
+
+function applyTempScale(prob, T) {
+  if (!T || Math.abs(T - 1.0) < 0.005) return prob;
+  const eps = 1e-7;
+  const p = Math.max(eps, Math.min(1 - eps, prob));
+  return 1 / (1 + Math.exp(-Math.log(p / (1 - p)) / T));
+}
+
+// Apply probability ceiling and calibration to raw simulation probabilities.
+// calibTemps: { [stat_side]: { T, n } } — learned temperature parameters.
+// When a temperature is available for a side it supersedes MODEL_BIAS for that side.
+// When not (insufficient data), falls back to additive MODEL_BIAS correction.
+function applyModelCorrections(rawProb, statKey, calibTemps = {}) {
   // 1. Cap each side at ceiling
   let over  = Math.min(rawProb.over,  PROB_CEILING);
   let under = Math.min(rawProb.under, PROB_CEILING);
@@ -55,14 +93,17 @@ function applyModelCorrections(rawProb, statKey) {
   const total1 = over + under + push;
   if (total1 > 0) { over /= total1; under /= total1; }
 
-  // 2. Apply per-stat bias corrections
-  const bias = MODEL_BIAS[statKey];
-  if (bias) {
-    over  = Math.max(0.01, over  - (bias.over  || 0) / 100);
-    under = Math.max(0.01, under - (bias.under || 0) / 100);
+  // 2. Temperature scaling (data-driven) or MODEL_BIAS fallback (manual)
+  if (statKey) {
+    const Tover  = calibTemps[`${statKey}_over`]?.T;
+    const Tunder = calibTemps[`${statKey}_under`]?.T;
+    const bias   = MODEL_BIAS[statKey] || {};
+    // Temperature scaling supersedes additive bias when enough data exists.
+    over  = Tover  ? applyTempScale(over,  Tover)  : Math.max(0.01, over  - (bias.over  || 0) / 100);
+    under = Tunder ? applyTempScale(under, Tunder) : Math.max(0.01, under - (bias.under || 0) / 100);
   }
 
-  // Renormalize after bias correction
+  // Renormalize after calibration
   const total2 = over + under + push;
   if (total2 > 0) { over /= total2; under /= total2; }
 
@@ -4408,7 +4449,7 @@ function computeCalibrationStats(entries) {
 }
 
 // ── CalibrationAnalysis component ─────────────────────────────────────
-function CalibrationAnalysis({ stats: s }) {
+function CalibrationAnalysis({ stats: s, calibTemps = {} }) {
   if (!s) return null;
   const mono = "'JetBrains Mono', monospace";
 
@@ -4599,6 +4640,50 @@ function CalibrationAnalysis({ stats: s }) {
           </div>
         </>
       )}
+
+      {/* Temperature scaling status */}
+      {Object.keys(calibTemps).length > 0 && (() => {
+        const STAT_KEYS = ['pts','reb','ast','stl','blk','threes'];
+        const sides = ['over','under'];
+        const activeTemps = STAT_KEYS.flatMap(stat =>
+          sides.map(side => {
+            const k = `${stat}_${side}`;
+            const entry = calibTemps[k];
+            if (!entry) return null;
+            const tColor = entry.T > 1.15 ? '#f59e0b' : entry.T < 0.87 ? '#818cf8' : '#22c55e';
+            return { stat, side, T: entry.T, n: entry.n, color: tColor, key: k };
+          }).filter(Boolean)
+        );
+        if (activeTemps.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 10, marginTop: 6 }}>
+            <div style={{ fontSize: 8, fontWeight: 700, color: '#64748b', fontFamily: mono,
+              letterSpacing: 1.2, marginBottom: 5, borderBottom: '1px solid rgba(148,163,184,0.1)',
+              paddingBottom: 3 }}>
+              TEMPERATURE SCALING ACTIVE — {activeTemps.length} of {STAT_KEYS.length * 2} stat-sides calibrated
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {activeTemps.map(t => (
+                <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 3,
+                  background: 'rgba(15,23,42,0.5)', border: `1px solid ${t.color}33`,
+                  borderRadius: 4, padding: '2px 6px' }}>
+                  <span style={{ fontSize: 8, color: '#94a3b8', fontFamily: mono,
+                    textTransform: 'uppercase' }}>{t.stat}</span>
+                  <span style={{ fontSize: 7, color: t.side === 'over' ? '#4ade80' : '#f87171',
+                    fontFamily: mono, fontWeight: 700 }}>{t.side.toUpperCase()}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: t.color, fontFamily: mono }}>
+                    T={t.T.toFixed(2)}
+                  </span>
+                  <span style={{ fontSize: 7, color: '#475569', fontFamily: mono }}>n={t.n}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 7, color: '#475569', fontFamily: mono, marginTop: 4 }}>
+              T&gt;1: overconfident (squeezes toward 50%) · T&lt;1: underconfident · T=1: no change · activates at n≥{TEMP_MIN_N}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Prob calibration */}
       <SectionHeader id="calibration">PROBABILITY CALIBRATION{s.ece != null ? ` — ECE: ${(s.ece * 100).toFixed(1)}pp` : ''}</SectionHeader>
@@ -5322,6 +5407,7 @@ function CalibrationPanel({
   onDelete, onClearAll, onExport, csvCopied, onExportAnalysis, analysisCopied,
   onExportAll, allStrategiesCopied,
   unitSize, bankroll, kellyFraction,
+  calibTemps = {},
 }) {
   const [analysisOpen,     setAnalysisOpen]     = React.useState(false);
   const [analysisStrategy, setAnalysisStrategy] = React.useState('all');
@@ -5583,7 +5669,7 @@ function CalibrationPanel({
 
                   {analysisOpen && strategyStats && (
                     <div style={{ padding: '0 12px 12px' }}>
-                      <CalibrationAnalysis stats={strategyStats} />
+                      <CalibrationAnalysis stats={strategyStats} calibTemps={calibTemps} />
                     </div>
                   )}
                   {analysisOpen && !strategyStats && (
@@ -5851,6 +5937,30 @@ function NBASimulator() {
 
   // ── Model Accuracy / Calibration state ─────────────────────────────
   const [calibration,         setCalibration]         = useState(() => loadCalibration());
+
+  // ── Derived calibration temperatures (data-driven overconfidence correction) ──
+  // Groups settled bets by stat+side, fits temperature T for each group with ≥50 samples.
+  // calibTemps: { pts_over: { T, n }, pts_under: { T, n }, reb_over: ..., ... }
+  const calibTemps = useMemo(() => {
+    const settled = calibration.filter(e =>
+      (e.result === 'won' || e.result === 'lost') &&
+      e.modelProb != null && e.stat && e.side
+    );
+    if (settled.length < TEMP_MIN_N) return {};
+    // Group by stat_side (lowercase side)
+    const groups = {};
+    settled.forEach(e => {
+      const k = `${e.stat}_${e.side.toLowerCase()}`;
+      if (!groups[k]) groups[k] = [];
+      groups[k].push({ p: e.modelProb, y: e.result === 'won' ? 1 : 0 });
+    });
+    const temps = {};
+    Object.entries(groups).forEach(([k, bets]) => {
+      const T = fitTemperature(bets);
+      if (T !== null) temps[k] = { T, n: bets.length };
+    });
+    return temps;
+  }, [calibration]);
   const [calibrationOpen,     setCalibrationOpen]     = useState(false);
   const [batchTracked,        setBatchTracked]        = useState(() => new Set());
   const [batchLogMsg,         setBatchLogMsg]         = useState(null);
@@ -6306,7 +6416,7 @@ function NBASimulator() {
         const method = POISSON_STATS.has(key) ? `CV/${distModel}`
           : stats[key].cvMode ? `CV/${distModel}` : stats[key].stdOverride ? `Manual/${distModel}` : `Auto/${distModel}`;
         const prob_raw  = calcProbability(simResults[key], stats[key].propLine);
-        const prob_calc = applyModelCorrections(prob_raw, key);
+        const prob_calc = applyModelCorrections(prob_raw, key, calibTemps);
         const seOver_s  = Math.sqrt(prob_calc.over  * (1 - prob_calc.over)  / numSims);
         const seUnder_s = Math.sqrt(prob_calc.under * (1 - prob_calc.under) / numSims);
         // Discrete probability table for count stats (STL/BLK/THREES)
@@ -6408,7 +6518,7 @@ function NBASimulator() {
     setSimTimestamp(ts);
     setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
     setResultsAreStale(false);
-  }, [stats, comboLines, numSims, kellyFraction, ptsRawData, rebRawData, astRawData, projUncertaintyMode, praDirectCv, prDirectCv, paDirectCv, raDirectCv, sbDirectCv, shotProfile, projections, playerName]);
+  }, [stats, comboLines, numSims, kellyFraction, ptsRawData, rebRawData, astRawData, projUncertaintyMode, praDirectCv, prDirectCv, paDirectCv, raDirectCv, sbDirectCv, shotProfile, projections, playerName, calibTemps]);
 
   // ── Calibration Handlers ─────────────────────────────────────────────
   // Toggle a single betId in/out of the batchTracked selection set
@@ -7331,7 +7441,7 @@ function NBASimulator() {
         if (isNaN(projValue) || projValue < (BATCH_PROJ_FLOORS[key] ?? 0)) return;
 
         const prob_raw_b = calcProbability(simResults[key], s.propLine);
-        const prob = applyModelCorrections(prob_raw_b, key);
+        const prob = applyModelCorrections(prob_raw_b, key, calibTemps);
         const fairOverOdds  = probToAmerican(prob.over);
         const fairUnderOdds = probToAmerican(prob.under);
 
@@ -7429,7 +7539,7 @@ function NBASimulator() {
           oddsAltLines.forEach(alt => {
             if (Math.abs(alt.point - primaryPt) < 0.26) return; // skip primary line (already evaluated)
             const altProbRaw   = calcProbability(simResults[key], alt.point);
-            const altProb      = applyModelCorrections(altProbRaw, key);
+            const altProb      = applyModelCorrections(altProbRaw, key, calibTemps);
             const altFairOver  = probToAmerican(altProb.over);
             const altFairUnder = probToAmerican(altProb.under);
             const overBookOdds  = alt.overOdds;
@@ -7576,7 +7686,7 @@ function NBASimulator() {
     setProgress(null);
     setRunning(false);
     return allRows;
-  }, [projections, oddsData, cvDatabase, gameData, gtdFlags]);
+  }, [projections, oddsData, cvDatabase, gameData, gtdFlags, calibTemps]);
 
   // ── Scenario B batch simulation runner ───────────────────────────────
   const handleRunBatchB = useCallback(async () => {
@@ -8236,6 +8346,7 @@ function NBASimulator() {
           unitSize={unitSize}
           bankroll={bankroll}
           kellyFraction={kellyFraction}
+          calibTemps={calibTemps}
         />
 
         {/* Player + Config */}
