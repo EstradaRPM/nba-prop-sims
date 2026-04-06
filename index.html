@@ -6075,18 +6075,28 @@ function NBASimulator() {
     if (results !== null) setResultsAreStale(true);
   }, [stats, comboLines]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-rerun simulation when CV is loaded and results already exist.
-  // Tracks previous cvLoadStatus via ref to fire only on transitions (not on every render).
-  // handleSimulate reads fresh stats/rawData from its own closure after the re-render that
-  // applied the CV updates, so all KDE/NegBin paths use the newly loaded data.
+  // Auto-rerun simulation after CV loads when prop lines are set.
+  // Two-part pattern:
+  // 1. handleSimulateRef is kept in sync every render so the deferred call always
+  //    uses the freshest closure (fresh stats, rawData, CV values, etc.).
+  // 2. cvLoadStatus transition → defer via setTimeout so the call runs after
+  //    React's commit+paint cycle. Calling handleSimulate() directly inside a
+  //    useEffect is unsafe — any throw there unmounts the entire app (blank screen).
+  //    setTimeout runs in a macro-task where React's error boundary applies normally.
+  const handleSimulateRef = React.useRef(null);
+  React.useEffect(() => { handleSimulateRef.current = handleSimulate; });
+
   const cvLoadStatusRef = React.useRef(null);
   React.useEffect(() => {
     const prev = cvLoadStatusRef.current;
     cvLoadStatusRef.current = cvLoadStatus;
     const isFound = cvLoadStatus === 'found' || cvLoadStatus === 'found_auto' || cvLoadStatus === 'found_partial';
-    if (isFound && cvLoadStatus !== prev && results !== null) {
-      handleSimulate();
-    }
+    if (!isFound || cvLoadStatus === prev) return;
+    // Require at least one prop line — no point running an empty sim
+    const hasLine = Object.values(stats).some(s => s.propLine !== "");
+    if (!hasLine) return;
+    const sim = handleSimulateRef.current;
+    if (sim) setTimeout(sim, 0);
   }, [cvLoadStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFetchLines = useCallback(async () => {
