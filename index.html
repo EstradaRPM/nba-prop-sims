@@ -7350,21 +7350,61 @@ function NBASimulator() {
     // Include settled entries that are missing closing odds so marking won/lost first still works
     const eligibleEntries = calibration.filter(e => e.eventId && e.commenceTime && e.closingOdds == null);
     const uniqueEventIds = [...new Set(eligibleEntries.map(e => e.eventId))];
+    // Diagnostic: how many entries lack eventId/commenceTime entirely?
+    const noEventId = calibration.filter(e => !e.eventId && e.closingOdds == null).length;
+    const noCommence = calibration.filter(e => e.eventId && !e.commenceTime && e.closingOdds == null).length;
+    const alreadyHave = calibration.filter(e => e.closingOdds != null).length;
+    console.log(`[CLV] Calibration: ${calibration.length} total, ${eligibleEntries.length} eligible, ${noEventId} missing eventId, ${noCommence} missing commenceTime, ${alreadyHave} already have closing odds`);
     if (uniqueEventIds.length === 0) {
       setClosingFetching(false);
-      setClosingFetchMsg('No entries with game context found. Bets must be logged while Odds API game data is loaded.');
+      const reason = noEventId > 0
+        ? `${noEventId} entries lack eventId — bets must be logged while Odds API data is loaded.`
+        : alreadyHave === calibration.length
+          ? 'All entries already have closing odds.'
+          : 'No entries with game context found. Bets must be logged while Odds API game data is loaded.';
+      setClosingFetchMsg(reason);
       return;
     }
     let updated = 0;
     let apiReqLeft = null;
     let errors = [];
+    let emptyResponses = 0;
+    let nameMatchFails = 0;
     for (const eventId of uniqueEventIds) {
       const sample = eligibleEntries.find(e => e.eventId === eventId);
       const resp = await fetchHistoricalProps(oddsApiKey, eventId, sample.commenceTime);
       if (!resp) continue;
       if (resp.error) { errors.push(resp.error); continue; }
       apiReqLeft = resp.remainingRequests;
+
+      // Diagnostic: log what we got back
+      const bmCount = resp.bookmakers.length;
+      const mktCount = resp.bookmakers.reduce((s, bk) => s + (bk.markets || []).length, 0);
+      const playerMktCount = resp.bookmakers.reduce((s, bk) =>
+        s + (bk.markets || []).filter(m => m.key && m.key.startsWith('player_')).length, 0);
+      console.log(`[CLV] Event ${eventId}: ${bmCount} books, ${mktCount} markets (${playerMktCount} player prop markets)`);
+
+      if (bmCount === 0) { emptyResponses++; continue; }
+
+      // Log all player names in the response for matching diagnostics
+      const responsePlayerNames = new Set();
+      resp.bookmakers.forEach(bk => (bk.markets || []).forEach(m =>
+        (m.outcomes || []).forEach(o => { if (o.description) responsePlayerNames.add(o.description); })));
+
       // Update all calibration entries for this event (open or settled, missing closing odds)
+      const entriesForEvent = eligibleEntries.filter(e => e.eventId === eventId);
+      entriesForEvent.forEach(e => {
+        const normName = normalizeOddsName(e.player);
+        const closing = extractClosingOdds(resp.bookmakers, normName, e.stat, e.side.toLowerCase(), selectedBooks);
+        if (!closing) {
+          nameMatchFails++;
+          // Find best name match for diagnostics
+          const similarities = [...responsePlayerNames].map(rp => ({ name: rp, norm: normalizeOddsName(rp), sim: bigramSimilarity(normalizeOddsName(rp), normName) }))
+            .sort((a, b) => b.sim - a.sim).slice(0, 3);
+          console.warn(`[CLV] No match for "${e.player}" (norm: "${normName}") stat=${e.stat} side=${e.side}. Best candidates:`, similarities);
+        }
+      });
+
       setCalibration(prev => {
         let didUpdate = false;
         const next = prev.map(e => {
@@ -7381,9 +7421,11 @@ function NBASimulator() {
     }
     setClosingFetching(false);
     const errNote = errors.length > 0 ? ` · ERRORS: ${errors[0]}${errors.length > 1 ? ` (+${errors.length - 1} more)` : ''}` : '';
-    const noDataNote = updated === 0 && errors.length === 0 ? ' (game may not have started yet, or player props unavailable — historical endpoint requires Odds API paid plan)' : '';
+    const diagNote = emptyResponses > 0 ? ` · ${emptyResponses} events returned 0 bookmakers` : '';
+    const matchNote = nameMatchFails > 0 ? ` · ${nameMatchFails} name-match failures (see console)` : '';
+    const noDataNote = updated === 0 && errors.length === 0 ? ' — check browser console (F12) for [CLV] diagnostics' : '';
     setClosingFetchMsg(
-      `Updated ${updated} entr${updated === 1 ? 'y' : 'ies'} of ${uniqueEventIds.length} events${noDataNote}${errNote}${apiReqLeft != null ? ` · ${apiReqLeft} API req remaining` : ''}`
+      `Updated ${updated} of ${uniqueEventIds.length} events${noDataNote}${diagNote}${matchNote}${errNote}${apiReqLeft != null ? ` · ${apiReqLeft} API req remaining` : ''}`
     );
   }, [calibration, oddsApiKey, selectedBooks]);
 
