@@ -2013,7 +2013,7 @@ function LadderTable({ statKey, mean, simValues, primaryLine, open, onToggle, ov
                         </span>
                         {onLogBetAltOver && altResult.edge >= 1.5 && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); onLogBetAltOver({ side: "over", modelProb: p.over, bookOdds: altResult.overOdds, otherSideOdds: null, fairOdds: probToAmerican(p.over), edgePct: altResult.edge, propLine: rung, betId: generateBetId() }); }}
+                            onClick={(e) => { e.stopPropagation(); onLogBetAltOver({ side: "over", modelProb: p.over, bookOdds: altResult.overOdds, otherSideOdds: null, fairOdds: probToAmerican(p.over), edgePct: altResult.edge, propLine: rung, betId: generateBetId(), isAltLine: true }); }}
                             style={{ marginTop: 2, width: "100%", padding: "2px 0", borderRadius: 3, fontWeight: 700, fontSize: 7, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, cursor: "pointer", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
                             + LOG
                           </button>
@@ -3937,11 +3937,22 @@ async function fetchHistoricalProps(apiKey, eventId, commenceTime) {
   const url = `${ODDS_API_BASE}/historical/sports/basketball_nba/events/${eventId}/odds?apiKey=${apiKey}&regions=us&markets=${markets}&oddsFormat=american&date=${dateTs}`;
   try {
     const r = await fetch(url);
-    if (!r.ok) return null;
+    if (!r.ok) {
+      const errBody = await r.text().catch(() => '');
+      console.warn(`[CLV] Historical fetch failed: ${r.status} ${r.statusText} for event ${eventId}`, errBody);
+      return { error: `HTTP ${r.status}: ${r.statusText}${errBody ? ' — ' + errBody.slice(0, 200) : ''}`, bookmakers: [], remainingRequests: r.headers.get('x-requests-remaining') };
+    }
     const json = await r.json();
     const eventData = json.data || json;
-    return { bookmakers: eventData.bookmakers || [], remainingRequests: r.headers.get('x-requests-remaining') };
-  } catch { return null; }
+    const bm = eventData.bookmakers || [];
+    if (bm.length === 0) {
+      console.warn(`[CLV] No bookmakers in response for event ${eventId} at date=${dateTs}`);
+    }
+    return { bookmakers: bm, remainingRequests: r.headers.get('x-requests-remaining') };
+  } catch (err) {
+    console.warn(`[CLV] Fetch error for event ${eventId}:`, err);
+    return { error: err.message, bookmakers: [], remainingRequests: null };
+  }
 }
 
 // Pull closing odds for a single tracked entry — returns { closingOdds, closingLine } or null.
@@ -5422,17 +5433,23 @@ const SNIPER_FILTER = e => {
   if (stat === 'pts')                                       return false;
   // Combo props excluded: thin calibration data, wider vig
   if (['pra','pr','pa','ra','sb'].includes(stat))           return false;
-  // CV-backed model required (no Poisson, no LogNormal — unreliable distribution shape)
-  if (dm === 'Poisson' || dm === 'LogNormal')               return false;
+  // CV-backed model required (no Poisson, no LogNormal, no NegBin* league-avg fallback)
+  // NegBin (player CV): +17.2% ROI in Strategy B
+  // NegBin* (league-avg CV): -16.6% ROI in Strategy B — must exclude
+  if (dm === 'Poisson' || dm === 'LogNormal' || dm === 'NegBin*') return false;
   // CV sample gate: 36+ games (Tier 1 data quality)
   if (games < 36)                                           return false;
   // Edge gate: ≥ 3% after corrections (SOLID+)
   if (edge < 3)                                             return false;
-  // Odds gate: ≥ -105 (eliminate expensive vig zones; -120 to -106 loses -3.6%)
-  if (odds == null || odds < -105)                          return false;
-  // Probability gates: 50-65% only, excluding 55-60% dead zone
-  if (prob < 0.50 || prob >= 0.65)                          return false;
-  if (prob >= 0.55 && prob < 0.60)                          return false;  // dead zone: -4.4% ROI
+  // Odds gate: ≥ -150 (Strategy B: ≤-176 at +9.6% N=132, -150 to -136 at +16% N=79)
+  // The -105 gate was based on ALL BETS data contaminated with alt lines.
+  // In the UNDER + CV-backed + ETR-aligned universe, heavier juice is acceptable.
+  if (odds == null || odds < -150)                          return false;
+  // Probability gates: 50-75%, excluding 55-60% dead zone
+  // Strategy B data: 60-65% at +4.5% ROI (N=279), 70-75% at +13.1% ROI (N=158)
+  // 75%+ zone loses -9.6% even in Strategy B — hard cap
+  if (prob < 0.50 || prob >= 0.75)                          return false;
+  if (prob >= 0.55 && prob < 0.60)                          return false;  // dead zone: -4.4% ROI in Strategy B
   // Minutes gate: ≥ 22 min projected (low-minutes = variance trap at -8.5% ROI)
   if (mins != null && mins < 22)                            return false;
   // ETR alignment: projection ≤ prop line (model genuinely expects under)
@@ -5484,7 +5501,7 @@ const SNIPER_AST_OVER = e => {
   const games = e.gamesAvailable ?? 0;
   if (games < 36)                                           return false;
   const prob = e.modelProb ?? 0;
-  if (prob >= 0.65)                                         return false;  // no high-prob zone
+  if (prob >= 0.75)                                         return false;  // cap at 75% (same as Sniper UNDER)
   // ETR alignment: projection ≥ prop line for OVER
   if (e.projection != null && e.propLine != null
       && e.projection < e.propLine)                         return false;
@@ -5716,11 +5733,8 @@ const STRATEGY_LABELS = {
 // analysis makes it impossible to diagnose what's actually working.
 //
 // Primary: individual stat bets at the book's main line (not an alt rung, not a combo)
-// Alt:     alt line rungs fetched from Odds API (isAltLine flag set by batch sim)
-// Combo:   PRA/PR/PA/RA/SB combo props (identified by stat key regardless of logging path)
-//
-// Note: single-player ladder logs don't carry isAltLine; they are classified as primary
-// if their stat is an individual stat key, which is correct for manual single-player use.
+// Alt:     alt line rungs (isAltLine flag set by both batch sim and single-player ladder log)
+// Combo:   PRA/PR/PA/RA/SB combo props (identified by stat key or isCombo flag)
 const _COMBO_STAT_KEYS = new Set(['pra','pr','pa','ra','sb']);
 const filterByBetType = (entries, type) => {
   if (type === 'primary') return entries.filter(e => e.isAltLine !== true && !_COMBO_STAT_KEYS.has(e.stat));
@@ -6054,7 +6068,7 @@ function CalibrationPanel({
                         SNIPER CRITERIA:
                       </span>
                       <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
-                        UNDER only (+ AST OVER KDE exception) · no PTS · CV-backed · 36+ games · edge ≥ 3% · odds ≥ −105 · prob 50-65% excl 55-60% · ≥22 min · ETR aligned · ≥0.15σ gap
+                        UNDER only (+ AST OVER KDE exception) · no PTS · no combos · CV-backed (no NegBin*) · 36+ games · edge ≥ 3% · odds ≥ −150 · prob 50-75% excl 55-60% · ≥22 min · ETR aligned · ≥0.15σ gap
                       </span>
                     </div>
                   )}
@@ -7343,10 +7357,12 @@ function NBASimulator() {
     }
     let updated = 0;
     let apiReqLeft = null;
+    let errors = [];
     for (const eventId of uniqueEventIds) {
       const sample = eligibleEntries.find(e => e.eventId === eventId);
       const resp = await fetchHistoricalProps(oddsApiKey, eventId, sample.commenceTime);
       if (!resp) continue;
+      if (resp.error) { errors.push(resp.error); continue; }
       apiReqLeft = resp.remainingRequests;
       // Update all calibration entries for this event (open or settled, missing closing odds)
       setCalibration(prev => {
@@ -7364,9 +7380,10 @@ function NBASimulator() {
       });
     }
     setClosingFetching(false);
-    const noDataNote = updated === 0 ? ' (game may not have started yet, or player props unavailable on your plan)' : '';
+    const errNote = errors.length > 0 ? ` · ERRORS: ${errors[0]}${errors.length > 1 ? ` (+${errors.length - 1} more)` : ''}` : '';
+    const noDataNote = updated === 0 && errors.length === 0 ? ' (game may not have started yet, or player props unavailable — historical endpoint requires Odds API paid plan)' : '';
     setClosingFetchMsg(
-      `Updated ${updated} entr${updated === 1 ? 'y' : 'ies'}${noDataNote}${apiReqLeft != null ? ` · ${apiReqLeft} API req remaining` : ''}`
+      `Updated ${updated} entr${updated === 1 ? 'y' : 'ies'} of ${uniqueEventIds.length} events${noDataNote}${errNote}${apiReqLeft != null ? ` · ${apiReqLeft} API req remaining` : ''}`
     );
   }, [calibration, oddsApiKey, selectedBooks]);
 
@@ -7811,6 +7828,10 @@ function NBASimulator() {
       projectedMinutes: projectedMinutes,
       playerIsHome:     (playerTeam != null && gameCtx?.homeTeam != null) ? playerTeam === gameCtx.homeTeam : null,
       modelVersion:     MODEL_VERSION,
+      // Alt line flag: true when logged from ladder alt rung or batch alt line
+      isAltLine:        data.isAltLine === true,
+      // Combo flag: true for PRA/PR/PA/RA/SB entries
+      isCombo:          _COMBO_STAT_KEYS.has(data.stat),
     };
     setCalibration(prev => {
       if (prev.some(e => e.id === entry.id)) return prev; // deduplicate
