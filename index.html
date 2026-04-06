@@ -2231,6 +2231,19 @@ function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly,
           title="When on, excludes GTD-flagged players. Run W1 with confirmed lineups, then W2/W3 as more lineups confirm.">
           CONFIRMED ONLY {config.confirmedOnly ? '●' : '○'}
         </button>
+        <button onClick={() => setConfig(prev => ({ ...prev, sniperMode: !prev.sniperMode }))}
+          style={{ padding: '2px 8px', borderRadius: 3, fontSize: 8, fontFamily: mono, fontWeight: 700, cursor: 'pointer',
+            border: config.sniperMode ? '1px solid rgba(244,63,94,0.6)' : '1px solid rgba(148,163,184,0.2)',
+            background: config.sniperMode ? 'rgba(244,63,94,0.15)' : 'rgba(15,23,42,0.4)',
+            color: config.sniperMode ? '#f43f5e' : '#64748b' }}
+          title="Sniper Mode: max 5 plays, 1/player, ⅛ Kelly. Only UNDER bets in proven segments + AST OVER KDE exception. Radical selectivity.">
+          SNIPER {config.sniperMode ? '●' : '○'}
+        </button>
+        {config.sniperMode && (
+          <span style={{ fontFamily: mono, fontSize: 7, color: '#f43f5e', fontWeight: 700 }}>
+            MAX {SNIPER_MAX_PLAYS} PLAYS · {SNIPER_MAX_PER_PLAYER}/PLAYER · ⅛K
+          </span>
+        )}
       </div>
 
       {/* Empty state */}
@@ -2526,6 +2539,7 @@ function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdg
   const [strategyC, setStrategyC] = useState(false);
   const [valueFilter, setValueFilter] = useState(false);
   const [valueFilterB, setValueFilterB] = useState(false);
+  const [sniperMode, setSniperMode] = useState(false);
   const [etrGate, setEtrGate] = useState(false);
   const [showPlaySelector, setShowPlaySelector] = useState(false);
   const [showAltLines, setShowAltLines] = useState(false);
@@ -2548,6 +2562,7 @@ function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdg
         (!strategyC || STRATEGY_C_FILTER(r)) &&
         (!valueFilter || VALUE_FILTER(r)) &&
         (!valueFilterB || VALUE_FILTER_B(r)) &&
+        (!sniperMode || SNIPER_COMBINED(r)) &&
         (!etrGate || r.etrConfirms !== false)
       )
       .sort((a, b) => {
@@ -2557,7 +2572,7 @@ function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdg
         if (typeof av === 'string') return mult * av.localeCompare(bv);
         return mult * (av - bv);
       });
-  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, valueFilter, valueFilterB, showAltLines, etrGate]);
+  }, [results, positiveOnly, minEdge, statFilter, sortCol, sortDir, strategyB, strategyC, valueFilter, valueFilterB, sniperMode, showAltLines, etrGate]);
 
   const trackedCount = tracked ? tracked.size : 0;
   const cols = [
@@ -2670,6 +2685,13 @@ function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdg
           color: etrGate ? '#4ade80' : '#475569',
           title: 'Hide plays where ETR projection contradicts the bet direction',
         }}>ETR GATE</button>
+        <button onClick={() => { setSniperMode(s => !s); setStrategyB(false); setStrategyC(false); }} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: sniperMode ? '1px solid rgba(244,63,94,0.6)' : '1px solid rgba(148,163,184,0.15)',
+          background: sniperMode ? 'rgba(244,63,94,0.15)' : 'rgba(15,23,42,0.4)',
+          color: sniperMode ? '#f43f5e' : '#475569',
+        }} title="Sniper Mode: radically selective filter — UNDER only (+ AST OVER KDE), 36+ CV, edge ≥3%, odds ≥-105, prob 50-65%, ETR aligned, ≥0.15σ gap">SNIPER</button>
         <button onClick={() => { setShowPlaySelector(p => !p); setStrategyB(false); setStrategyC(false); }} style={{
           padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
@@ -4108,21 +4130,81 @@ function computeCalibrationStats(entries) {
 
   // CLV analysis (only entries with closing odds)
   const withCLV = settled.filter(e => e.closingOdds != null && e.result !== 'push');
+  const computeCLV = e => {
+    const td = americanToDecimal(e.bookOdds);
+    const cd = americanToDecimal(e.closingOdds);
+    return (td && cd && cd > 1) ? ((td - cd) / cd) * 100 : null;
+  };
   const clvData = withCLV.length > 0 ? (() => {
-    const clvVals = withCLV.map(e => {
-      const td = americanToDecimal(e.bookOdds);
-      const cd = americanToDecimal(e.closingOdds);
-      return (td && cd && cd > 1) ? ((td - cd) / cd) * 100 : null;
-    }).filter(v => v !== null);
+    const clvVals = withCLV.map(computeCLV).filter(v => v !== null);
     const avgCLV  = clvVals.length > 0 ? clvVals.reduce((a, b) => a + b, 0) / clvVals.length : null;
     const pos = withCLV.filter((e, i) => clvVals[i] > 0);
     const neg = withCLV.filter((e, i) => clvVals[i] <= 0);
+
+    // CLV by stat×side breakdown
+    const clvByStatSide = {};
+    withCLV.forEach(e => {
+      const key = `${(e.stat || '?').toUpperCase()} ${(e.side || '?').toUpperCase()}`;
+      if (!clvByStatSide[key]) clvByStatSide[key] = { vals: [], wins: 0, n: 0 };
+      const v = computeCLV(e);
+      if (v !== null) clvByStatSide[key].vals.push(v);
+      clvByStatSide[key].n++;
+      if (e.result === 'won') clvByStatSide[key].wins++;
+    });
+    const clvStatSideRows = Object.entries(clvByStatSide)
+      .filter(([, d]) => d.vals.length >= 3)
+      .map(([label, d]) => ({
+        label,
+        n: d.n,
+        avgCLV: d.vals.reduce((a, b) => a + b, 0) / d.vals.length,
+        hitRate: d.n > 0 ? d.wins / d.n : null,
+      }))
+      .sort((a, b) => b.avgCLV - a.avgCLV);
+
+    // CLV trend: rolling 20-bet average CLV, chronological
+    const clvChron = [...withCLV].sort((a, b) => new Date(a.loggedAt) - new Date(b.loggedAt));
+    const clvTrend = clvChron.length >= 20 ? (() => {
+      const window = 20;
+      const points = [];
+      for (let i = window - 1; i < clvChron.length; i++) {
+        const slice = clvChron.slice(i - window + 1, i + 1);
+        const vals = slice.map(computeCLV).filter(v => v !== null);
+        if (vals.length > 0) {
+          points.push({ avgCLV: vals.reduce((a, b) => a + b, 0) / vals.length });
+        }
+      }
+      return points.length > 1 ? points : null;
+    })() : null;
+
+    // CLV health: last 50 bets average CLV
+    const recent50 = clvChron.slice(-50);
+    const recent50Vals = recent50.map(computeCLV).filter(v => v !== null);
+    const recent50CLV = recent50Vals.length >= 10
+      ? recent50Vals.reduce((a, b) => a + b, 0) / recent50Vals.length : null;
+
+    // Sniper-filtered CLV
+    const sniperCLV = (() => {
+      const sniperBets = withCLV.filter(SNIPER_COMBINED);
+      if (sniperBets.length < 3) return null;
+      const vals = sniperBets.map(computeCLV).filter(v => v !== null);
+      if (vals.length < 3) return null;
+      return {
+        n: sniperBets.length,
+        avgCLV: vals.reduce((a, b) => a + b, 0) / vals.length,
+        hitRate: sniperBets.filter(e => e.result === 'won').length / sniperBets.length,
+      };
+    })();
+
     return {
       n: withCLV.length,
       avgCLV,
       posClvHitRate: pos.length > 0 ? pos.filter(e => e.result === 'won').length / pos.length : null,
       negClvHitRate: neg.length > 0 ? neg.filter(e => e.result === 'won').length / neg.length : null,
       posN: pos.length, negN: neg.length,
+      clvStatSideRows,
+      clvTrend,
+      recent50CLV,
+      sniperCLV,
     };
   })() : null;
 
@@ -4839,18 +4921,116 @@ function CalibrationAnalysis({ stats: s, calibTemps = {} }) {
         <>
           <SectionHeader id="clv">CLOSING LINE VALUE</SectionHeader>
           {openSections.clv && (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {[
-                { label: 'Avg CLV', val: s.clvData.avgCLV != null ? (s.clvData.avgCLV >= 0 ? '+' : '') + s.clvData.avgCLV.toFixed(1) + '%' : '—', color: roiColor(s.clvData.avgCLV) },
-                { label: `+CLV Hit% (n=${s.clvData.posN})`, val: s.clvData.posClvHitRate != null ? (s.clvData.posClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.posClvHitRate) },
-                { label: `−CLV Hit% (n=${s.clvData.negN})`, val: s.clvData.negClvHitRate != null ? (s.clvData.negClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.negClvHitRate) },
-              ].map(({ label, val, color }) => (
-                <div key={label} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 5, padding: '5px 10px' }}>
-                  <div style={{ fontSize: 7, color: '#475569', fontFamily: mono, marginBottom: 2 }}>{label}</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: mono }}>{val}</div>
+            <>
+              {/* CLV health gate — prominent warning */}
+              {s.clvData.recent50CLV != null && (
+                <div style={{ padding: '6px 10px', borderRadius: 5, marginBottom: 8,
+                  background: s.clvData.recent50CLV >= 0 ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.08)',
+                  border: `1px solid ${s.clvData.recent50CLV >= 0 ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+                  <span style={{ fontFamily: mono, fontSize: 8, fontWeight: 700,
+                    color: s.clvData.recent50CLV >= 0 ? '#22c55e' : '#ef4444' }}>
+                    {s.clvData.recent50CLV >= 0 ? '+ CLV POSITIVE' : '! CLV NEGATIVE'} — LAST 50 BETS: {s.clvData.recent50CLV >= 0 ? '+' : ''}{s.clvData.recent50CLV.toFixed(1)}%
+                  </span>
+                  <span style={{ fontFamily: mono, fontSize: 7, color: '#64748b', marginLeft: 8 }}>
+                    {s.clvData.recent50CLV >= 0
+                      ? 'You are beating the closing line — model is finding real pre-close edge.'
+                      : 'You are NOT beating the closing line. The market is closing against you. Reduce volume or reassess.'}
+                  </span>
                 </div>
-              ))}
-            </div>
+              )}
+
+              {/* Sniper CLV comparison */}
+              {s.clvData.sniperCLV && (
+                <div style={{ padding: '5px 10px', borderRadius: 5, marginBottom: 8,
+                  background: 'rgba(244,63,94,0.05)', border: '1px solid rgba(244,63,94,0.2)' }}>
+                  <span style={{ fontFamily: mono, fontSize: 8, fontWeight: 700, color: '#f43f5e' }}>
+                    SNIPER CLV: {s.clvData.sniperCLV.avgCLV >= 0 ? '+' : ''}{s.clvData.sniperCLV.avgCLV.toFixed(1)}%
+                  </span>
+                  <span style={{ fontFamily: mono, fontSize: 7, color: '#64748b', marginLeft: 8 }}>
+                    n={s.clvData.sniperCLV.n} · hit {(s.clvData.sniperCLV.hitRate * 100).toFixed(0)}%
+                    {s.clvData.avgCLV != null && (
+                      <> · vs all bets {s.clvData.avgCLV >= 0 ? '+' : ''}{s.clvData.avgCLV.toFixed(1)}%</>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                {[
+                  { label: 'Avg CLV', val: s.clvData.avgCLV != null ? (s.clvData.avgCLV >= 0 ? '+' : '') + s.clvData.avgCLV.toFixed(1) + '%' : '—', color: roiColor(s.clvData.avgCLV) },
+                  { label: `+CLV Hit% (n=${s.clvData.posN})`, val: s.clvData.posClvHitRate != null ? (s.clvData.posClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.posClvHitRate) },
+                  { label: `−CLV Hit% (n=${s.clvData.negN})`, val: s.clvData.negClvHitRate != null ? (s.clvData.negClvHitRate * 100).toFixed(1) + '%' : '—', color: hitColor(s.clvData.negClvHitRate) },
+                ].map(({ label, val, color }) => (
+                  <div key={label} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 5, padding: '5px 10px' }}>
+                    <div style={{ fontSize: 7, color: '#475569', fontFamily: mono, marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: mono }}>{val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* CLV by stat×side */}
+              {s.clvData.clvStatSideRows && s.clvData.clvStatSideRows.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 7, fontWeight: 700, color: '#475569', fontFamily: mono, letterSpacing: 1, marginBottom: 4 }}>CLV BY STAT × SIDE</div>
+                  {s.clvData.clvStatSideRows.map(row => (
+                    <div key={row.label} style={{ display: 'flex', gap: 12, padding: '2px 0', borderBottom: '1px solid rgba(148,163,184,0.05)' }}>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: '#94a3b8', width: 90 }}>{row.label}</span>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: roiColor(row.avgCLV), fontWeight: 700, width: 50 }}>
+                        {row.avgCLV >= 0 ? '+' : ''}{row.avgCLV.toFixed(1)}%
+                      </span>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: hitColor(row.hitRate), width: 45 }}>
+                        {row.hitRate != null ? (row.hitRate * 100).toFixed(0) + '% hit' : '—'}
+                      </span>
+                      <span style={{ fontFamily: mono, fontSize: 7, color: '#475569' }}>n={row.n}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* CLV trend mini-chart */}
+              {s.clvData.clvTrend && s.clvData.clvTrend.length > 1 && (() => {
+                const pts = s.clvData.clvTrend;
+                const vals = pts.map(p => p.avgCLV);
+                const min = Math.min(0, ...vals);
+                const max = Math.max(0, ...vals);
+                const range = max - min || 1;
+                const latest = vals[vals.length - 1];
+                const latestColor = latest >= 0 ? '#22c55e' : '#ef4444';
+                return (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 7, fontWeight: 700, color: '#475569', fontFamily: mono, letterSpacing: 1, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>CLV TREND (ROLLING 20-BET AVG)</span>
+                      <span style={{ color: latestColor }}>{latest >= 0 ? '+' : ''}{latest.toFixed(1)}%</span>
+                    </div>
+                    <div style={{ position: 'relative', height: 36, background: 'rgba(15,23,42,0.4)', borderRadius: 4, overflow: 'hidden' }}>
+                      {/* Zero line */}
+                      <div style={{ position: 'absolute', left: 0, right: 0, bottom: `${((0 - min) / range) * 100}%`,
+                        height: 1, background: 'rgba(148,163,184,0.2)' }} />
+                      <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%', gap: 1, padding: '0 1px' }}>
+                        {pts.map((p, i) => {
+                          const v = p.avgCLV;
+                          const isPos = v >= 0;
+                          const zeroY = ((0 - min) / range) * 100;
+                          const valY  = ((v - min) / range) * 100;
+                          const bottom = isPos ? zeroY : valY;
+                          const height = Math.abs(valY - zeroY);
+                          return (
+                            <div key={i} title={`${v >= 0 ? '+' : ''}${v.toFixed(1)}%`}
+                              style={{ flex: 1, position: 'absolute', left: `${(i / pts.length) * 100}%`, width: `${100 / pts.length}%`,
+                                bottom: `${bottom}%`, height: `${Math.max(1, height)}%`,
+                                backgroundColor: isPos ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)',
+                                borderRadius: isPos ? '1px 1px 0 0' : '0 0 1px 1px' }} />
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6, color: '#475569', fontFamily: mono, marginTop: 2 }}>
+                      <span>oldest</span><span>0% baseline</span><span>most recent</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
           )}
         </>
       )}
@@ -5213,6 +5393,110 @@ const VALUE_FILTER_B = e => {
   return false;  // stl, blk, threes, combo props excluded
 };
 
+// ── Sniper Mode — Radically Selective Filter ──────────────────────────
+// Built from N=6959 calibration data analysis (2026-04-06).
+// Core thesis: the model has genuine edge in NARROW segments but volume dilutes it.
+// 10-20 bets/day → 3-5 bets/day. Only bet where calibration data proves positive ROI
+// with statistical significance (Wilson CI excluding zero).
+//
+// Profitable segments identified:
+//   BLK UNDER Strat B: +13.9% ROI · AST OVER KDE+: +26.5% ROI
+//   ETR-aligned UNDER: +15.2% ROI · Line gap 0.3-1σ: +19.4% ROI
+//   NegBin model: +9.7% ROI · 12+ spread: +20.6% ROI Strat B
+//   Odds ≥ -105: +6.1% ROI
+//
+// SNIPER_FILTER: strict compound gate for UNDER bets in proven segments
+const SNIPER_FILTER = e => {
+  const side = (e.side || '').toUpperCase();
+  const stat = e.stat;
+  const dm   = e.distModel ?? '';
+  const prob = e.modelProb ?? 0;
+  const edge = e.edge ?? e.edgePct ?? 0;
+  const odds = e.bookOdds;
+  const mins = e.projectedMinutes;
+  const games = e.gamesAvailable ?? 0;
+
+  // Direction: UNDER only (OVER broken at -6.0pp, -3.7% ROI, CI-confirmed N=865)
+  if (side !== 'UNDER')                                     return false;
+  // PTS excluded: broken BOTH directions even UNDER-only (-6.0pp/-4.0%)
+  if (stat === 'pts')                                       return false;
+  // Combo props excluded: thin calibration data, wider vig
+  if (['pra','pr','pa','ra','sb'].includes(stat))           return false;
+  // CV-backed model required (no Poisson, no LogNormal — unreliable distribution shape)
+  if (dm === 'Poisson' || dm === 'LogNormal')               return false;
+  // CV sample gate: 36+ games (Tier 1 data quality)
+  if (games < 36)                                           return false;
+  // Edge gate: ≥ 3% after corrections (SOLID+)
+  if (edge < 3)                                             return false;
+  // Odds gate: ≥ -105 (eliminate expensive vig zones; -120 to -106 loses -3.6%)
+  if (odds == null || odds < -105)                          return false;
+  // Probability gates: 50-65% only, excluding 55-60% dead zone
+  if (prob < 0.50 || prob >= 0.65)                          return false;
+  if (prob >= 0.55 && prob < 0.60)                          return false;  // dead zone: -4.4% ROI
+  // Minutes gate: ≥ 22 min projected (low-minutes = variance trap at -8.5% ROI)
+  if (mins != null && mins < 22)                            return false;
+  // ETR alignment: projection ≤ prop line (model genuinely expects under)
+  if (e.projection != null && e.propLine != null
+      && e.projection > e.propLine)                         return false;
+  // Line gap minimum: require ≥ 0.15σ separation between ETR and line
+  if (e.projection != null && e.propLine != null) {
+    const std = e.std ?? (e.projection > 0 && e.cvValue ? e.projection * (e.cvValue / 100) : null);
+    if (std > 0) {
+      const sigma = (e.propLine - e.projection) / std;
+      if (sigma < 0.15) return false;  // too close to consensus — no real signal
+    }
+  }
+  return true;
+};
+
+// SNIPER_PLUS: Sniper base + requires at least ONE bonus signal
+// Bonus signals are the highest-ROI segments from calibration data.
+const SNIPER_PLUS_FILTER = e => {
+  if (!SNIPER_FILTER(e)) return false;
+  let bonusCount = 0;
+  // Line gap 0.3-1.0σ (+19.4% ROI)
+  if (e.projection != null && e.propLine != null) {
+    const std = e.std ?? (e.projection > 0 && e.cvValue ? e.projection * (e.cvValue / 100) : null);
+    if (std > 0) {
+      const sigma = (e.propLine - e.projection) / std;
+      if (sigma >= 0.3 && sigma <= 1.0) bonusCount++;
+    }
+  }
+  // Spread ≥ 12 points (+20.6% ROI in Strategy B)
+  if (e.spread != null && Math.abs(e.spread) >= 12) bonusCount++;
+  // NegBin distribution model (+9.7% ROI vs other models)
+  if ((e.distModel ?? '') === 'NegBin') bonusCount++;
+  return bonusCount >= 1;
+};
+
+// AST_OVER exception: the ONE over-side bet that's working
+// AST OVER KDE+: +26.5% ROI. Requires high bar since OVER is generally broken.
+const SNIPER_AST_OVER = e => {
+  const side = (e.side || '').toUpperCase();
+  if (side !== 'OVER')                                      return false;
+  if (e.stat !== 'ast')                                     return false;
+  const dm = e.distModel ?? '';
+  if (dm !== 'KDE+' && dm !== 'KDE')                        return false;  // require KDE model
+  const edge = e.edge ?? e.edgePct ?? 0;
+  if (edge < 5)                                             return false;  // high edge bar for OVER
+  const odds = e.bookOdds;
+  if (odds == null || odds < -105)                          return false;
+  const games = e.gamesAvailable ?? 0;
+  if (games < 36)                                           return false;
+  const prob = e.modelProb ?? 0;
+  if (prob >= 0.65)                                         return false;  // no high-prob zone
+  // ETR alignment: projection ≥ prop line for OVER
+  if (e.projection != null && e.propLine != null
+      && e.projection < e.propLine)                         return false;
+  const mins = e.projectedMinutes;
+  if (mins != null && mins < 22)                            return false;
+  return true;
+};
+
+// Combined Sniper filter: passes if EITHER Sniper UNDER or AST OVER exception hits
+const SNIPER_COMBINED = e => SNIPER_FILTER(e) || SNIPER_AST_OVER(e);
+const SNIPER_PLUS_COMBINED = e => SNIPER_PLUS_FILTER(e) || SNIPER_AST_OVER(e);
+
 // ── Play Selector: Tier Classification & Slate Builder ─────────────
 // Replaces ad-hoc Strategy B/C/D for actionable play selection.
 // Tier 1 = high-confidence core. Market-structure gates only (model bugs fixed at model level).
@@ -5286,22 +5570,36 @@ function scorePlay(e) {
 // Build a bankroll-safe slate from batch results, merging with existing plays.
 // Deduplicates by player+stat+side, keeping the version with best edge.
 // Applies exposure caps and scales stakes if total Kelly exceeds bankroll limit.
+const SNIPER_MAX_PLAYS = 5;
+const SNIPER_MAX_PER_PLAYER = 1;
+const SNIPER_MAX_PER_GAME = 2;
+const SNIPER_KELLY_FRACTION = 0.125;  // ⅛ Kelly in Sniper mode (vs ¼ Kelly standard)
+
 function buildSlate(newBatchResults, existingSlate, config, sessionNum, tailedKeys = new Set(), gtdFlags = new Set()) {
+  const isSniper = config.sniperMode === true;
+
+  // Sniper mode overrides: hard volume cap, no wave system, tighter exposure
+  const effectiveMaxPlays     = isSniper ? SNIPER_MAX_PLAYS                 : (config.maxPlays || 18);
+  const effectiveMaxPerPlayer = isSniper ? SNIPER_MAX_PER_PLAYER            : (config.maxPerPlayer || 2);
+  const effectiveMaxPerGame   = isSniper ? SNIPER_MAX_PER_GAME              : (config.maxPerGame || 3);
+
   // Wave cap map: session 1 → wave1Cap, session 2 → wave2Cap, session 3+ → wave3Cap
-  const waveCaps = [
-    config.wave1Cap ?? 7,
-    config.wave2Cap ?? 5,
-    config.wave3Cap ?? 3,
-  ];
+  // In Sniper mode, no wave system — single flat cap
+  const waveCaps = isSniper
+    ? [config.maxBankrollPct ?? 10, config.maxBankrollPct ?? 10, config.maxBankrollPct ?? 10]
+    : [config.wave1Cap ?? 7, config.wave2Cap ?? 5, config.wave3Cap ?? 3];
   const getWaveCap = s => waveCaps[Math.min(s - 1, waveCaps.length - 1)] ?? 3;
 
   // 1. Gate: reject any incoming play from a game that has already tipped
   const pendingResults = newBatchResults.filter(r => !gameIsActive(r.commenceTime));
 
+  // Sniper filter: only allow plays that pass SNIPER_COMBINED
+  const sniperFiltered = isSniper ? pendingResults.filter(SNIPER_COMBINED) : pendingResults;
+
   // Gate: exclude GTD players when confirmedOnly mode is active
   const confirmedResults = config.confirmedOnly
-    ? pendingResults.filter(r => !gtdFlags.has(r.player) && !gtdFlags.has(r.team?.toUpperCase?.() ?? ''))
-    : pendingResults;
+    ? sniperFiltered.filter(r => !gtdFlags.has(r.player) && !gtdFlags.has(r.team?.toUpperCase?.() ?? ''))
+    : sniperFiltered;
 
   // Gate: exclude already-tailed plays
   const notTailed = confirmedResults.filter(r => !tailedKeys.has(`${r.player}|${r.stat}|${r.side}`));
@@ -5315,7 +5613,11 @@ function buildSlate(newBatchResults, existingSlate, config, sessionNum, tailedKe
   const newPlays = tierFiltered
     .map(r => ({ ...r, tier: classifyTier(r) }))
     .filter(r => r.tier !== null)
-    .map(r => ({ ...r, score: scorePlay(r), session: sessionNum, addedAt: new Date().toISOString() }));
+    .map(r => {
+      // In Sniper mode, scale Kelly from ¼K (batch default) to ⅛K
+      const kellyPct = isSniper ? (r.kellyPct || 0) * (SNIPER_KELLY_FRACTION / 0.25) : (r.kellyPct || 0);
+      return { ...r, kellyPct, score: scorePlay(r), session: sessionNum, addedAt: new Date().toISOString() };
+    });
 
   // 4. Per-wave cap check: how much kelly has this session already committed?
   const sessionKellyExisting = existingSlate
@@ -5353,17 +5655,18 @@ function buildSlate(newBatchResults, existingSlate, config, sessionNum, tailedKe
   for (const play of merged) {
     const pKey = play.player ?? '__';
     const gKey = play.eventId ?? play.commenceTime ?? '__';
-    const atPlayerCap = (perPlayer[pKey] ?? 0) >= (config.maxPerPlayer || 2);
-    const atGameCap   = (perGame[gKey]   ?? 0) >= (config.maxPerGame || 3);
-    const atSlateCap  = selected.length >= (config.maxPlays || 18);
+    const atPlayerCap = (perPlayer[pKey] ?? 0) >= effectiveMaxPerPlayer;
+    const atGameCap   = (perGame[gKey]   ?? 0) >= effectiveMaxPerGame;
+    const atSlateCap  = selected.length >= effectiveMaxPlays;
     // Per-wave cap: only applies to new plays in the current session
     const isNewThisSession = play.session === sessionNum && !play._updated &&
       !existingSlate.some(e => `${e.player}|${e.stat}|${e.side}` === pKey + '|' + play.stat + '|' + play.side);
     const atWaveCap = isNewThisSession && (newSessionKelly + (play.kellyPct || 0) > waveHeadroom);
 
     if (atSlateCap || atPlayerCap || atGameCap || atWaveCap) {
-      const reason = atSlateCap ? 'slate full' : atPlayerCap ? `max ${config.maxPerPlayer}/player`
-        : atGameCap ? `max ${config.maxPerGame}/game` : `W${sessionNum} cap`;
+      const reason = atSlateCap ? (isSniper ? `sniper max ${SNIPER_MAX_PLAYS}` : 'slate full')
+        : atPlayerCap ? `max ${effectiveMaxPerPlayer}/player`
+        : atGameCap ? `max ${effectiveMaxPerGame}/game` : `W${sessionNum} cap`;
       overflow.push({ ...play, _cutReason: reason });
       continue;
     }
@@ -5397,13 +5700,15 @@ function buildSlate(newBatchResults, existingSlate, config, sessionNum, tailedKe
     waveKelly[s] = (waveKelly[s] ?? 0) + (p.kellyPct || 0);
   });
 
-  return { selected, overflow, totalKelly: totalKellyFinal, scaleFactor, newCount: newPlays.length, waveKelly, waveCaps };
+  return { selected, overflow, totalKelly: totalKellyFinal, scaleFactor, newCount: newPlays.length, waveKelly, waveCaps, isSniper };
 }
 
 const STRATEGY_LABELS = {
-  all: 'ALL BETS',
-  b:   'STRATEGY B',
-  c:   'VALUE FILTER B',
+  all:     'ALL BETS',
+  b:       'STRATEGY B',
+  c:       'VALUE FILTER B',
+  sniper:  'SNIPER',
+  sniperP: 'SNIPER+',
 };
 
 // Bet type segmentation — primary lines, alt lines, and combo props are structurally
@@ -5463,10 +5768,12 @@ function CalibrationPanel({
   // Strategy-filtered views — same data, different lens. Bet type filter applies first,
   // strategy filter stacks on top. computeCalibrationStats handles settled-only internally.
   const strategyLog   = React.useMemo(() => {
-    if (analysisStrategy === 'b')      return betTypeLog.filter(STRATEGY_B_FILTER);
-    if (analysisStrategy === 'c')      return betTypeLog.filter(STRATEGY_C_FILTER);
-    if (analysisStrategy === 'value')  return betTypeLog.filter(VALUE_FILTER);
-    if (analysisStrategy === 'valueB') return betTypeLog.filter(VALUE_FILTER_B);
+    if (analysisStrategy === 'b')       return betTypeLog.filter(STRATEGY_B_FILTER);
+    if (analysisStrategy === 'c')       return betTypeLog.filter(STRATEGY_C_FILTER);
+    if (analysisStrategy === 'value')   return betTypeLog.filter(VALUE_FILTER);
+    if (analysisStrategy === 'valueB')  return betTypeLog.filter(VALUE_FILTER_B);
+    if (analysisStrategy === 'sniper')  return betTypeLog.filter(SNIPER_COMBINED);
+    if (analysisStrategy === 'sniperP') return betTypeLog.filter(SNIPER_PLUS_COMBINED);
     return betTypeLog;
   }, [betTypeLog, analysisStrategy]);
   const strategyStats = React.useMemo(() => computeCalibrationStats(strategyLog), [strategyLog]);
@@ -5694,13 +6001,13 @@ function CalibrationPanel({
                       })}
                     </div>
                     {/* Strategy toggle — only meaningful when analysis is open */}
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {['all', 'b', 'c'].map(key => {
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {['all', 'b', 'c', 'sniper', 'sniperP'].map(key => {
                         const isActive = analysisStrategy === key;
                         const n = key === 'all' ? settled.length : strategySettledN;
-                        const activeColor  = key === 'c' ? '#fbbf24' : key === 'b' ? '#a78bfa' : '#94a3b8';
-                        const activeBorder = key === 'c' ? 'rgba(251,191,36,0.4)' : key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
-                        const activeBg     = key === 'c' ? 'rgba(251,191,36,0.08)' : key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
+                        const activeColor  = key === 'sniper' ? '#f43f5e' : key === 'sniperP' ? '#e11d48' : key === 'c' ? '#fbbf24' : key === 'b' ? '#a78bfa' : '#94a3b8';
+                        const activeBorder = key === 'sniper' ? 'rgba(244,63,94,0.5)' : key === 'sniperP' ? 'rgba(225,29,72,0.5)' : key === 'c' ? 'rgba(251,191,36,0.4)' : key === 'b' ? 'rgba(167,139,250,0.4)' : 'rgba(148,163,184,0.3)';
+                        const activeBg     = key === 'sniper' ? 'rgba(244,63,94,0.12)' : key === 'sniperP' ? 'rgba(225,29,72,0.12)' : key === 'c' ? 'rgba(251,191,36,0.08)' : key === 'b' ? 'rgba(167,139,250,0.1)' : 'rgba(148,163,184,0.08)';
                         return (
                           <button key={key}
                             onClick={e => { e.stopPropagation(); setAnalysisStrategy(key); if (!analysisOpen) setAnalysisOpen(true); }}
@@ -5740,6 +6047,28 @@ function CalibrationPanel({
                       </span>
                     </div>
                   )}
+                  {analysisOpen && analysisStrategy === 'sniper' && (
+                    <div style={{ margin: '0 12px 8px', padding: '6px 10px', borderRadius: 5,
+                      background: 'rgba(244,63,94,0.05)', border: '1px solid rgba(244,63,94,0.2)' }}>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: '#f43f5e', letterSpacing: 0.5 }}>
+                        SNIPER CRITERIA:
+                      </span>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
+                        UNDER only (+ AST OVER KDE exception) · no PTS · CV-backed · 36+ games · edge ≥ 3% · odds ≥ −105 · prob 50-65% excl 55-60% · ≥22 min · ETR aligned · ≥0.15σ gap
+                      </span>
+                    </div>
+                  )}
+                  {analysisOpen && analysisStrategy === 'sniperP' && (
+                    <div style={{ margin: '0 12px 8px', padding: '6px 10px', borderRadius: 5,
+                      background: 'rgba(225,29,72,0.05)', border: '1px solid rgba(225,29,72,0.2)' }}>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: '#e11d48', letterSpacing: 0.5 }}>
+                        SNIPER+ CRITERIA:
+                      </span>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: '#64748b', marginLeft: 8 }}>
+                        Sniper base + requires ≥1 bonus: line gap 0.3-1σ / spread ≥12 / NegBin model
+                      </span>
+                    </div>
+                  )}
 
                   {analysisOpen && strategyStats && (
                     <div style={{ padding: '0 12px 12px' }}>
@@ -5752,6 +6081,10 @@ function CalibrationPanel({
                         ? `Strategy B has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : analysisStrategy === 'c'
                         ? `Value Filter B has ${strategySettledN} settled plays — need at least 5 for analysis.`
+                        : analysisStrategy === 'sniper'
+                        ? `Sniper has ${strategySettledN} settled plays — need at least 5 for analysis.`
+                        : analysisStrategy === 'sniperP'
+                        ? `Sniper+ has ${strategySettledN} settled plays — need at least 5 for analysis.`
                         : 'Need at least 5 settled plays for analysis.'}
                     </div>
                   )}
@@ -5895,7 +6228,7 @@ function NBASimulator() {
   const [slateLocked, setSlateLocked] = useState(false);
   const [slateConfig, setSlateConfig] = useState(() => {
     const defaults = { maxPlays: 18, maxPerGame: 3, maxPerPlayer: 2, maxBankrollPct: 15,
-      wave1Cap: 7, wave2Cap: 5, wave3Cap: 3, addTier1Only: false, confirmedOnly: false };
+      wave1Cap: 7, wave2Cap: 5, wave3Cap: 3, addTier1Only: false, confirmedOnly: false, sniperMode: false };
     try { return { ...defaults, ...JSON.parse(localStorage.getItem('nbaSimSlateConfig') || 'null') }; }
     catch { return defaults; }
   });
@@ -6035,6 +6368,45 @@ function NBASimulator() {
     });
     return temps;
   }, [calibration]);
+  // ── Drawdown Circuit Breaker ───────────────────────────────────────
+  // Monitors last 50 settled bets. If cumulative ROI < -10%, shows a prominent warning.
+  const drawdownWarning = useMemo(() => {
+    const settled = calibration.filter(e => e.result === 'won' || e.result === 'lost');
+    if (settled.length < 20) return null;
+    const recent = [...settled].sort((a, b) => new Date(b.loggedAt) - new Date(a.loggedAt)).slice(0, 50);
+    let totalStake = 0, totalPnL = 0;
+    recent.forEach(e => {
+      const dec = americanToDecimal(e.bookOdds);
+      const unit = e.unitStake ?? 1;
+      totalStake += unit;
+      totalPnL += e.result === 'won' ? unit * (dec - 1) : -unit;
+    });
+    const roi = totalStake > 0 ? (totalPnL / totalStake) * 100 : 0;
+    const hitRate = recent.filter(e => e.result === 'won').length / recent.length;
+    if (roi < -10) return { roi, n: recent.length, hitRate, severity: 'critical' };
+    if (roi < -5)  return { roi, n: recent.length, hitRate, severity: 'warning' };
+    return null;
+  }, [calibration]);
+
+  // ── Session P&L Tracking ────────────────────────────────────────────
+  const sessionPnL = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayBets = calibration.filter(e => {
+      if (!e.loggedAt) return false;
+      return e.loggedAt.slice(0, 10) === today && (e.result === 'won' || e.result === 'lost');
+    });
+    if (todayBets.length === 0) return null;
+    let pnl = 0, staked = 0;
+    todayBets.forEach(e => {
+      const dec = americanToDecimal(e.bookOdds);
+      const unit = e.unitStake ?? 1;
+      staked += unit;
+      pnl += e.result === 'won' ? unit * (dec - 1) : -unit;
+    });
+    return { pnl, staked, roi: staked > 0 ? (pnl / staked) * 100 : 0, n: todayBets.length,
+      wins: todayBets.filter(e => e.result === 'won').length };
+  }, [calibration]);
+
   const [calibrationOpen,     setCalibrationOpen]     = useState(false);
   const [batchTracked,        setBatchTracked]        = useState(() => new Set());
   const [batchLogMsg,         setBatchLogMsg]         = useState(null);
@@ -7275,6 +7647,8 @@ function NBASimulator() {
       'ALL BETS':       calibration,
       'STRATEGY B':     calibration.filter(STRATEGY_B_FILTER),
       'VALUE FILTER B': calibration.filter(STRATEGY_C_FILTER),
+      'SNIPER':         calibration.filter(SNIPER_COMBINED),
+      'SNIPER+':        calibration.filter(SNIPER_PLUS_COMBINED),
     };
     const esc = v => { const sv = String(v ?? ''); return (sv.includes(',') || sv.includes('"')) ? `"${sv.replace(/"/g,'""')}"` : sv; };
     const rows = [['Strategy','Section','Label','N','HIT%','MODEL%','DIFF pp','1U ROI%','¼K ROI%','Wilson CI Lo%','Wilson CI Hi%','Severity','Notes']];
@@ -8420,6 +8794,41 @@ function NBASimulator() {
             </div>
           )}
         </div>
+
+        {/* Drawdown Circuit Breaker */}
+        {drawdownWarning && (
+          <div style={{ padding: '8px 14px', borderRadius: 8, marginBottom: 8,
+            background: drawdownWarning.severity === 'critical' ? 'rgba(239,68,68,0.12)' : 'rgba(251,146,60,0.1)',
+            border: `1px solid ${drawdownWarning.severity === 'critical' ? 'rgba(239,68,68,0.4)' : 'rgba(251,146,60,0.3)'}` }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
+              color: drawdownWarning.severity === 'critical' ? '#ef4444' : '#fb923c', marginBottom: 3 }}>
+              {drawdownWarning.severity === 'critical' ? '! MODEL HEALTH WARNING' : '! DRAWDOWN ALERT'}
+              <span style={{ fontWeight: 400, fontSize: 8, color: '#94a3b8', marginLeft: 10 }}>
+                Last {drawdownWarning.n} bets: {drawdownWarning.roi.toFixed(1)}% ROI · {(drawdownWarning.hitRate * 100).toFixed(0)}% hit rate
+              </span>
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#94a3b8' }}>
+              {drawdownWarning.severity === 'critical'
+                ? 'Cumulative ROI below -10% over last 50 bets. The model may not have edge in current market conditions. Consider pausing or switching to Sniper mode (max 3-5 plays/day in proven segments).'
+                : 'Cumulative ROI below -5% over last 50 bets. Consider reducing volume. Switch to Sniper mode for radical selectivity.'}
+            </div>
+          </div>
+        )}
+
+        {/* Session P&L */}
+        {sessionPnL && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '4px 14px', marginBottom: 6,
+            borderRadius: 6, background: 'rgba(15,23,42,0.4)', border: '1px solid rgba(148,163,184,0.08)' }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 700, color: '#64748b', letterSpacing: 1 }}>TODAY</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
+              color: sessionPnL.pnl >= 0 ? '#22c55e' : '#ef4444' }}>
+              {sessionPnL.pnl >= 0 ? '+' : ''}{sessionPnL.pnl.toFixed(1)}u
+            </span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#64748b' }}>
+              {sessionPnL.wins}W-{sessionPnL.n - sessionPnL.wins}L · {sessionPnL.roi.toFixed(1)}% ROI
+            </span>
+          </div>
+        )}
 
         {/* Model Accuracy / Calibration Tracker */}
         <CalibrationPanel
