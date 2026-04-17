@@ -187,7 +187,7 @@ def apply_situation_filter(games: list[dict]) -> list[dict]:
 
 # ── Per-Player Computation ───────────────────────────────────────────────────
 
-def compute_player_cv(player_id: int, player_name: str) -> dict | None:
+def compute_player_cv(player_id: int, player_name: str, season_type: str = "Regular Season") -> dict | None:
     """
     Fetch game log for one player and compute per-36 CVs for all windows.
 
@@ -197,7 +197,7 @@ def compute_player_cv(player_id: int, player_name: str) -> dict | None:
         log = PlayerGameLog(
             player_id=player_id,
             season=SEASON,
-            season_type_all_star="Regular Season",
+            season_type_all_star=season_type,
             timeout=60,
         )
         df = log.get_data_frames()[0]
@@ -425,10 +425,20 @@ def main() -> None:
     )
     parser.add_argument(
         "--output",
-        default="cv_data.json",
-        help="Output file path (default: cv_data.json at repo root)",
+        default=None,
+        help="Output file path (default: cv_data.json for Regular Season, cv_data_playoffs.json for Playoffs)",
+    )
+    parser.add_argument(
+        "--season-type",
+        default="Regular Season",
+        choices=["Regular Season", "Playoffs"],
+        dest="season_type",
+        help="NBA season type for PlayerGameLog query (default: Regular Season)",
     )
     args = parser.parse_args()
+    # Resolve default output filename based on season type when --output not specified
+    if args.output is None:
+        args.output = "cv_data.json" if args.season_type == "Regular Season" else "cv_data_playoffs.json"
 
     # Build teams lookup (id → abbreviation)
     all_teams = teams.get_teams()
@@ -454,13 +464,14 @@ def main() -> None:
         mode_label = f"FULL LEAGUE ({len(all_players)} players)"
 
     print(f"Mode: {mode_label}")
-    print(f"Season: {SEASON}")
+    print(f"Season: {SEASON}  ({args.season_type})")
     print(f"Output: {args.output}")
     print("-" * 60)
 
     output: dict = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "season": SEASON,
+        "season_type": args.season_type,
         "players": {},
     }
 
@@ -478,7 +489,7 @@ def main() -> None:
 
         print(f"[{i + 1}/{len(target_players)}] {raw_name} (id={player_id})", end=" ... ", flush=True)
 
-        result = compute_player_cv(player_id, raw_name)
+        result = compute_player_cv(player_id, raw_name, season_type=args.season_type)
 
         if result:
             output["players"][json_key] = result

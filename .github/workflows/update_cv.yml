@@ -2,8 +2,16 @@ name: Nightly CV Update
 
 on:
   schedule:
-    - cron: '0 11 * * *'  # 6 AM ET (EST) / 7 AM ET (EDT) — all games finalized
+    - cron: '0 13 * * *'  # 8 AM ET — covers late West Coast games (was 6 AM)
   workflow_dispatch:
+    inputs:
+      season_type:
+        description: 'Season type'
+        default: 'Regular Season'
+        type: choice
+        options:
+          - Regular Season
+          - Playoffs
 
 jobs:
   update-cv:
@@ -27,30 +35,40 @@ jobs:
         run: pip install nba_api
 
       - name: Run compute_cv.py
-        run: python scripts/compute_cv.py
+        run: |
+          $seasonType = "${{ github.event.inputs.season_type || 'Regular Season' }}"
+          python scripts/compute_cv.py --season-type "$seasonType"
+        shell: powershell
 
-      - name: Archive cv_data.json snapshot
+      - name: Archive cv_data snapshot
         shell: powershell
         run: |
+          $seasonType = "${{ github.event.inputs.season_type || 'Regular Season' }}"
+          $outFile = if ($seasonType -eq "Playoffs") { "cv_data_playoffs.json" } else { "cv_data.json" }
           $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
           $archiveDir = "cv_snapshots"
           if (-not (Test-Path $archiveDir)) {
             New-Item -ItemType Directory -Path $archiveDir | Out-Null
             Write-Output "Created $archiveDir directory"
           }
-          Copy-Item "cv_data.json" "$archiveDir/$date.json"
-          Write-Output "Archived cv_data.json → $archiveDir/$date.json"
+          $suffix = if ($seasonType -eq "Playoffs") { "_playoffs" } else { "" }
+          Copy-Item $outFile "$archiveDir/$date$suffix.json"
+          Write-Output "Archived $outFile → $archiveDir/$date$suffix.json"
 
-      - name: Commit and push cv_data.json
+      - name: Commit and push
         shell: powershell
         run: |
+          $seasonType = "${{ github.event.inputs.season_type || 'Regular Season' }}"
+          $outFile = if ($seasonType -eq "Playoffs") { "cv_data_playoffs.json" } else { "cv_data.json" }
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
-          git add cv_data.json "cv_snapshots/$date.json"
+          $suffix = if ($seasonType -eq "Playoffs") { "_playoffs" } else { "" }
+          git add $outFile "cv_snapshots/$date$suffix.json"
           git diff --staged --quiet
           if ($LASTEXITCODE -ne 0) {
-            git commit -m "chore: update cv_data.json + snapshot (nightly, $date)"
+            $label = if ($seasonType -eq "Playoffs") { "playoffs" } else { "nightly" }
+            git commit -m "chore: update $outFile + snapshot ($label, $date)"
             git push origin main
           } else {
             Write-Output "No changes to commit, skipping"
