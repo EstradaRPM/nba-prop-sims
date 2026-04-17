@@ -6894,7 +6894,7 @@ function NBASimulator() {
         // All count stats now use NegBin (player CV or league-avg fallback); "NegBin*" = league-avg CV
         const distModel = POISSON_STATS.has(key) ? (usingNegBin ? "NegBin" : "NegBin*")
           : key === 'pts' ? (computedShotProfile ? "Compound" : ptsRawDataAll && computeEmpiricalStd(ptsRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : ptsRawData ? "KDE" : "Gamma")
-          : key === 'reb' ? (rebRawDataAll && computeEmpiricalStd(rebRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : rebRawData ? "KDE" : "LogNormal")
+          : key === 'reb' ? (rebRawDataAll && computeEmpiricalStd(rebRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : rebRawData ? "KDE" : "Gamma")
           : key === 'ast' ? (astRawDataAll && computeEmpiricalStd(astRawDataAll.rawScores, parseFloat(stats[key].mean) || 0) !== null ? "KDE+" : astRawData ? "KDE" : "Gamma")
           : LOG_NORMAL_STATS.has(key) ? "LogNormal" : "Normal";
         const method = POISSON_STATS.has(key) ? `CV/${distModel}`
@@ -6951,8 +6951,10 @@ function NBASimulator() {
         const directCv = directCvMap[key];
         if (directCv != null) {
           const meanCombo = parts.reduce((sum, k) => sum + (parseFloat(stats[k]?.mean) || 0), 0);
-          const stdCombo = meanCombo * (directCv / 100);
-          comboVals = simulateStatLogNormal(meanCombo, stdCombo, numSims);
+          // Gamma instead of log-normal: log-normal median < mean produces ~5-8pp systematic
+          // UNDER bias at near-mean combo lines (same root cause fixed for pts/reb/ast at line 563).
+          // simulateStatGamma(mean, cvPct, n) — directCv is already stored as a percentage.
+          comboVals = simulateStatGamma(meanCombo, directCv, numSims);
         } else {
           comboVals = calcCombo(simResults, parts);
         }
@@ -9087,13 +9089,25 @@ function NBASimulator() {
               )}
               {cvGeneratedAt && (() => {
                 const ageHours = (Date.now() - new Date(cvGeneratedAt).getTime()) / 3600000;
+                const ageDays  = ageHours / 24;
                 const ts = new Date(cvGeneratedAt).toISOString().slice(0, 16).replace('T', ' ') + 'Z';
                 const stale = ageHours > 26;
+                const veryStale = ageDays > 14;
                 return (
-                  <span style={{ fontSize: 9, color: stale ? "#f59e0b" : "#475569", fontFamily: "'JetBrains Mono', monospace" }}
-                    title={`CV data generated ${ageHours.toFixed(1)}h ago${stale ? ' — may be stale' : ''}`}>
-                    · {ts}{stale ? ' ⚠' : ''}
-                  </span>
+                  <>
+                    <span style={{ fontSize: 9, color: stale ? "#f59e0b" : "#475569", fontFamily: "'JetBrains Mono', monospace" }}
+                      title={`CV data generated ${ageHours.toFixed(1)}h ago${stale ? ' — may be stale' : ''}`}>
+                      · {ts}{stale ? ' ⚠' : ''}
+                    </span>
+                    {veryStale && (
+                      <span style={{ fontSize: 10, color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+                        backgroundColor: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.4)",
+                        borderRadius: 4, padding: "1px 5px" }}
+                        title={`CV data is ${Math.floor(ageDays)} days old — regular season data only. Run compute_cv.py --season-type Playoffs to refresh with playoff games.`}>
+                        RS DATA {Math.floor(ageDays)}d OLD
+                      </span>
+                    )}
+                  </>
                 );
               })()}
               <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginLeft: "auto" }}>
