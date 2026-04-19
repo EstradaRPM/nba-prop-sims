@@ -2531,6 +2531,8 @@ function ParlayBuilder({ results, bankroll }) {
   const [bookFilter, setBookFilter]       = useState('any');
   const [selectedIds, setSelectedIds]     = useState(new Set());
   const [bookOddsInput, setBookOddsInput] = useState('');
+  const [sideFilter, setSideFilter]       = useState('any'); // 'any' | 'OVER' | 'UNDER'
+  const [statTypes, setStatTypes]         = useState(new Set()); // empty = all stats
 
   // Qualifying legs: positive edge + ETR confirmed + book filter
   const qualifying = useMemo(() => {
@@ -2538,10 +2540,12 @@ function ParlayBuilder({ results, bankroll }) {
       .filter(r =>
         r.edge >= minEdge &&
         r.etrConfirms === true &&
-        (bookFilter === 'any' || (r.bookName || '') === bookFilter)
+        (bookFilter === 'any' || (r.bookName || '') === bookFilter) &&
+        (sideFilter === 'any' || r.side === sideFilter) &&
+        (statTypes.size === 0 || statTypes.has(r.stat))
       )
       .sort((a, b) => b.edge - a.edge);
-  }, [results, minEdge, bookFilter]);
+  }, [results, minEdge, bookFilter, sideFilter, statTypes]);
 
   // Group by game
   const byGame = useMemo(() => {
@@ -2588,6 +2592,18 @@ function ParlayBuilder({ results, bankroll }) {
     if (selectedLegs.length < 2) return null;
     const jointProb = selectedLegs.reduce((p, r) => p * r.modelProb, 1);
     const fairOdds  = probToAmerican(jointProb);
+    // Book formula: multiply each leg's decimal odds — this is what a standard
+    // parlay payout would be based purely on the book's stated per-leg prices.
+    // Comparing this to model fair odds reveals the source of any discrepancy:
+    // a large gap means the model has much higher confidence per leg than the
+    // book's odds imply (e.g. model 80% per leg vs book -110 = 52%).
+    const allHaveOdds = selectedLegs.every(r => !isNaN(r.bookOdds));
+    const bookFormulaDec = allHaveOdds
+      ? selectedLegs.reduce((p, r) => p * (americanToDecimal(r.bookOdds) || 1), 1)
+      : null;
+    const bookFormulaOdds = bookFormulaDec != null && bookFormulaDec >= 2
+      ? '+' + Math.round((bookFormulaDec - 1) * 100)
+      : null;
     const bookOdds  = parseFloat(bookOddsInput);
     let ev = null, edge = null, kelly = null;
     if (!isNaN(bookOdds)) {
@@ -2596,7 +2612,7 @@ function ParlayBuilder({ results, bankroll }) {
       edge  = (jointProb - americanToProb(bookOdds)) * 100;
       kelly = calcKelly(jointProb, bookOdds) * 25;
     }
-    return { jointProb, fairOdds, ev, edge, kelly };
+    return { jointProb, fairOdds, bookFormulaOdds, ev, edge, kelly };
   }, [selectedLegs, gameConflicts, bookOddsInput]);
 
   // Unique book names from qualifying legs
@@ -2605,6 +2621,14 @@ function ParlayBuilder({ results, bankroll }) {
     qualifying.forEach(r => { if (r.bookName) books.add(r.bookName); });
     return Array.from(books).sort();
   }, [qualifying]);
+
+  // Stat keys present in results (for filter buttons), in display order
+  const availableStats = useMemo(() => {
+    const present = new Set((results || []).map(r => r.stat).filter(Boolean));
+    return ['pts','reb','ast','stl','blk','threes','pra','pr','pa','ra','sb'].filter(s => present.has(s));
+  }, [results]);
+
+  const STAT_BTN_LABELS = { pts:'PTS', reb:'REB', ast:'AST', stl:'STL', blk:'BLK', threes:'3PM', pra:'PRA', pr:'P+R', pa:'P+A', ra:'R+A', sb:'S+B' };
 
   const toggleLeg = betId => setSelectedIds(prev => {
     const next = new Set(prev);
@@ -2648,6 +2672,51 @@ function ParlayBuilder({ results, bankroll }) {
             ))}
           </select>
         </div>
+        {/* Direction filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>DIR</span>
+          {['any', 'OVER', 'UNDER'].map(s => (
+            <button key={s} onClick={() => setSideFilter(s)}
+              style={{ padding: '1px 6px', borderRadius: 3, fontSize: 8, fontFamily: mono, cursor: 'pointer',
+                fontWeight: sideFilter === s ? 700 : 400,
+                border: sideFilter === s ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(148,163,184,0.12)',
+                background: sideFilter === s ? 'rgba(99,102,241,0.15)' : 'rgba(15,23,42,0.4)',
+                color: sideFilter === s ? '#a5b4fc' : '#475569' }}>
+              {s === 'any' ? 'ANY' : s === 'OVER' ? '▲ OVR' : '▼ UND'}
+            </button>
+          ))}
+        </div>
+        {/* Stat type filter */}
+        {availableStats.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>STATS</span>
+            <button onClick={() => setStatTypes(new Set())}
+              style={{ padding: '1px 6px', borderRadius: 3, fontSize: 8, fontFamily: mono, cursor: 'pointer',
+                fontWeight: statTypes.size === 0 ? 700 : 400,
+                border: statTypes.size === 0 ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(148,163,184,0.12)',
+                background: statTypes.size === 0 ? 'rgba(99,102,241,0.15)' : 'rgba(15,23,42,0.4)',
+                color: statTypes.size === 0 ? '#a5b4fc' : '#475569' }}>
+              ALL
+            </button>
+            {availableStats.map(s => {
+              const on = statTypes.has(s);
+              return (
+                <button key={s} onClick={() => setStatTypes(prev => {
+                  const next = new Set(prev);
+                  if (next.has(s)) next.delete(s); else next.add(s);
+                  return next;
+                })}
+                  style={{ padding: '1px 6px', borderRadius: 3, fontSize: 8, fontFamily: mono, cursor: 'pointer',
+                    fontWeight: on ? 700 : 400,
+                    border: on ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(148,163,184,0.12)',
+                    background: on ? 'rgba(99,102,241,0.15)' : 'rgba(15,23,42,0.4)',
+                    color: on ? '#a5b4fc' : '#475569' }}>
+                  {STAT_BTN_LABELS[s] || s.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <button onClick={() => setSelectedIds(new Set(bestPerGame.map(r => r.betId)))}
           style={{ padding: '2px 9px', borderRadius: 4, fontSize: 8, fontWeight: 700,
             fontFamily: mono, cursor: 'pointer',
@@ -2695,11 +2764,15 @@ function ParlayBuilder({ results, bankroll }) {
                         {sel ? '◉' : '○'}
                       </span>
                       <span style={{ fontSize: 9, color: '#e2e8f0', fontFamily: mono,
-                        flex: '0 0 120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        flex: '0 0 110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {r.player}
                       </span>
-                      <span style={{ fontSize: 8, color: '#94a3b8', fontFamily: mono, flex: '0 0 28px' }}>
+                      <span style={{ fontSize: 8, color: '#94a3b8', fontFamily: mono, flex: '0 0 26px' }}>
                         {r.statLabel}
+                      </span>
+                      <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono, flex: '0 0 36px', textAlign: 'right' }}
+                        title="ETR projection">
+                        {r.projection != null ? r.projection.toFixed(1) : '—'}
                       </span>
                       <span style={{ fontSize: 8, color: '#94a3b8', fontFamily: mono, flex: '0 0 50px', textAlign: 'center' }}>
                         {r.side} {r.propLine}
@@ -2754,8 +2827,18 @@ function ParlayBuilder({ results, bankroll }) {
                   <span style={{ fontSize: 8, color: '#94a3b8', fontFamily: mono, whiteSpace: 'nowrap' }}>
                     {r.side} {r.propLine} {r.statLabel}
                   </span>
-                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono, marginLeft: 2, flexShrink: 0 }}>
+                  {r.projection != null && (
+                    <span style={{ fontSize: 7, color: '#475569', fontFamily: mono, flexShrink: 0 }}
+                      title="ETR projection">
+                      ETR:{r.projection.toFixed(1)}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono, flexShrink: 0 }}>
                     {fmtOdds(r.bookOdds)}
+                  </span>
+                  <span style={{ fontSize: 8, color: getProbColor(r.modelProb), fontFamily: mono, flexShrink: 0, fontWeight: 700 }}
+                    title="Model probability for this leg">
+                    {(r.modelProb * 100).toFixed(0)}%
                   </span>
                 </div>
               ))}
@@ -2768,12 +2851,24 @@ function ParlayBuilder({ results, bankroll }) {
                     {parlayCalc ? (parlayCalc.jointProb * 100).toFixed(2) + '%' : '—'}
                   </span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>FAIR ODDS</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between',
+                  marginBottom: parlayCalc?.bookFormulaOdds ? 4 : 8 }}>
+                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>FAIR (MODEL)</span>
                   <span style={{ fontSize: 9, color: '#a5b4fc', fontFamily: mono, fontWeight: 700 }}>
                     {parlayCalc ? parlayCalc.fairOdds : '—'}
                   </span>
                 </div>
+                {parlayCalc?.bookFormulaOdds && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}
+                      title="Book's own parlay formula: multiply each leg's decimal odds. Compare to FAIR (MODEL) to see where the gap comes from.">
+                      BOOK FORMULA †
+                    </span>
+                    <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: mono, fontWeight: 700 }}>
+                      {parlayCalc.bookFormulaOdds}
+                    </span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
                   <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono, whiteSpace: 'nowrap' }}>
                     BOOK ODDS
@@ -2816,8 +2911,10 @@ function ParlayBuilder({ results, bankroll }) {
                     Resolve SGP conflicts to see EV.
                   </div>
                 )}
-                <div style={{ marginTop: 8, fontSize: 7, color: '#334155', fontFamily: mono, lineHeight: 1.5 }}>
-                  * Independent probability across separate games.
+                <div style={{ marginTop: 8, fontSize: 7, color: '#334155', fontFamily: mono, lineHeight: 1.6 }}>
+                  * FAIR (MODEL): simulation probs multiplied — model's true fair value.<br/>
+                  † BOOK FORMULA: leg decimal odds multiplied — what a standard parlay payout would be at those prices.<br/>
+                  If FAIR &lt; BOOK FORMULA, the model has higher confidence per leg than the book's odds imply. Review per-leg % above.
                 </div>
               </div>
             </div>
