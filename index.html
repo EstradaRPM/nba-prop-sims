@@ -2524,6 +2524,310 @@ function PlaySelector({ slate, overflow, config, setConfig, session, totalKelly,
   );
 }
 
+// ── Parlay Builder ───────────────────────────────────────────────────
+function ParlayBuilder({ results, bankroll }) {
+  const { useState, useMemo } = React;
+  const [minEdge, setMinEdge]             = useState(1.5);
+  const [bookFilter, setBookFilter]       = useState('any');
+  const [selectedIds, setSelectedIds]     = useState(new Set());
+  const [bookOddsInput, setBookOddsInput] = useState('');
+
+  // Qualifying legs: positive edge + ETR confirmed + book filter
+  const qualifying = useMemo(() => {
+    return (results || [])
+      .filter(r =>
+        r.edge >= minEdge &&
+        r.etrConfirms === true &&
+        (bookFilter === 'any' || (r.bookName || '') === bookFilter)
+      )
+      .sort((a, b) => b.edge - a.edge);
+  }, [results, minEdge, bookFilter]);
+
+  // Group by game
+  const byGame = useMemo(() => {
+    const groups = new Map();
+    qualifying.forEach(r => {
+      const key = r.eventId || `noev-${r.player}`;
+      if (!groups.has(key)) groups.set(key, { key, legs: [] });
+      groups.get(key).legs.push(r);
+    });
+    return Array.from(groups.values()).sort((a, b) =>
+      (b.legs[0]?.edge || 0) - (a.legs[0]?.edge || 0)
+    );
+  }, [qualifying]);
+
+  // Best leg per game (highest edge)
+  const bestPerGame = useMemo(() =>
+    byGame.map(g => g.legs[0]).filter(Boolean),
+    [byGame]
+  );
+
+  // Selected legs
+  const selectedLegs = useMemo(() =>
+    (results || []).filter(r => selectedIds.has(r.betId)),
+    [results, selectedIds]
+  );
+
+  // Detect same-game conflicts
+  const gameConflicts = useMemo(() => {
+    const counts = {};
+    selectedLegs.forEach(r => {
+      const k = r.eventId || `noev-${r.player}`;
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    return new Set(
+      selectedLegs
+        .filter(r => counts[r.eventId || `noev-${r.player}`] > 1)
+        .map(r => r.betId)
+    );
+  }, [selectedLegs]);
+
+  // Parlay probability + EV
+  const parlayCalc = useMemo(() => {
+    if (gameConflicts.size > 0) return null;
+    if (selectedLegs.length < 2) return null;
+    const jointProb = selectedLegs.reduce((p, r) => p * r.modelProb, 1);
+    const fairOdds  = probToAmerican(jointProb);
+    const bookOdds  = parseFloat(bookOddsInput);
+    let ev = null, edge = null, kelly = null;
+    if (!isNaN(bookOdds)) {
+      const dec   = americanToDecimal(bookOdds);
+      ev    = (jointProb * dec - 1) * 100;
+      edge  = (jointProb - americanToProb(bookOdds)) * 100;
+      kelly = calcKelly(jointProb, bookOdds) * 25;
+    }
+    return { jointProb, fairOdds, ev, edge, kelly };
+  }, [selectedLegs, gameConflicts, bookOddsInput]);
+
+  // Unique book names from qualifying legs
+  const availableBooks = useMemo(() => {
+    const books = new Set();
+    qualifying.forEach(r => { if (r.bookName) books.add(r.bookName); });
+    return Array.from(books).sort();
+  }, [qualifying]);
+
+  const toggleLeg = betId => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(betId)) next.delete(betId); else next.add(betId);
+    return next;
+  });
+
+  const ec = e => e >= 5 ? '#22c55e' : e >= 3 ? '#4ade80' : e >= 1.5 ? '#86efac' : '#ef4444';
+  const mono = "'JetBrains Mono', monospace";
+
+  return (
+    <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 8,
+      background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)' }}>
+
+      {/* Controls */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 700, color: '#a5b4fc', letterSpacing: 1 }}>
+          ◈ PARLAY BUILDER
+        </span>
+        <span style={{ fontFamily: mono, fontSize: 8, color: '#475569' }}>
+          ETR-confirmed · positive edge · separate games only
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>MIN EDGE</span>
+          <input type="range" min={0} max={8} step={0.5} value={minEdge}
+            onChange={e => setMinEdge(parseFloat(e.target.value))}
+            style={{ width: 60, accentColor: '#6366f1' }} />
+          <span style={{ fontSize: 9, color: '#a5b4fc', fontFamily: mono, minWidth: 32 }}>
+            +{minEdge.toFixed(1)}%
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>BOOK</span>
+          <select value={bookFilter} onChange={e => setBookFilter(e.target.value)}
+            style={{ fontSize: 9, fontFamily: mono, color: '#e2e8f0',
+              background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(99,102,241,0.3)',
+              borderRadius: 4, padding: '2px 6px', cursor: 'pointer' }}>
+            <option value="any">ANY BOOK</option>
+            {availableBooks.map(b => (
+              <option key={b} value={b}>{b.toUpperCase()}</option>
+            ))}
+          </select>
+        </div>
+        <button onClick={() => setSelectedIds(new Set(bestPerGame.map(r => r.betId)))}
+          style={{ padding: '2px 9px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+            fontFamily: mono, cursor: 'pointer',
+            border: '1px solid rgba(99,102,241,0.5)', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc' }}>
+          AUTO PICK BEST
+        </button>
+        {selectedIds.size > 0 && (
+          <button onClick={() => setSelectedIds(new Set())}
+            style={{ padding: '2px 9px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+              fontFamily: mono, cursor: 'pointer',
+              border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.08)', color: '#f87171' }}>
+            CLEAR
+          </button>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 8, color: '#475569', fontFamily: mono }}>
+          {qualifying.length} qualifying · {byGame.length} games
+        </span>
+      </div>
+
+      {qualifying.length === 0 ? (
+        <div style={{ fontSize: 9, color: '#475569', fontFamily: mono, padding: '8px 0', textAlign: 'center' }}>
+          No legs meet criteria — lower min edge or change book filter.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: selectedIds.size > 0 ? '1fr 290px' : '1fr', gap: 12, alignItems: 'start' }}>
+
+          {/* Qualifying legs by game */}
+          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+            {byGame.map(({ key, legs }) => (
+              <div key={key} style={{ marginBottom: 6 }}>
+                <div style={{ fontSize: 8, color: '#475569', fontFamily: mono, padding: '3px 0 2px',
+                  letterSpacing: 0.5, borderBottom: '1px solid rgba(148,163,184,0.08)' }}>
+                  {legs[0]?.team || '?'} GAME · {legs.length} leg{legs.length > 1 ? 's' : ''}
+                </div>
+                {legs.map(r => {
+                  const sel = selectedIds.has(r.betId);
+                  const conflict = gameConflicts.has(r.betId);
+                  return (
+                    <div key={r.betId} onClick={() => toggleLeg(r.betId)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 5px',
+                        cursor: 'pointer', borderRadius: 4, marginBottom: 1,
+                        background: sel ? (conflict ? 'rgba(239,68,68,0.08)' : 'rgba(99,102,241,0.1)') : 'transparent',
+                        border: sel ? `1px solid ${conflict ? 'rgba(239,68,68,0.3)' : 'rgba(99,102,241,0.3)'}` : '1px solid transparent' }}>
+                      <span style={{ fontSize: 9, color: sel ? '#a5b4fc' : '#475569', minWidth: 10, textAlign: 'center' }}>
+                        {sel ? '◉' : '○'}
+                      </span>
+                      <span style={{ fontSize: 9, color: '#e2e8f0', fontFamily: mono,
+                        flex: '0 0 120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.player}
+                      </span>
+                      <span style={{ fontSize: 8, color: '#94a3b8', fontFamily: mono, flex: '0 0 28px' }}>
+                        {r.statLabel}
+                      </span>
+                      <span style={{ fontSize: 8, color: '#94a3b8', fontFamily: mono, flex: '0 0 50px', textAlign: 'center' }}>
+                        {r.side} {r.propLine}
+                      </span>
+                      <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: mono, flex: '0 0 40px', textAlign: 'right' }}>
+                        {fmtOdds(r.bookOdds)}
+                      </span>
+                      <span style={{ fontSize: 9, color: ec(r.edge), fontFamily: mono, fontWeight: 700,
+                        flex: '0 0 42px', textAlign: 'right' }}>
+                        +{r.edge.toFixed(1)}%
+                      </span>
+                      <span style={{ fontSize: 8, color: '#475569', fontFamily: mono,
+                        flex: '0 0 70px', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.bookName || '—'}
+                      </span>
+                      {conflict && (
+                        <span style={{ fontSize: 7, color: '#f87171', fontFamily: mono }}>SGP⚠</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          {/* Parlay summary panel */}
+          {selectedIds.size > 0 && (
+            <div style={{ padding: '10px 12px', borderRadius: 6,
+              background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(99,102,241,0.25)' }}>
+              <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, color: '#a5b4fc',
+                marginBottom: 8, letterSpacing: 0.5 }}>
+                {selectedLegs.length}-LEG PARLAY
+              </div>
+              {gameConflicts.size > 0 && (
+                <div style={{ fontSize: 8, color: '#f87171', fontFamily: mono, marginBottom: 6,
+                  padding: '3px 6px', borderRadius: 3,
+                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  ⚠ SGP conflict — remove duplicate-game legs
+                </div>
+              )}
+              {selectedLegs.map(r => (
+                <div key={r.betId} style={{ display: 'flex', alignItems: 'center', gap: 4,
+                  marginBottom: 3, padding: '2px 5px', borderRadius: 3,
+                  background: gameConflicts.has(r.betId) ? 'rgba(239,68,68,0.06)' : 'rgba(99,102,241,0.06)',
+                  border: `1px solid ${gameConflicts.has(r.betId) ? 'rgba(239,68,68,0.2)' : 'rgba(99,102,241,0.12)'}` }}>
+                  <span onClick={() => toggleLeg(r.betId)}
+                    style={{ fontSize: 8, color: '#f87171', cursor: 'pointer', fontFamily: mono, flexShrink: 0 }}>✕</span>
+                  <span style={{ fontSize: 8, color: '#e2e8f0', fontFamily: mono,
+                    flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.player}
+                  </span>
+                  <span style={{ fontSize: 8, color: '#94a3b8', fontFamily: mono, whiteSpace: 'nowrap' }}>
+                    {r.side} {r.propLine} {r.statLabel}
+                  </span>
+                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono, marginLeft: 2, flexShrink: 0 }}>
+                    {fmtOdds(r.bookOdds)}
+                  </span>
+                </div>
+              ))}
+
+              {/* EV section */}
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(99,102,241,0.15)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>JOINT PROB</span>
+                  <span style={{ fontSize: 9, color: '#e2e8f0', fontFamily: mono, fontWeight: 700 }}>
+                    {parlayCalc ? (parlayCalc.jointProb * 100).toFixed(2) + '%' : '—'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>FAIR ODDS</span>
+                  <span style={{ fontSize: 9, color: '#a5b4fc', fontFamily: mono, fontWeight: 700 }}>
+                    {parlayCalc ? parlayCalc.fairOdds : '—'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                  <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono, whiteSpace: 'nowrap' }}>
+                    BOOK ODDS
+                  </span>
+                  <input type="text" placeholder="+450" value={bookOddsInput}
+                    onChange={e => setBookOddsInput(e.target.value)}
+                    style={{ flex: 1, fontSize: 9, fontFamily: mono, color: '#e2e8f0',
+                      background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(99,102,241,0.3)',
+                      borderRadius: 3, padding: '2px 6px', outline: 'none' }} />
+                </div>
+                {parlayCalc && parlayCalc.ev !== null && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>EV</span>
+                      <span style={{ fontSize: 9, fontFamily: mono, fontWeight: 700,
+                        color: parlayCalc.ev >= 0 ? '#4ade80' : '#ef4444' }}>
+                        {parlayCalc.ev >= 0 ? '+' : ''}{parlayCalc.ev.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>EDGE</span>
+                      <span style={{ fontSize: 9, fontFamily: mono, fontWeight: 700,
+                        color: parlayCalc.edge >= 0 ? '#4ade80' : '#ef4444' }}>
+                        {parlayCalc.edge >= 0 ? '+' : ''}{parlayCalc.edge.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 8, color: '#64748b', fontFamily: mono }}>¼K STAKE</span>
+                      <span style={{ fontSize: 9, fontFamily: mono, fontWeight: 700, color: '#a5b4fc' }}>
+                        {parlayCalc.kelly > 0
+                          ? parlayCalc.kelly.toFixed(2) + '%'
+                            + (bankroll ? ` ($${(parseFloat(bankroll) * parlayCalc.kelly / 100).toFixed(0)})` : '')
+                          : '—'}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {gameConflicts.size > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 7, color: '#f87171', fontFamily: mono }}>
+                    Resolve SGP conflicts to see EV.
+                  </div>
+                )}
+                <div style={{ marginTop: 8, fontSize: 7, color: '#334155', fontFamily: mono, lineHeight: 1.5 }}>
+                  * Independent probability across separate games.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Batch Results Table ──────────────────────────────────────────────
 function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdge, setMinEdge,
   statFilter, setStatFilter, positiveOnly, setPositiveOnly,
@@ -2541,7 +2845,8 @@ function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdg
   const [valueFilterB, setValueFilterB] = useState(false);
   const [sniperMode, setSniperMode] = useState(false);
   const [etrGate, setEtrGate] = useState(false);
-  const [showPlaySelector, setShowPlaySelector] = useState(false);
+  const [showPlaySelector, setShowPlaySelector]     = useState(false);
+  const [showParlayBuilder, setShowParlayBuilder]   = useState(false);
   // Build a fast lookup: "player|stat" → shift info
   const shiftMap = useMemo(() => {
     const m = {};
@@ -2688,6 +2993,13 @@ function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdg
           background: showPlaySelector ? 'rgba(34,197,94,0.15)' : 'rgba(15,23,42,0.4)',
           color: showPlaySelector ? '#22c55e' : '#475569',
         }}>PLAY SELECTOR</button>
+        <button onClick={() => setShowParlayBuilder(p => !p)} style={{
+          padding: '2px 8px', borderRadius: 4, fontSize: 8, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+          border: showParlayBuilder ? '1px solid rgba(99,102,241,0.6)' : '1px solid rgba(148,163,184,0.15)',
+          background: showParlayBuilder ? 'rgba(99,102,241,0.15)' : 'rgba(15,23,42,0.4)',
+          color: showParlayBuilder ? '#a5b4fc' : '#475569',
+        }}>◈ PARLAY</button>
         {/* View mode toggle */}
         <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
           {(resultsB
@@ -2799,6 +3111,11 @@ function BatchResultsTable({ results, resultsB, sortCol, sortDir, onSort, minEdg
           </button>
         </div>
       </div>
+
+      {/* Parlay Builder */}
+      {showParlayBuilder && (
+        <ParlayBuilder results={results} bankroll={bankroll} />
+      )}
 
       {/* Table or Game View */}
       {showPlaySelector ? (
@@ -7950,6 +8267,7 @@ function NBASimulator() {
             fairUnderOdds,
             gamesAvailable: cvData?.games_available ?? null,
             betId: Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
+            bookName: side === 'over' ? (playerOdds[key]?.overBook ?? null) : (playerOdds[key]?.underBook ?? null),
             eventId:      gameCtx?.eventId     ?? null,
             commenceTime: gameCtx?.commenceTime ?? null,
             etrConfirms: (projValue != null && parseFloat(s.propLine) > 0)
@@ -8052,6 +8370,7 @@ function NBASimulator() {
             fairUnderOdds,
             gamesAvailable: cvData?.games_available ?? null,
             betId: Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
+            bookName:     null,
             eventId:      gameCtx?.eventId     ?? null,
             commenceTime: gameCtx?.commenceTime ?? null,
             std:          directCv != null ? comboProj * (directCv / 100) : null,
