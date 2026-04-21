@@ -9754,36 +9754,49 @@ function NBASimulator() {
             {/* Correlated Signal Detection + Parlay EV */}
             {(() => {
               const coreStats = ["pts", "reb", "ast"];
-              const overSignals = coreStats.filter(k => {
-                const r = results.stats[k];
-                if (!r || !r.overOdds || r.overOdds === "") return false;
-                const vfP = (r.overOdds && r.underOdds && r.underOdds !== "")
-                  ? vigFreeProb(parseFloat(r.overOdds), parseFloat(r.underOdds))
-                  : null;
-                const bookProb = vfP ? vfP.over : americanToProb(parseFloat(r.overOdds));
-                return bookProb && (r.prob.over - bookProb) * 100 >= 1.5;
-              });
-              const underSignals = coreStats.filter(k => {
-                const r = results.stats[k];
-                if (!r || !r.underOdds || r.underOdds === "") return false;
-                const vfP = (r.overOdds && r.overOdds !== "" && r.underOdds)
-                  ? vigFreeProb(parseFloat(r.overOdds), parseFloat(r.underOdds))
-                  : null;
-                const bookProb = vfP ? vfP.under : americanToProb(parseFloat(r.underOdds));
-                return bookProb && (r.prob.under - bookProb) * 100 >= 1.5;
-              });
 
-              // Build parlay display for the triggered direction
-              const renderParlayPanel = (direction) => {
+              // Vig-free edge in pp for a stat+direction, null if no odds available
+              const getEdgePp = (k, dir) => {
+                const r = results.stats[k];
+                if (!r) return null;
+                const myOdds    = dir === 'over' ? r.overOdds  : r.underOdds;
+                const otherOdds = dir === 'over' ? r.underOdds : r.overOdds;
+                if (!myOdds || myOdds === "") return null;
+                const vfP = (myOdds && otherOdds && otherOdds !== "")
+                  ? vigFreeProb(parseFloat(r.overOdds), parseFloat(r.underOdds))
+                  : null;
+                const bookProb = vfP ? vfP[dir] : americanToProb(parseFloat(myOdds));
+                return bookProb ? (r.prob[dir] - bookProb) * 100 : null;
+              };
+
+              // Vig-free book probability for a stat+direction (both sides required)
+              const getBookVfProb = (k, dir) => {
+                const r = results.stats[k];
+                if (!r || !r.overOdds || r.overOdds === "" || !r.underOdds || r.underOdds === "") return null;
+                return vigFreeProb(parseFloat(r.overOdds), parseFloat(r.underOdds))[dir];
+              };
+
+              // 2pp threshold for both full (3/3) and partial (2/3) — reduces weak-edge noise
+              const SIGNAL_THRESH = 2.0;
+              const overAligned  = coreStats.filter(k => (getEdgePp(k, 'over')  ?? -Infinity) >= SIGNAL_THRESH);
+              const underAligned = coreStats.filter(k => (getEdgePp(k, 'under') ?? -Infinity) >= SIGNAL_THRESH);
+
+              const renderParlayPanel = (direction, signalKeys) => {
                 const isOver = direction === 'over';
-                const accentColor  = isOver ? "#22c55e" : "#f87171";
-                const mutedColor   = isOver ? "#86efac" : "#fca5a5";
-                const bgGrad       = isOver
-                  ? "linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))"
-                  : "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.04))";
-                const borderColor  = isOver ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)";
+                const isFull = signalKeys.length >= 3;
+                const missingKey = !isFull ? coreStats.find(k => !signalKeys.includes(k)) : null;
 
-                // Pull simValues + propLines for the 3 core stats
+                const accentColor = isFull ? (isOver ? "#22c55e" : "#f87171") : "#f59e0b";
+                const mutedColor  = isFull ? (isOver ? "#86efac" : "#fca5a5") : "#fcd34d";
+                const bgGrad      = isFull
+                  ? (isOver
+                      ? "linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))"
+                      : "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.04))")
+                  : "linear-gradient(135deg, rgba(245,158,11,0.10), rgba(245,158,11,0.03))";
+                const borderColor = isFull
+                  ? (isOver ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)")
+                  : "rgba(245,158,11,0.3)";
+
                 const sv = {
                   pts: results.stats.pts?.simValues,
                   reb: results.stats.reb?.simValues,
@@ -9794,17 +9807,21 @@ function NBASimulator() {
                   reb: parseFloat(results.stats.reb?.propLine),
                   ast: parseFloat(results.stats.ast?.propLine),
                 };
+                const mu = {
+                  pts: parseFloat(results.stats.pts?.mean),
+                  reb: parseFloat(results.stats.reb?.mean),
+                  ast: parseFloat(results.stats.ast?.mean),
+                };
                 const hasAllSims = sv.pts && sv.reb && sv.ast &&
                   !isNaN(pl.pts) && !isNaN(pl.reb) && !isNaN(pl.ast);
+                const hasMeans   = !isNaN(mu.pts) && !isNaN(mu.reb) && !isNaN(mu.ast);
 
-                // 3-leg joint probability
+                // 3-leg + 2-leg joint probabilities (zero re-simulation cost)
                 const p3 = hasAllSims ? calcParlayProb([
                   { simValues: sv.pts, propLine: pl.pts, side: direction },
                   { simValues: sv.reb, propLine: pl.reb, side: direction },
                   { simValues: sv.ast, propLine: pl.ast, side: direction },
                 ]) : null;
-
-                // 2-leg joint probabilities
                 const p2_pr = hasAllSims ? calcParlayProb([
                   { simValues: sv.pts, propLine: pl.pts, side: direction },
                   { simValues: sv.reb, propLine: pl.reb, side: direction },
@@ -9818,40 +9835,111 @@ function NBASimulator() {
                   { simValues: sv.ast, propLine: pl.ast, side: direction },
                 ]) : null;
 
-                // Book parlay odds + EV for 3-leg
-                const bookOddsVal = parseFloat(parlayOdds[direction]);
-                const hasBookOdds = !isNaN(bookOddsVal) && bookOddsVal !== 0;
+                // Book reference: product of individual vig-free probs (or −110 fallback)
+                const bvf_pts = getBookVfProb('pts', direction);
+                const bvf_reb = getBookVfProb('reb', direction);
+                const bvf_ast = getBookVfProb('ast', direction);
+                const FB = americanToProb(-110); // ≈ 0.524 fallback when odds missing
+                const bookRef3  = (bvf_pts ?? FB) * (bvf_reb ?? FB) * (bvf_ast ?? FB);
+                const bookRef_pr = (bvf_pts ?? FB) * (bvf_reb ?? FB);
+                const bookRef_pa = (bvf_pts ?? FB) * (bvf_ast ?? FB);
+                const bookRef_ra = (bvf_reb ?? FB) * (bvf_ast ?? FB);
+                const allBookOddsPresent = bvf_pts != null && bvf_reb != null && bvf_ast != null;
+
+                // Book parlay odds (user-entered) — vig-free when both sides present
+                const overOddsVal  = parseFloat(parlayOdds.over);
+                const underOddsVal = parseFloat(parlayOdds.under);
+                const hasOverOdds  = !isNaN(overOddsVal)  && overOddsVal  !== 0;
+                const hasUnderOdds = !isNaN(underOddsVal) && underOddsVal !== 0;
+                const hasBothParlaySides = hasOverOdds && hasUnderOdds;
+                const bookOddsVal  = isOver ? overOddsVal : underOddsVal;
+                const hasBookOdds  = isOver ? hasOverOdds : hasUnderOdds;
                 const parlayDecimal = hasBookOdds ? americanToDecimal(bookOddsVal) : null;
-                const parlayEV = (p3 != null && parlayDecimal != null)
-                  ? (p3 * parlayDecimal - 1) * 100
-                  : null;
-                const parlayEdge = (p3 != null && hasBookOdds)
-                  ? (p3 - americanToProb(bookOddsVal)) * 100
-                  : null;
-                const parlayKelly = (p3 != null && hasBookOdds)
-                  ? calcKelly(p3, bookOddsVal)
-                  : null;
+                const parlayEV = (p3 != null && parlayDecimal != null) ? (p3 * parlayDecimal - 1) * 100 : null;
+
+                let parlayEdge = null;
+                let edgeLabel  = "";
+                if (p3 != null && hasBookOdds) {
+                  if (hasBothParlaySides) {
+                    const vfP = vigFreeProb(overOddsVal, underOddsVal);
+                    parlayEdge = (p3 - (isOver ? vfP.over : vfP.under)) * 100;
+                    edgeLabel  = "vig-free edge";
+                  } else {
+                    parlayEdge = (p3 - americanToProb(bookOddsVal)) * 100;
+                    edgeLabel  = "raw edge";
+                  }
+                }
+
+                // ⅛K for parlays: positive corr between legs means Kelly over-bets at ¼K
+                const parlayKelly = (p3 != null && hasBookOdds) ? calcKelly(p3, bookOddsVal) : null;
                 const br = parseFloat(bankroll);
                 const hasBr = !isNaN(br) && br > 0;
-
                 const dirLabel = direction.toUpperCase();
+
+                // Book prob for sensitivity coloring (vig-free if both sides, else raw)
+                const vfBookP3 = hasBookOdds
+                  ? (hasBothParlaySides
+                      ? (isOver ? vigFreeProb(overOddsVal, underOddsVal).over : vigFreeProb(overOddsVal, underOddsVal).under)
+                      : americanToProb(bookOddsVal))
+                  : null;
+
+                // ETR sensitivity: shift all 3 prop lines simultaneously at ±5%/±10%
+                const sensitivityProbs = hasAllSims && hasMeans && p3 != null
+                  ? [-0.10, -0.05, 0, 0.05, 0.10].map(pct => pct === 0 ? p3 : calcParlayProb([
+                      { simValues: sv.pts, propLine: pl.pts + pct * mu.pts, side: direction },
+                      { simValues: sv.reb, propLine: pl.reb + pct * mu.reb, side: direction },
+                      { simValues: sv.ast, propLine: pl.ast + pct * mu.ast, side: direction },
+                    ]))
+                  : null;
 
                 return (
                   <div style={{
                     marginBottom: 12, padding: "12px 14px", borderRadius: 8,
                     background: bgGrad, border: `1px solid ${borderColor}`,
                   }}>
+
                     {/* Header */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, color: accentColor, letterSpacing: 1 }}>
-                        ⚡ ALIGNED {dirLabel} SIGNAL — PTS + REB + AST
+                        {isFull
+                          ? `⚡ ALIGNED ${dirLabel} — PTS · REB · AST`
+                          : `⚡ 2/3 ALIGNED ${dirLabel} — ${signalKeys.map(k => k.toUpperCase()).join(' + ')}`}
                       </div>
-                      <div style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
-                        {numSims.toLocaleString()} trials
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        {!isFull && missingKey && (
+                          <div style={{ fontSize: 9, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", fontStyle: "italic" }}>
+                            {missingKey.toUpperCase()} below {SIGNAL_THRESH}pp
+                          </div>
+                        )}
+                        <div style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>
+                          {numSims.toLocaleString()} trials
+                        </div>
                       </div>
                     </div>
 
-                    {/* 3-leg parlay row */}
+                    {/* Per-leg edge strip */}
+                    <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                      {coreStats.map(k => {
+                        const edgePp  = getEdgePp(k, direction);
+                        const inSig   = signalKeys.includes(k);
+                        return (
+                          <div key={k} style={{
+                            flex: 1, textAlign: "center", padding: "3px 4px", borderRadius: 4,
+                            backgroundColor: inSig ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.1)",
+                            border: `1px solid ${inSig ? borderColor : "rgba(71,85,105,0.2)"}`,
+                            opacity: inSig ? 1 : 0.5,
+                          }}>
+                            <div style={{ fontSize: 8, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>{k.toUpperCase()}</div>
+                            <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace",
+                              color: edgePp != null && edgePp >= 0 ? accentColor : "#ef4444" }}>
+                              {edgePp != null ? `${edgePp >= 0 ? "+" : ""}${edgePp.toFixed(1)}pp` : "—"}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* 3-leg parlay card */}
                     {p3 != null && (
                       <div style={{
                         backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 6, padding: "8px 10px", marginBottom: 8,
@@ -9859,7 +9947,7 @@ function NBASimulator() {
                       }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
                           <span style={{ fontSize: 9, fontWeight: 700, color: accentColor, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.8 }}>
-                            3-LEG PARLAY
+                            3-LEG PARLAY{!isFull ? " (INFORMATIONAL)" : ""}
                           </span>
                           <span style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
                             PTS {dirLabel} {pl.pts} · REB {dirLabel} {pl.reb} · AST {dirLabel} {pl.ast}
@@ -9875,53 +9963,107 @@ function NBASimulator() {
                           <div style={{ fontSize: 12, color: mutedColor, fontFamily: "'JetBrains Mono', monospace" }}>
                             Fair: {probToAmerican(p3)}
                           </div>
-                          <div style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace", fontStyle: "italic" }}>
-                            assumes independence — samplers uncorrelated
+                          <div style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                            Book ref: {probToAmerican(bookRef3)}
+                            {!allBookOddsPresent && <span style={{ color: "#475569" }}> (−110 basis)</span>}
+                          </div>
+                          <div style={{ fontSize: 10, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace",
+                            color: p3 > bookRef3 ? "#86efac" : "#fca5a5" }}>
+                            {((p3 - bookRef3) * 100) >= 0 ? "+" : ""}{((p3 - bookRef3) * 100).toFixed(1)}pp vs ref
                           </div>
                         </div>
 
-                        {/* Book odds input + EV */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7, paddingTop: 7, borderTop: `1px solid ${borderColor}` }}>
-                          <span style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>
-                            Book parlay odds:
-                          </span>
-                          <input
-                            type="text" inputMode="numeric" placeholder="+500"
-                            value={parlayOdds[direction]}
-                            onChange={e => setParlayOdds(prev => ({ ...prev, [direction]: e.target.value }))}
-                            style={{
-                              width: 64, padding: "2px 6px", borderRadius: 4, fontSize: 11,
-                              fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
-                              backgroundColor: "rgba(0,0,0,0.3)", border: "1px solid rgba(148,163,184,0.2)",
-                              color: "#e2e8f0", outline: "none", textAlign: "center",
-                            }}
-                          />
-                          {parlayEV != null && (
-                            <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-                              <span style={{
-                                fontSize: 13, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace",
-                                color: parlayEV >= 0 ? accentColor : "#ef4444",
-                              }}>
-                                EV {parlayEV >= 0 ? "+" : ""}{parlayEV.toFixed(1)}%
-                              </span>
-                              {parlayEdge != null && (
-                                <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
-                                  · raw edge {parlayEdge >= 0 ? "+" : ""}{parlayEdge.toFixed(1)}%
-                                </span>
-                              )}
-                              {parlayKelly != null && parlayKelly > 0 && (
-                                <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
-                                  · ¼K {(parlayKelly * 25).toFixed(2)}%
-                                  {hasBr ? ` → $${Math.round(br * parlayKelly * 0.25)}` : ""}
-                                </span>
+                        {/* ETR sensitivity strip — all 3 legs shifted simultaneously */}
+                        {sensitivityProbs && (
+                          <div style={{ marginTop: 7, paddingTop: 6, borderTop: `1px solid ${borderColor}` }}>
+                            <div style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginBottom: 3, letterSpacing: 0.5, fontWeight: 700 }}>
+                              ETR SENSITIVITY — ALL 3 LEGS
+                            </div>
+                            <div style={{ display: "flex", gap: 2 }}>
+                              {["-10%", "-5%", "BASE", "+5%", "+10%"].map((lbl, i) => {
+                                const p = sensitivityProbs[i];
+                                const isBase = i === 2;
+                                const refP = vfBookP3 ?? bookRef3;
+                                const isGood = p >= refP;
+                                return (
+                                  <div key={lbl} style={{
+                                    flex: 1, textAlign: "center", padding: "3px 2px", borderRadius: 3,
+                                    backgroundColor: isBase ? "rgba(255,255,255,0.08)" : (isGood ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"),
+                                    border: isBase ? "1px solid rgba(255,255,255,0.15)" : "1px solid transparent",
+                                  }}>
+                                    <div style={{ fontSize: 7, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>{lbl}</div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace",
+                                      color: isBase ? accentColor : (isGood ? "#86efac" : "#fca5a5") }}>
+                                      {(p * 100).toFixed(1)}%
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Book odds inputs + EV — both sides for vig-free edge */}
+                        <div style={{ marginTop: 7, paddingTop: 7, borderTop: `1px solid ${borderColor}` }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>
+                              Book parlay:
+                            </span>
+                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                              <input
+                                type="text" inputMode="numeric" placeholder="OVER odds"
+                                value={parlayOdds.over}
+                                onChange={e => setParlayOdds(prev => ({ ...prev, over: e.target.value }))}
+                                style={{
+                                  width: 72, padding: "2px 6px", borderRadius: 4, fontSize: 11,
+                                  fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+                                  backgroundColor: "rgba(0,0,0,0.3)",
+                                  border: `1px solid ${hasOverOdds ? "rgba(34,197,94,0.5)" : "rgba(148,163,184,0.2)"}`,
+                                  color: "#e2e8f0", outline: "none", textAlign: "center",
+                                }}
+                              />
+                              <input
+                                type="text" inputMode="numeric" placeholder="UNDER odds"
+                                value={parlayOdds.under}
+                                onChange={e => setParlayOdds(prev => ({ ...prev, under: e.target.value }))}
+                                style={{
+                                  width: 72, padding: "2px 6px", borderRadius: 4, fontSize: 11,
+                                  fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+                                  backgroundColor: "rgba(0,0,0,0.3)",
+                                  border: `1px solid ${hasUnderOdds ? "rgba(239,68,68,0.5)" : "rgba(148,163,184,0.2)"}`,
+                                  color: "#e2e8f0", outline: "none", textAlign: "center",
+                                }}
+                              />
+                              {hasBothParlaySides && (
+                                <span style={{ fontSize: 8, color: "#22c55e", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>VIG-FREE ✓</span>
                               )}
                             </div>
-                          )}
-                          {!hasBookOdds && (
-                            <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", fontStyle: "italic" }}>
-                              enter book odds for EV
-                            </span>
-                          )}
+                            {parlayEV != null && (
+                              <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 13, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace",
+                                  color: parlayEV >= 0 ? accentColor : "#ef4444" }}>
+                                  EV {parlayEV >= 0 ? "+" : ""}{parlayEV.toFixed(1)}%
+                                </span>
+                                {parlayEdge != null && (
+                                  <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                                    color: parlayEdge >= 0 ? "#86efac" : "#fca5a5" }}>
+                                    · {edgeLabel} {parlayEdge >= 0 ? "+" : ""}{parlayEdge.toFixed(1)}pp
+                                  </span>
+                                )}
+                                {parlayKelly != null && parlayKelly > 0 && (
+                                  <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                                    · ⅛K {(parlayKelly * 12.5).toFixed(2)}%
+                                    {hasBr ? ` → $${Math.round(br * parlayKelly * 0.125)}` : ""}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {!hasBookOdds && (
+                              <span style={{ fontSize: 9, color: "#475569", fontFamily: "'JetBrains Mono', monospace", fontStyle: "italic" }}>
+                                enter both sides for vig-free edge
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -9934,23 +10076,41 @@ function NBASimulator() {
                         </div>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                           {[
-                            { label: `PTS+REB ${dirLabel}`, p: p2_pr },
-                            { label: `PTS+AST ${dirLabel}`, p: p2_pa },
-                            { label: `REB+AST ${dirLabel}`, p: p2_ra },
-                          ].map(({ label, p }) => p != null && (
-                            <div key={label} style={{
-                              backgroundColor: "rgba(0,0,0,0.15)", borderRadius: 5,
-                              padding: "4px 8px", border: `1px solid ${borderColor}`,
-                            }}>
-                              <div style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace" }}>{label}</div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: mutedColor, fontFamily: "'JetBrains Mono', monospace" }}>
-                                {(p * 100).toFixed(1)}%
+                            { label: "PTS+REB", p: p2_pr, ref: bookRef_pr, legs: ['pts', 'reb'] },
+                            { label: "PTS+AST", p: p2_pa, ref: bookRef_pa, legs: ['pts', 'ast'] },
+                            { label: "REB+AST", p: p2_ra, ref: bookRef_ra, legs: ['reb', 'ast'] },
+                          ].map(({ label, p, ref, legs }) => {
+                            if (p == null) return null;
+                            const edge2 = ref != null ? (p - ref) * 100 : null;
+                            const bothAligned = legs.every(k => signalKeys.includes(k));
+                            return (
+                              <div key={label} style={{
+                                backgroundColor: bothAligned ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.12)",
+                                borderRadius: 5, padding: "5px 9px", minWidth: 82,
+                                border: `1px solid ${bothAligned ? borderColor : "rgba(71,85,105,0.25)"}`,
+                                opacity: bothAligned ? 1 : 0.6,
+                              }}>
+                                <div style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginBottom: 1 }}>
+                                  {label} {dirLabel}
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: mutedColor, fontFamily: "'JetBrains Mono', monospace" }}>
+                                  {(p * 100).toFixed(1)}%
+                                </div>
+                                <div style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                                  Fair: {probToAmerican(p)}
+                                </div>
+                                {edge2 != null && (
+                                  <div style={{ fontSize: 9, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace",
+                                    color: edge2 >= 0 ? "#86efac" : "#fca5a5" }}>
+                                    {edge2 >= 0 ? "+" : ""}{edge2.toFixed(1)}pp vs ref
+                                  </div>
+                                )}
                               </div>
-                              <div style={{ fontSize: 9, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
-                                Fair: {probToAmerican(p)}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
+                        </div>
+                        <div style={{ fontSize: 8, color: "#475569", fontFamily: "'JetBrains Mono', monospace", marginTop: 4, fontStyle: "italic" }}>
+                          ref = product of individual vig-free leg probs{!allBookOddsPresent ? " · −110 used where odds missing" : ""}
                         </div>
                       </div>
                     )}
@@ -9958,8 +10118,10 @@ function NBASimulator() {
                 );
               };
 
-              if (overSignals.length >= 3) return renderParlayPanel('over');
-              if (underSignals.length >= 3) return renderParlayPanel('under');
+              if (overAligned.length >= 3)  return renderParlayPanel('over',  overAligned);
+              if (underAligned.length >= 3)  return renderParlayPanel('under', underAligned);
+              if (overAligned.length >= 2)   return renderParlayPanel('over',  overAligned);
+              if (underAligned.length >= 2)  return renderParlayPanel('under', underAligned);
               return null;
             })()}
 
