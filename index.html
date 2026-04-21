@@ -6545,6 +6545,7 @@ function NBASimulator() {
   const [resultsAreStale, setResultsAreStale] = useState(false);
   const [simTime, setSimTime] = useState(null);
   const [simTimestamp, setSimTimestamp] = useState(null);
+  const [simError, setSimError] = useState(null);
   const [csvData, setCsvData] = useState(null);
   const [copied, setCopied] = useState(false);
   const [includeHeaders, setIncludeHeaders] = useState(true);
@@ -7238,6 +7239,8 @@ function NBASimulator() {
   }, []);
 
   const handleSimulate = useCallback(() => {
+    setSimError(null);
+    try {
     const t0 = performance.now();
     const ts = new Date().toISOString();
     // Build projection uncertainty σ map when PROJ σ mode is active
@@ -7392,7 +7395,14 @@ function NBASimulator() {
     setSimTimestamp(ts);
     setResults({ stats: statProbs, combos: comboProbs, portfolioFactors });
     setResultsAreStale(false);
-  }, [stats, comboLines, numSims, kellyFraction, ptsRawData, rebRawData, astRawData, projUncertaintyMode, praDirectCv, prDirectCv, paDirectCv, raDirectCv, sbDirectCv, shotProfile, projections, playerName, calibTemps]);
+    } catch (err) {
+      // Catch any unhandled error from the simulation pipeline so the app
+      // never silently freezes. Surfaces the message near the RUN SIMULATION
+      // button so the user knows something went wrong and can report it.
+      console.error('[NBA Sim] handleSimulate threw:', err);
+      setSimError(err?.message || String(err));
+    }
+  }, [stats, comboLines, numSims, kellyFraction, ptsRawData, rebRawData, astRawData, ptsRawDataAll, rebRawDataAll, astRawDataAll, projUncertaintyMode, praDirectCv, prDirectCv, paDirectCv, raDirectCv, sbDirectCv, shotProfile, projections, playerName, calibTemps]);
 
   // ── Calibration Handlers ─────────────────────────────────────────────
   // Toggle a single betId in/out of the batchTracked selection set
@@ -9631,8 +9641,8 @@ function NBASimulator() {
         </div>
 
         {/* Buttons */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-          <button onClick={handleSimulate} disabled={!hasAnyLine} style={{
+        <div style={{ display: "flex", gap: 10, marginBottom: simError ? 8 : 24 }}>
+          <button type="button" onClick={handleSimulate} disabled={!hasAnyLine} style={{
             flex: 3, padding: "14px 24px", borderRadius: 10, border: "none",
             background: hasAnyLine ? "linear-gradient(135deg, #4f46e5, #6366f1)" : "rgba(51,65,85,0.5)",
             color: hasAnyLine ? "#fff" : "#475569",
@@ -9653,6 +9663,18 @@ function NBASimulator() {
             </button>
           )}
         </div>
+
+        {/* Simulation error display — shown when handleSimulate throws so users are never left wondering */}
+        {simError && (
+          <div style={{
+            marginBottom: 16, padding: "10px 14px", borderRadius: 8,
+            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.4)",
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#fca5a5", lineHeight: 1.5,
+          }}>
+            <span style={{ fontWeight: 700, color: "#ef4444" }}>SIMULATION ERROR </span>
+            {simError} — check the browser console (F12) for the full stack trace and report this at github.com/anthropics/claude-code/issues
+          </div>
+        )}
 
         {/* CSV Modal */}
         {csvData && (
