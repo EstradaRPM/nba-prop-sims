@@ -7192,7 +7192,8 @@ function NBASimulator() {
           return next;
         });
         // Auto-populate combo prop lines from component sums — zero additional API calls.
-        // Component lines are already on the 0.5 grid so the sum lands on a valid line.
+        // When two .5 component lines are summed the result is a whole number (e.g. 24.5+6.5=31.0).
+        // Books never post combo props at whole numbers (to prevent pushes), so snap down to X.5.
         // Odds are intentionally left blank: defaulting to -110 would show fake edge before
         // the user has confirmed the actual market price.
         setComboLines(() => {
@@ -7202,7 +7203,9 @@ function NBASimulator() {
             if (!parts.every(pk => playerOdds[pk]?.line != null)) return;
             const sum = parts.reduce((s, pk) => s + playerOdds[pk].line, 0);
             if (sum <= 0) return;
-            next[key] = { line: String(Math.round(sum * 2) / 2), overOdds: "", underOdds: "" };
+            // Snap to X.5: if sum is a whole number (e.g. 31.0), use X-0.5 (30.5).
+            const snapped = sum % 1 === 0 ? sum - 0.5 : sum;
+            next[key] = { line: String(snapped), overOdds: "", underOdds: "" };
           });
           return next;
         });
@@ -8422,7 +8425,9 @@ function NBASimulator() {
         if (!parts.every(pk => playerOdds[pk]?.line != null)) return;
         const comboLine = parts.reduce((s, pk) => s + playerOdds[pk].line, 0);
         if (comboLine <= 0) return;
-        const comboLineRounded = Math.round(comboLine * 2) / 2; // snap to 0.5 grid
+        // Snap to X.5: books never post combo lines at whole numbers. When two .5 component
+        // lines sum to a whole number (e.g. 24.5+6.5=31.0), snap down to 30.5.
+        const comboLineRounded = comboLine % 1 === 0 ? comboLine - 0.5 : comboLine;
 
         // Projection floor for combos
         const comboProj = parts.reduce((s, pk) => s + (parseFloat(p[pk]) || 0), 0);
