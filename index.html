@@ -6718,7 +6718,7 @@ function NBASimulator() {
   });
 
   React.useEffect(() => {
-    fetch('./cv_data.json')
+    fetch('./cv_data_playoffs.json')
       .then(r => r.json())
       .then(data => { setCvDatabase(data.players); setCvGeneratedAt(data.generated_at || null); })
       .catch(() => {}); // degrade gracefully — CV lookup is optional
