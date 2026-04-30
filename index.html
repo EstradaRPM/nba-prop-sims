@@ -4199,6 +4199,32 @@ function parseETRProjections(text) {
   return { players };
 }
 
+// ── CV Blend / KDE Window Helpers ────────────────────────────────────
+// Pure functions shared by handleLoadCv (interactive) and buildPlayerStatsForSim (batch).
+
+// Weighted blend across all four CV windows.
+// gamesAvailable sets the season-window sample-size weight (default 30 when unknown).
+function blendCv(cvByWindow, gamesAvailable = 30) {
+  const BLEND_N = { last5: 5, last10: 10, last20: 20, season: gamesAvailable || 30 };
+  const BLEND_R = { last5: 3.0, last10: 2.0, last20: 1.5, season: 1.0 };
+  let wSum = 0, wVal = 0;
+  ['last5', 'last10', 'last20', 'season'].forEach(w => {
+    const v = cvByWindow?.[w];
+    if (v == null) return;
+    const weight = BLEND_N[w] * BLEND_R[w];
+    wSum += weight; wVal += weight * v;
+  });
+  return wSum > 0 ? wVal / wSum : null;
+}
+
+// Select the largest available KDE raw-data window with at least minGames entries.
+// Prefers season (most data) since simulateStatKDE applies LAMBDA=0.9 recency decay internally.
+function selectKdeWindow(rawDataMap, minGames = 5) {
+  return ['season', 'last20', 'last10', 'last5'].find(
+    w => (rawDataMap?.['pts_raw']?.[w]?.length ?? 0) >= minGames
+  ) || 'last20';
+}
+
 // ── Batch Sim: Build Stats Object Per Player ─────────────────────────
 // Pure function — no state access. Builds the stats object runSimulation() expects,
 // from a projection row + oddsData entry + cvDatabase entry.
@@ -4207,21 +4233,9 @@ function parseETRProjections(text) {
 // as individual simulation instead of falling back to parametric-only.
 // Returns { stats, ptsRawData, rebRawData, astRawData }.
 function buildPlayerStatsForSim(projection, playerOdds, cvData) {
-  // Auto-blend weights — identical to handleLoadCv
-  const BLEND_N = { last5: 5, last10: 10, last20: 20, season: cvData?.games_available || 30 };
-  const BLEND_R = { last5: 3.0, last10: 2.0, last20: 1.5, season: 1.0 };
-  const blendCv = (cvByWindow) => {
-    let wSum = 0, wVal = 0;
-    ['last5', 'last10', 'last20', 'season'].forEach(w => {
-      const v = cvByWindow?.[w];
-      if (v == null) return;
-      const weight = BLEND_N[w] * BLEND_R[w];
-      wSum += weight; wVal += weight * v;
-    });
-    return wSum > 0 ? wVal / wSum : null;
-  };
+  const gamesAvailable = cvData?.games_available;
 
-  const cvMinRaw = blendCv(cvData?.cv_minutes);
+  const cvMinRaw = blendCv(cvData?.cv_minutes, gamesAvailable);
 
   const stats = {};
   STAT_CONFIG.forEach(({ key }) => {
@@ -4229,7 +4243,7 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
     const oddsEntry = playerOdds?.[key];
     let cvMode = false, cvValue = '';
     if (cvData?.cv?.[key] != null && mean > 0) {
-      const cvPer36 = blendCv(cvData.cv[key]);
+      const cvPer36 = blendCv(cvData.cv[key], gamesAvailable);
       if (cvPer36 != null) {
         const effective = cvMinRaw != null
           ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
@@ -4256,8 +4270,7 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
   // KDE raw data — use largest available window (same logic as handleLoadCv auto mode).
   // simulateStatKDE applies LAMBDA=0.9 recency decay internally so more data = better
   // bandwidth estimation without sacrificing recency accuracy.
-  const kdeWin = ['season', 'last20', 'last10', 'last5']
-    .find(w => (cvData?.['pts_raw']?.[w]?.length ?? 0) >= 5) || 'last20';
+  const kdeWin = selectKdeWindow(cvData);
   const loadRaw = (rawKey, meanKey) => {
     const scores = cvData?.[rawKey]?.[kdeWin];
     const hMean  = cvData?.[meanKey]?.[kdeWin];
@@ -4284,7 +4297,7 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
   // Compute combo direct CVs (same logic as handleLoadCv setComboDirectCv)
   const comboCvs = {};
   COMBO_CONFIG.forEach(({ key }) => {
-    const cvPer36 = blendCv(cvData?.cv?.[key]);
+    const cvPer36 = blendCv(cvData?.cv?.[key], gamesAvailable);
     if (cvPer36 != null) {
       const effective = cvMinRaw != null
         ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
@@ -6962,31 +6975,15 @@ function NBASimulator() {
     const win = cvWindow;
     const isAuto = win === 'auto';
 
-    // ── Auto-blend helpers ─────────────────────────────────────────────
-    // Weights: sample-size × recency multiplier. last5 is noisiest but most
-    // predictive; season is stable but may lag role changes. Blending gives
-    // principled weight to all windows, reducing both bias and variance vs.
-    // picking a single window manually.
-    const BLEND_N = { last5: 5, last10: 10, last20: 20, season: playerData.games_available || 30 };
-    const BLEND_R = { last5: 3.0, last10: 2.0, last20: 1.5, season: 1.0 };
-    const blendCv = (cvByWindow) => {
-      let wSum = 0, wVal = 0;
-      ['last5', 'last10', 'last20', 'season'].forEach(w => {
-        const v = cvByWindow?.[w];
-        if (v == null) return;
-        const weight = BLEND_N[w] * BLEND_R[w];
-        wSum += weight; wVal += weight * v;
-      });
-      return wSum > 0 ? wVal / wSum : null;
-    };
+    const ga = playerData.games_available;
 
     // Minutes CV — blended or single window
-    const cvMinRaw = isAuto ? blendCv(playerData.cv_minutes) : playerData.cv_minutes?.[win];
+    const cvMinRaw = isAuto ? blendCv(playerData.cv_minutes, ga) : playerData.cv_minutes?.[win];
 
     setStats(prev => {
       const updated = { ...prev };
       STAT_CONFIG.forEach(({ key }) => {
-        const cvPer36 = isAuto ? blendCv(playerData.cv?.[key]) : playerData.cv?.[key]?.[win];
+        const cvPer36 = isAuto ? blendCv(playerData.cv?.[key], ga) : playerData.cv?.[key]?.[win];
         if (cvPer36 == null) return;
         // Combine per-36 rate variance with minutes variance when available.
         // If cv_minutes absent (stale data), use per-36 CV alone — still far better than hardcoded ratios.
@@ -7018,7 +7015,7 @@ function NBASimulator() {
     // Direct simulation uses the empirical combo CV (which already encodes within-game
     // correlations between component stats) rather than summing independently-drawn distributions.
     const setComboDirectCv = (comboKey, setter) => {
-      const cvPer36 = isAuto ? blendCv(playerData.cv?.[comboKey]) : playerData.cv?.[comboKey]?.[win];
+      const cvPer36 = isAuto ? blendCv(playerData.cv?.[comboKey], ga) : playerData.cv?.[comboKey]?.[win];
       if (cvPer36 != null) {
         const effectiveCV = (cvMinRaw != null)
           ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
@@ -7037,9 +7034,7 @@ function NBASimulator() {
     // In auto-blend mode, prefer the season window (most data) since the KDE
     // sampler already applies LAMBDA=0.9 recency decay internally — using a
     // larger raw dataset gives better bandwidth estimation without sacrificing recency.
-    const kdeWin = isAuto
-      ? (['season', 'last20', 'last10', 'last5'].find(w => (playerData['pts_raw']?.[w]?.length ?? 0) >= 5) || 'last20')
-      : win;
+    const kdeWin = isAuto ? selectKdeWindow(playerData) : win;
     const loadRawData = (rawKey, meanKey, setter) => {
       const scores = playerData[rawKey]?.[kdeWin];
       const hMean  = playerData[meanKey]?.[kdeWin];
