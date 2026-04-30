@@ -4199,6 +4199,35 @@ function parseETRProjections(text) {
   return { players };
 }
 
+// ── CV Entry Parser ───────────────────────────────────────────────────
+// Parses a raw cv_data.json entry into an explicit struct with named fields.
+// Called once per player load; all downstream code uses struct fields instead of
+// optional-chaining directly into the JSON blob. Missing required fields emit a warn.
+function parseCvEntry(raw, playerName = '') {
+  if (!raw) return null;
+  if (raw.cv == null)             console.warn(`[parseCvEntry] ${playerName}: missing 'cv'`);
+  if (raw.games_available == null) console.warn(`[parseCvEntry] ${playerName}: missing 'games_available'`);
+  return {
+    cv:               raw.cv              ?? null,
+    cvMinutes:        raw.cv_minutes      ?? null,
+    gamesAvailable:   raw.games_available ?? null,
+    ptsRaw:           raw.pts_raw         ?? null,
+    rebRaw:           raw.reb_raw         ?? null,
+    astRaw:           raw.ast_raw         ?? null,
+    ptsMeanRaw:       raw.pts_mean_raw    ?? null,
+    rebMeanRaw:       raw.reb_mean_raw    ?? null,
+    astMeanRaw:       raw.ast_mean_raw    ?? null,
+    ptsRawAll:        raw.pts_raw_all     ?? null,
+    rebRawAll:        raw.reb_raw_all     ?? null,
+    astRawAll:        raw.ast_raw_all     ?? null,
+    ptsMeanRawAll:    raw.pts_mean_raw_all  ?? null,
+    rebMeanRawAll:    raw.reb_mean_raw_all  ?? null,
+    astMeanRawAll:    raw.ast_mean_raw_all  ?? null,
+    shotProfile:      raw.shot_profile    ?? null,
+    meanMinutesLast20: raw.mean_minutes_last20 ?? null,
+  };
+}
+
 // ── CV Blend / KDE Window Helpers ────────────────────────────────────
 // Pure functions shared by handleLoadCv (interactive) and buildPlayerStatsForSim (batch).
 
@@ -4219,9 +4248,10 @@ function blendCv(cvByWindow, gamesAvailable = 30) {
 
 // Select the largest available KDE raw-data window with at least minGames entries.
 // Prefers season (most data) since simulateStatKDE applies LAMBDA=0.9 recency decay internally.
-function selectKdeWindow(rawDataMap, minGames = 5) {
+// Accepts a parseCvEntry struct (uses cv.ptsRaw) or null.
+function selectKdeWindow(cv, minGames = 5) {
   return ['season', 'last20', 'last10', 'last5'].find(
-    w => (rawDataMap?.['pts_raw']?.[w]?.length ?? 0) >= minGames
+    w => (cv?.ptsRaw?.[w]?.length ?? 0) >= minGames
   ) || 'last20';
 }
 
@@ -4232,18 +4262,18 @@ function selectKdeWindow(rawDataMap, minGames = 5) {
 // and extracts KDE raw data arrays for pts/reb/ast — giving batch the same accuracy
 // as individual simulation instead of falling back to parametric-only.
 // Returns { stats, ptsRawData, rebRawData, astRawData }.
-function buildPlayerStatsForSim(projection, playerOdds, cvData) {
-  const gamesAvailable = cvData?.games_available;
-
-  const cvMinRaw = blendCv(cvData?.cv_minutes, gamesAvailable);
+function buildPlayerStatsForSim(projection, playerOdds, cvRaw) {
+  const cv = parseCvEntry(cvRaw, projection.name);
+  const gamesAvailable = cv?.gamesAvailable;
+  const cvMinRaw = blendCv(cv?.cvMinutes, gamesAvailable);
 
   const stats = {};
   STAT_CONFIG.forEach(({ key }) => {
     const mean = parseFloat(projection[key]) || 0;
     const oddsEntry = playerOdds?.[key];
     let cvMode = false, cvValue = '';
-    if (cvData?.cv?.[key] != null && mean > 0) {
-      const cvPer36 = blendCv(cvData.cv[key], gamesAvailable);
+    if (cv?.cv?.[key] != null && mean > 0) {
+      const cvPer36 = blendCv(cv.cv[key], gamesAvailable);
       if (cvPer36 != null) {
         const effective = cvMinRaw != null
           ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
@@ -4270,24 +4300,22 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
   // KDE raw data — use largest available window (same logic as handleLoadCv auto mode).
   // simulateStatKDE applies LAMBDA=0.9 recency decay internally so more data = better
   // bandwidth estimation without sacrificing recency accuracy.
-  const kdeWin = selectKdeWindow(cvData);
-  const loadRaw = (rawKey, meanKey) => {
-    const scores = cvData?.[rawKey]?.[kdeWin];
-    const hMean  = cvData?.[meanKey]?.[kdeWin];
-    return (scores != null && hMean != null && scores.length >= 5)
-      ? { rawScores: scores, historicalMean: hMean }
-      : null;
+  const kdeWin = selectKdeWindow(cv);
+  const loadRaw = (scores, meanArr) => {
+    const s = scores?.[kdeWin];
+    const m = meanArr?.[kdeWin];
+    return (s != null && m != null && s.length >= 5) ? { rawScores: s, historicalMean: m } : null;
   };
 
   // Extract shot profile for compound PTS model
-  const sp = cvData?.shot_profile;
+  const sp = cv?.shotProfile;
   const shotProfile = (sp && sp.fg3_pct != null && sp.fg2_pct != null && sp.ft_pct != null)
     ? {
         fg3Pct:      sp.fg3_pct,
         fg2Pct:      sp.fg2_pct,
         ftPct:       sp.ft_pct,
         ftaPerGame:  sp.fta_per_game ?? 0,
-        meanMinutes: cvData?.mean_minutes_last20 ?? null,
+        meanMinutes: cv?.meanMinutesLast20 ?? null,
         r3pa:        sp.r_fg3a ?? null,
         r2pa:        sp.r_fg2a ?? null,
         rFta:        sp.r_fta  ?? null,
@@ -4297,7 +4325,7 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
   // Compute combo direct CVs (same logic as handleLoadCv setComboDirectCv)
   const comboCvs = {};
   COMBO_CONFIG.forEach(({ key }) => {
-    const cvPer36 = blendCv(cvData?.cv?.[key], gamesAvailable);
+    const cvPer36 = blendCv(cv?.cv?.[key], gamesAvailable);
     if (cvPer36 != null) {
       const effective = cvMinRaw != null
         ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
@@ -4308,12 +4336,12 @@ function buildPlayerStatsForSim(projection, playerOdds, cvData) {
 
   return {
     stats,
-    ptsRawData:    loadRaw('pts_raw', 'pts_mean_raw'),
-    rebRawData:    loadRaw('reb_raw', 'reb_mean_raw'),
-    astRawData:    loadRaw('ast_raw', 'ast_mean_raw'),
-    ptsRawDataAll: loadRaw('pts_raw_all', 'pts_mean_raw_all'),
-    rebRawDataAll: loadRaw('reb_raw_all', 'reb_mean_raw_all'),
-    astRawDataAll: loadRaw('ast_raw_all', 'ast_mean_raw_all'),
+    ptsRawData:    loadRaw(cv?.ptsRaw,    cv?.ptsMeanRaw),
+    rebRawData:    loadRaw(cv?.rebRaw,    cv?.rebMeanRaw),
+    astRawData:    loadRaw(cv?.astRaw,    cv?.astMeanRaw),
+    ptsRawDataAll: loadRaw(cv?.ptsRawAll, cv?.ptsMeanRawAll),
+    rebRawDataAll: loadRaw(cv?.rebRawAll, cv?.rebMeanRawAll),
+    astRawDataAll: loadRaw(cv?.astRawAll, cv?.astMeanRawAll),
     comboCvs,
     shotProfile,
   };
@@ -6972,18 +7000,19 @@ function NBASimulator() {
       setCvLoadStatus('notfound');
       return;
     }
+    const cv = parseCvEntry(playerData, normalized);
     const win = cvWindow;
     const isAuto = win === 'auto';
 
-    const ga = playerData.games_available;
+    const ga = cv.gamesAvailable;
 
     // Minutes CV — blended or single window
-    const cvMinRaw = isAuto ? blendCv(playerData.cv_minutes, ga) : playerData.cv_minutes?.[win];
+    const cvMinRaw = isAuto ? blendCv(cv.cvMinutes, ga) : cv.cvMinutes?.[win];
 
     setStats(prev => {
       const updated = { ...prev };
       STAT_CONFIG.forEach(({ key }) => {
-        const cvPer36 = isAuto ? blendCv(playerData.cv?.[key], ga) : playerData.cv?.[key]?.[win];
+        const cvPer36 = isAuto ? blendCv(cv.cv?.[key], ga) : cv.cv?.[key]?.[win];
         if (cvPer36 == null) return;
         // Combine per-36 rate variance with minutes variance when available.
         // If cv_minutes absent (stale data), use per-36 CV alone — still far better than hardcoded ratios.
@@ -7002,8 +7031,8 @@ function NBASimulator() {
     // scrutinize the model's input quality more carefully.
     const divergence = {};
     ['pts', 'reb', 'ast', 'stl', 'blk', 'threes'].forEach(stat => {
-      const last5 = playerData.cv?.[stat]?.last5;
-      const season = playerData.cv?.[stat]?.season;
+      const last5 = cv.cv?.[stat]?.last5;
+      const season = cv.cv?.[stat]?.season;
       if (last5 == null || season == null || season === 0) return;
       const ratio = last5 / season;
       if (ratio > 1.5) divergence[stat] = { ratio: Math.round(ratio * 10) / 10, dir: 'up' };
@@ -7015,7 +7044,7 @@ function NBASimulator() {
     // Direct simulation uses the empirical combo CV (which already encodes within-game
     // correlations between component stats) rather than summing independently-drawn distributions.
     const setComboDirectCv = (comboKey, setter) => {
-      const cvPer36 = isAuto ? blendCv(playerData.cv?.[comboKey], ga) : playerData.cv?.[comboKey]?.[win];
+      const cvPer36 = isAuto ? blendCv(cv.cv?.[comboKey], ga) : cv.cv?.[comboKey]?.[win];
       if (cvPer36 != null) {
         const effectiveCV = (cvMinRaw != null)
           ? Math.round(Math.sqrt(cvPer36 ** 2 + cvMinRaw ** 2) * 10) / 10
@@ -7034,38 +7063,38 @@ function NBASimulator() {
     // In auto-blend mode, prefer the season window (most data) since the KDE
     // sampler already applies LAMBDA=0.9 recency decay internally — using a
     // larger raw dataset gives better bandwidth estimation without sacrificing recency.
-    const kdeWin = isAuto ? selectKdeWindow(playerData) : win;
-    const loadRawData = (rawKey, meanKey, setter) => {
-      const scores = playerData[rawKey]?.[kdeWin];
-      const hMean  = playerData[meanKey]?.[kdeWin];
-      if (scores != null && hMean != null && scores.length >= 5) {
-        setter({ rawScores: scores, historicalMean: hMean });
+    const kdeWin = isAuto ? selectKdeWindow(cv) : win;
+    const loadRawData = (scores, meanArr, setter) => {
+      const s = scores?.[kdeWin];
+      const m = meanArr?.[kdeWin];
+      if (s != null && m != null && s.length >= 5) {
+        setter({ rawScores: s, historicalMean: m });
       } else {
         setter(null);
       }
     };
-    loadRawData('pts_raw', 'pts_mean_raw', setPtsRawData);
-    loadRawData('reb_raw', 'reb_mean_raw', setRebRawData);
-    loadRawData('ast_raw', 'ast_mean_raw', setAstRawData);
+    loadRawData(cv.ptsRaw, cv.ptsMeanRaw, setPtsRawData);
+    loadRawData(cv.rebRaw, cv.rebMeanRaw, setRebRawData);
+    loadRawData(cv.astRaw, cv.astMeanRaw, setAstRawData);
     // Unfiltered raw scores (includes tail games filtered out of pts_raw).
     // kdeWin same selection logic — season preferred for bandwidth estimation.
-    loadRawData('pts_raw_all', 'pts_mean_raw_all', setPtsRawDataAll);
-    loadRawData('reb_raw_all', 'reb_mean_raw_all', setRebRawDataAll);
-    loadRawData('ast_raw_all', 'ast_mean_raw_all', setAstRawDataAll);
+    loadRawData(cv.ptsRawAll, cv.ptsMeanRawAll, setPtsRawDataAll);
+    loadRawData(cv.rebRawAll, cv.rebMeanRawAll, setRebRawDataAll);
+    loadRawData(cv.astRawAll, cv.astMeanRawAll, setAstRawDataAll);
     // Shot profile for compound PTS model — extract raw efficiencies and NegBin r params.
     // ETR-scaled means (mu3pa/mu2pa/muFta) are computed later in handleSimulate once
     // the user's projected minutes and stat inputs are confirmed.
-    const sp = playerData.shot_profile;
+    const sp = cv.shotProfile;
     if (sp && sp.fg3_pct != null && sp.fg2_pct != null && sp.ft_pct != null) {
       setShotProfile({
-        fg3Pct:     sp.fg3_pct,
-        fg2Pct:     sp.fg2_pct,
-        ftPct:      sp.ft_pct,
-        ftaPerGame: sp.fta_per_game ?? 0,
-        meanMinutes: playerData.mean_minutes_last20 ?? null,
-        r3pa:       sp.r_fg3a ?? null,
-        r2pa:       sp.r_fg2a ?? null,
-        rFta:       sp.r_fta  ?? null,
+        fg3Pct:      sp.fg3_pct,
+        fg2Pct:      sp.fg2_pct,
+        ftPct:       sp.ft_pct,
+        ftaPerGame:  sp.fta_per_game ?? 0,
+        meanMinutes: cv.meanMinutesLast20 ?? null,
+        r3pa:        sp.r_fg3a ?? null,
+        r2pa:        sp.r_fg2a ?? null,
+        rFta:        sp.r_fta  ?? null,
       });
     } else {
       setShotProfile(null);
