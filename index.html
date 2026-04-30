@@ -793,6 +793,17 @@ function calcKelly(modelProb, americanOdds) {
   return kelly > 0 ? kelly : 0;
 }
 
+function stakeFor({ modelProb, bookOdds, bankroll, kellyFraction = 0.25, portfolioFactor = 1 }) {
+  const fullKelly = calcKelly(modelProb, bookOdds) || 0;
+  const pf = portfolioFactor ?? 1;
+  const quarterKelly = fullKelly * kellyFraction * pf;
+  const br = parseFloat(bankroll);
+  const stakeUSD = (fullKelly > 0 && !isNaN(br) && br > 0)
+    ? Math.round(br * quarterKelly * 100) / 100
+    : null;
+  return { fullKelly, quarterKelly, stakeUSD };
+}
+
 // Simultaneous independent-event Kelly: stake_i = κ_i × kf × ∏(1 − κ_j × kf, j≠i)
 // Uses planned fractional-Kelly bet sizes (kelly × kellyFraction) in the product, not
 // full Kelly. Reason: the portfolio interaction depends on what you *actually* plan to
@@ -1520,11 +1531,11 @@ function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfoli
   const edge = (modelProb - bookProb) * 100;           // primary: vig-free when possible
   const rawEdge = (modelProb - bookProbRaw) * 100;     // secondary reference
   const color = getEdgeColor(edge);
-  const kelly = calcKelly(modelProb, bookOdds);
-  const isolatedKF = kelly ? kelly * kellyFraction : 0;
+  const { fullKelly: kelly, quarterKelly: portfolioKF, stakeUSD: stakeAmt } = stakeFor({
+    modelProb, bookOdds, bankroll, kellyFraction, portfolioFactor
+  });
+  const isolatedKF = kelly * kellyFraction;
   const isPortfolio = portfolioFactor !== null && portfolioFactor < 0.9999;
-  // Portfolio adjustment: scale the fractional stake by portfolio factor
-  const portfolioKF = isPortfolio ? kelly * portfolioFactor * kellyFraction : isolatedKF;
   const br = parseFloat(bankroll);
   const hasBankroll = !isNaN(br) && br > 0;
   const us = parseFloat(unitSize);
@@ -1532,9 +1543,6 @@ function EdgeBox({ modelProb, bookOdds, otherSideOdds = null, bankroll, portfoli
   // True EV per dollar wagered: (modelProb × decimalOdds − 1) × 100
   const decimal = americanToDecimal(bookOdds);
   const ev = decimal != null ? (modelProb * decimal - 1) * 100 : null;
-
-  // Derive stake and unit label
-  const stakeAmt = hasBankroll ? Math.round(br * portfolioKF) : null;
   const unitAmt = (hasBankroll && hasUnitSize && stakeAmt != null)
     ? Math.round((stakeAmt / us) * 4) / 4  // round to nearest 0.25U
     : null;
@@ -4048,27 +4056,17 @@ function buildCSV(playerName, numSims, statResults, comboResults, timestamp, ban
     let units = "";
     const us = parseFloat(unitSize);
     const hasUs = !isNaN(us) && us > 0;
-    if (bestSide === "OVER" && overOdds) {
-      const k = calcKelly(overProb, parseFloat(overOdds));
-      if (k && k > 0) {
-        const pf = portfolioFactors[`${stat}_over`] ?? null;
-        const adj = pf !== null ? k * pf : k;
-        const adjKF = adj * kellyFraction;
-        kfKelly = (adjKF * 100).toFixed(2);
-        const stakeAmt = hasBr ? Math.round(br * adjKF) : null;
-        stake = stakeAmt ?? "";
-        units = (stakeAmt != null && hasUs) ? (Math.round((stakeAmt / us) * 4) / 4).toString() : "";
-      }
-    } else if (bestSide === "UNDER" && underOdds) {
-      const k = calcKelly(underProb, parseFloat(underOdds));
-      if (k && k > 0) {
-        const pf = portfolioFactors[`${stat}_under`] ?? null;
-        const adj = pf !== null ? k * pf : k;
-        const adjKF = adj * kellyFraction;
-        kfKelly = (adjKF * 100).toFixed(2);
-        const stakeAmt = hasBr ? Math.round(br * adjKF) : null;
-        stake = stakeAmt ?? "";
-        units = (stakeAmt != null && hasUs) ? (Math.round((stakeAmt / us) * 4) / 4).toString() : "";
+    if ((bestSide === "OVER" && overOdds) || (bestSide === "UNDER" && underOdds)) {
+      const sideProb = bestSide === "OVER" ? overProb : underProb;
+      const sideOdds = parseFloat(bestSide === "OVER" ? overOdds : underOdds);
+      const pf = portfolioFactors[`${stat}_${bestSide.toLowerCase()}`] ?? null;
+      const { fullKelly, quarterKelly, stakeUSD } = stakeFor({
+        modelProb: sideProb, bookOdds: sideOdds, bankroll: br, kellyFraction, portfolioFactor: pf
+      });
+      if (fullKelly > 0) {
+        kfKelly = (quarterKelly * 100).toFixed(2);
+        stake = stakeUSD ?? "";
+        units = (stakeUSD != null && hasUs) ? (Math.round((stakeUSD / us) * 4) / 4).toString() : "";
       }
     }
 
@@ -7425,8 +7423,7 @@ function NBASimulator() {
     const newEntries = [];
     batchResults.forEach(r => {
       if (!batchTracked.has(r.betId)) return;
-      const kFull  = calcKelly(r.modelProb, r.bookOdds) || 0;
-      const kStake = bank > 0 ? Math.round(bank * kFull * kellyFraction * 100) / 100 : null;
+      const { stakeUSD: kStake } = stakeFor({ modelProb: r.modelProb, bookOdds: r.bookOdds, bankroll: bank, kellyFraction });
       newEntries.push({
         id:             r.betId,
         loggedAt:       new Date().toISOString(),
@@ -7504,8 +7501,7 @@ function NBASimulator() {
       const key = `${r.player}|${r.stat}|${r.side}|${r.propLine}`;
       if (existingKeys.has(key) || seenThisRun.has(key)) { skipped++; continue; }
       seenThisRun.add(key);
-      const kFull  = calcKelly(r.modelProb, r.bookOdds) || 0;
-      const kStake = bank > 0 ? Math.round(bank * kFull * kellyFraction * 100) / 100 : null;
+      const { stakeUSD: kStake } = stakeFor({ modelProb: r.modelProb, bookOdds: r.bookOdds, bankroll: bank, kellyFraction });
       newEntries.push({
         id:               r.betId,
         loggedAt:         new Date().toISOString(),
@@ -7604,7 +7600,7 @@ function NBASimulator() {
     // Immediately log to calibration
     const bank = parseFloat(bankroll) || 0;
     const unit = parseFloat(unitSize) || 20;
-    const kFull = calcKelly(play.modelProb, play.bookOdds) || 0;
+    const { stakeUSD: kellyStake } = stakeFor({ modelProb: play.modelProb, bookOdds: play.bookOdds, bankroll: bank, kellyFraction });
     const entry = {
       id: play.betId || Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
       loggedAt: tailedAt,
@@ -7613,7 +7609,7 @@ function NBASimulator() {
       fairOdds: play.side === 'OVER' ? (parseFloat(play.fairOverOdds) || null) : (parseFloat(play.fairUnderOdds) || null),
       edgePct: play.edgePct ?? play.edge ?? 0,
       edgeLabel: getEdgeLabel(play.edgePct ?? play.edge ?? 0),
-      kellyStake: bank > 0 ? Math.round(bank * kFull * kellyFraction * 100) / 100 : null,
+      kellyStake,
       unitStake: unit,
       eventId: play.eventId ?? null, commenceTime: play.commenceTime ?? null,
       result: null, closingOdds: null, closingLine: null,
@@ -7649,7 +7645,7 @@ function NBASimulator() {
     for (const r of slate) {
       const key = `${r.player}|${r.stat}|${r.side}|${r.propLine}`;
       if (existingKeys.has(key)) { skipped++; continue; }
-      const kFull = calcKelly(r.modelProb, r.bookOdds) || 0;
+      const { stakeUSD: kStake } = stakeFor({ modelProb: r.modelProb, bookOdds: r.bookOdds, bankroll: bank, kellyFraction });
       newEntries.push({
         id:               r.betId || Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6),
         loggedAt:         new Date().toISOString(),
@@ -7663,7 +7659,7 @@ function NBASimulator() {
         fairOdds:         r.side === 'OVER' ? (parseFloat(r.fairOverOdds) || null) : (parseFloat(r.fairUnderOdds) || null),
         edgePct:          r.edgePct ?? r.edge ?? 0,
         edgeLabel:        getEdgeLabel(r.edgePct ?? r.edge ?? 0),
-        kellyStake:       bank > 0 ? Math.round(bank * kFull * kellyFraction * 100) / 100 : null,
+        kellyStake:       kStake,
         unitStake:        unit,
         eventId:          r.eventId          ?? null,
         commenceTime:     r.commenceTime      ?? null,
@@ -8193,7 +8189,7 @@ function NBASimulator() {
     const gameCtx    = (playerTeam && gameData?.[playerTeam]) || null;
     const bank  = parseFloat(bankroll) || 0;
     const unit  = parseFloat(unitSize) || 20;
-    const kFull = calcKelly(data.modelProb, data.bookOdds) || 0;
+    const { stakeUSD: kStake } = stakeFor({ modelProb: data.modelProb, bookOdds: data.bookOdds, bankroll: bank, kellyFraction });
     // Look up CV sample size and ETR projected minutes from database/projections
     const cvKey = playerName.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const gamesAvailable = cvDatabase?.[cvKey]?.games_available ?? null;
@@ -8211,7 +8207,7 @@ function NBASimulator() {
       fairOdds:       data.fairOdds != null ? parseFloat(data.fairOdds) || null : null,
       edgePct:        data.edgePct,
       edgeLabel:      getEdgeLabel(data.edgePct),
-      kellyStake:     bank > 0 ? Math.round(bank * kFull * kellyFraction * 100) / 100 : null,
+      kellyStake:     kStake,
       unitStake:      unit,
       eventId:        gameCtx?.eventId      ?? null,
       commenceTime:   gameCtx?.commenceTime ?? null,
