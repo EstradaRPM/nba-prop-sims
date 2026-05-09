@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WNBA Tests</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; padding: 32px 24px; background: #0b0f1a; color: #f8fafc; font-family: 'Outfit', sans-serif; }
+    h1 { margin: 0 0 6px; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    #summary { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600; margin: 0 0 24px; }
+    .group { margin-bottom: 24px; }
+    .group-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #475569; margin-bottom: 8px; }
+    ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+    li { font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 5px 10px; border-radius: 5px; background: rgba(15,23,42,0.6); }
+    li.pass { color: #4ade80; }
+    li.fail { color: #f87171; }
+    li::before { margin-right: 8px; }
+    li.pass::before { content: '✓'; }
+    li.fail::before { content: '✗'; }
+  </style>
+</head>
+<body>
+  <h1>WNBA Tests</h1>
+  <p id="summary">Running…</p>
+  <div id="groups"></div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // ── Test runner ──────────────────────────────────────────────────────────
+
+    let totalPass = 0, totalFail = 0;
+    const groups = [];
+    let currentGroup = null;
+
+    function group(label) {
+      currentGroup = { label, results: [] };
+      groups.push(currentGroup);
+    }
+
+    function assert(label, condition) {
+      const ok = !!condition;
+      currentGroup.results.push({ label, ok });
+      if (ok) totalPass++; else totalFail++;
+    }
+
+    function approx(a, b, eps = 1e-9) { return Math.abs(a - b) < eps; }
+
+    // ── Modules under test (copied from wnba.html) ───────────────────────────
+
+    const THRESHOLDS = ['10', '15', '18', '20', '25', '30'];
+
+    function matchThreshold(point) {
+      const bin = String(Math.round(point + 0.5));
+      return THRESHOLDS.includes(bin) ? bin : null;
+    }
+
+    function americanToImplied(odds) {
+      return odds < 0 ? -odds / (-odds + 100) : 100 / (odds + 100);
+    }
+
+    function calcEdge(modelP, over, under) {
+      const rawOver = americanToImplied(over.price);
+      if (!under) return { edge: modelP - rawOver, vigStripped: false };
+      const rawUnder = americanToImplied(under.price);
+      const vigFree = rawOver / (rawOver + rawUnder);
+      return { edge: modelP - vigFree, vigStripped: true };
+    }
+
+    function ladderTier(odds) {
+      if (odds >= 4000) return 'lotto';
+      if (odds >= 1201) return 'top';
+      if (odds >= 201)  return 'middle';
+      return 'base';
+    }
+
+    const NAME_OVERRIDES = {
+      "A'ja Wilson": "Aja Wilson",
+      "Skylar Diggins-Smith": "Skylar Diggins",
+    };
+
+    function normalizeName(name) {
+      const trimmed = name.trim();
+      const overridden = NAME_OVERRIDES[trimmed] ?? trimmed;
+      return overridden.normalize('NFD').replace(/\p{Mn}/gu, '');
+    }
+
+    // Cache abstraction: checks TTL before hitting the network.
+    // The `fetcher` dependency makes it testable without real network calls.
+    const CACHE_TTL_MS = 15 * 60 * 1000;
+
+    function makeOddsCache(fetcher, cacheKey) {
+      return {
+        async fetch() {
+          try {
+            const cached = JSON.parse(localStorage.getItem(cacheKey));
+            if (cached?.data && cached?.fetchedAt &&
+                Date.now() - new Date(cached.fetchedAt).getTime() < CACHE_TTL_MS) {
+              return cached.data;
+            }
+          } catch (_) {}
+          const data = await fetcher();
+          localStorage.setItem(cacheKey, JSON.stringify({ data, fetchedAt: new Date().toISOString() }));
+          return data;
+        },
+      };
+    }
+
+    // BetLogger using an isolated localStorage key so tests don't touch real data.
+    const LS_BET_KEY = 'wnbaBetLog_test';
+
+    const BetLogger = (() => {
+      const read = () => { try { return JSON.parse(localStorage.getItem(LS_BET_KEY)) ?? []; } catch (_) { return []; } };
+      const write = (entries) => localStorage.setItem(LS_BET_KEY, JSON.stringify(entries));
+      return {
+        reset: () => write([]),
+        log(entry) {
+          const entries = read();
+          entries.push({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), result: null, actualPts: null, ...entry });
+          write(entries);
+        },
+        updateResult(id, actualPts) {
+          const entries = read();
+          const idx = entries.findIndex(e => e.id === id);
+          if (idx === -1) return;
+          entries[idx].result = actualPts >= parseInt(entries[idx].threshold) ? 'win' : 'loss';
+          entries[idx].actualPts = actualPts;
+          write(entries);
+        },
+        getAll: () => read(),
+        getPending: () => read().filter(e => e.result === null),
+        calibrationStats() {
+          const resolved = read().filter(e => e.result !== null);
+          if (resolved.length === 0) return [];
+          const buckets = {};
+          for (const e of resolved) {
+            const key = Math.floor(e.modelP * 10) / 10;
+            if (!buckets[key]) buckets[key] = { sumP: 0, wins: 0, n: 0 };
+            buckets[key].sumP += e.modelP;
+            buckets[key].wins += e.result === 'win' ? 1 : 0;
+            buckets[key].n++;
+          }
+          return Object.entries(buckets)
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([key, { sumP, wins, n }]) => ({
+              label: `${(+key * 100).toFixed(0)}–${(+key * 100 + 10).toFixed(0)}%`,
+              predicted: sumP / n,
+              hitRate: wins / n,
+              n,
+            }));
+        },
+      };
+    })();
+
+    // ── Test suites ──────────────────────────────────────────────────────────
+
+    group('ThresholdMatcher');
+    assert('matchThreshold(9.5) → "10"',   matchThreshold(9.5)  === '10');
+    assert('matchThreshold(14.5) → "15"',  matchThreshold(14.5) === '15');
+    assert('matchThreshold(17.5) → "18"',  matchThreshold(17.5) === '18');
+    assert('matchThreshold(19.5) → "20"',  matchThreshold(19.5) === '20');
+    assert('matchThreshold(24.5) → "25"',  matchThreshold(24.5) === '25');
+    assert('matchThreshold(29.5) → "30"',  matchThreshold(29.5) === '30');
+    assert('matchThreshold(12.0) → null',   matchThreshold(12.0) === null);
+    assert('matchThreshold(-1.5) → null',   matchThreshold(-1.5) === null);
+
+    group('EdgeCalculator');
+    {
+      const raw110 = americanToImplied(-110);
+      const vigFreeEven = raw110 / (raw110 + raw110);
+      assert('even-money vigFreeImplied = 0.5', approx(vigFreeEven, 0.5));
+
+      assert('vigFreeImplied < rawImplied when both sides present',
+        vigFreeEven < raw110);
+
+      assert('edge positive when modelP > vigFree',
+        calcEdge(0.8, { price: -110 }, { price: -110 }).edge > 0);
+
+      assert('edge negative when modelP < vigFree',
+        calcEdge(0.2, { price: -110 }, { price: -110 }).edge < 0);
+
+      let noError = true;
+      try { calcEdge(0.6, { price: -110 }); } catch (_) { noError = false; }
+      assert('only-over input does not error', noError);
+    }
+
+    group('LadderTagger');
+    assert('ladderTier(−200) → base',    ladderTier(-200)  === 'base');
+    assert('ladderTier(+200) → base',    ladderTier(200)   === 'base');
+    assert('ladderTier(+201) → middle',  ladderTier(201)   === 'middle');
+    assert('ladderTier(+1200) → middle', ladderTier(1200)  === 'middle');
+    assert('ladderTier(+1201) → top',    ladderTier(1201)  === 'top');
+    assert('ladderTier(+3999) → top',    ladderTier(3999)  === 'top');
+    assert('ladderTier(+4000) → lotto',  ladderTier(4000)  === 'lotto');
+    assert('ladderTier(+10000) → lotto', ladderTier(10000) === 'lotto');
+    {
+      const allTiers = ['base', 'middle', 'top', 'lotto'];
+      const boundaries = [-200, 200, 201, 1200, 1201, 3999, 4000, 10000];
+      const noDoubleMap = boundaries.every(o => allTiers.filter(t => t === ladderTier(o)).length === 1);
+      assert('no value maps to two tiers', noDoubleMap);
+    }
+
+    group('NameNormalizer');
+    assert('"A\'ja Wilson" → "Aja Wilson"',         normalizeName("A'ja Wilson") === 'Aja Wilson');
+    assert('accented chars stripped',                normalizeName('Pelé') === 'Pele');
+    assert('whitespace stripped',                    normalizeName('  Aja Wilson  ') === 'Aja Wilson');
+    assert('unoverridden name unchanged',            normalizeName('Breanna Stewart') === 'Breanna Stewart');
+
+    group('OddsAPIClient (cache)');
+    const asyncGroup = currentGroup;
+
+    group('BetLogger');
+    BetLogger.reset();
+
+    BetLogger.log({ player: 'aja wilson', threshold: '20', modelP: 0.65 });
+    const allEntries = BetLogger.getAll();
+    assert('log then getAll returns entry with result: null',
+      allEntries.length === 1 && allEntries[0].result === null);
+
+    const loggedId = allEntries[0].id;
+    BetLogger.updateResult(loggedId, 22);
+    const afterUpdate = BetLogger.getAll()[0];
+    assert('updateResult sets result (win)',    afterUpdate.result === 'win');
+    assert('updateResult sets actualPts',       afterUpdate.actualPts === 22);
+
+    BetLogger.reset();
+    BetLogger.log({ player: 'test', threshold: '20', modelP: 0.65 });
+    const pending = BetLogger.getPending();
+    assert('getPending returns only null-result entries',
+      pending.length === 1 && pending[0].result === null);
+
+    BetLogger.reset();
+    assert('calibrationStats empty when no resolved bets',
+      BetLogger.calibrationStats().length === 0);
+
+    BetLogger.reset();
+    BetLogger.log({ player: 'p1', threshold: '20', modelP: 0.65 });
+    BetLogger.log({ player: 'p2', threshold: '20', modelP: 0.65 });
+    const pairIds = BetLogger.getAll().map(e => e.id);
+    BetLogger.updateResult(pairIds[0], 22);
+    BetLogger.updateResult(pairIds[1], 18);
+    const stats = BetLogger.calibrationStats();
+    assert('calibrationStats: two bets in same bucket (n=2)',
+      stats.length === 1 && stats[0].n === 2);
+    assert('calibrationStats: 1 win / 1 loss → 50% hit rate',
+      approx(stats[0].hitRate, 0.5));
+
+    BetLogger.reset();
+
+    // ── Async cache tests (run after sync suite) ─────────────────────────────
+
+    async function runCacheTests() {
+      const savedGroup = currentGroup;
+      currentGroup = asyncGroup;
+
+      const cacheKey = 'wnbaOddsCache_test_' + Date.now();
+      let fetchCount = 0;
+      const mockFetcher = async () => { fetchCount++; return { sentinel: 42 }; };
+      const client = makeOddsCache(mockFetcher, cacheKey);
+
+      localStorage.removeItem(cacheKey);
+      await client.fetch();
+      assert('missing cache → fetcher is called', fetchCount === 1);
+
+      const stored = JSON.parse(localStorage.getItem(cacheKey));
+      assert('after fetch: localStorage has data',      stored?.data?.sentinel === 42);
+      assert('after fetch: localStorage has fetchedAt', typeof stored?.fetchedAt === 'string');
+
+      const prevCount = fetchCount;
+      await client.fetch();
+      assert('fresh cache → fetcher not called again',  fetchCount === prevCount);
+
+      localStorage.removeItem(cacheKey);
+      currentGroup = savedGroup;
+    }
+
+    // ── Render ───────────────────────────────────────────────────────────────
+
+    runCacheTests().then(render);
+
+    function render() {
+      const summary = document.getElementById('summary');
+      summary.textContent = `${totalPass} passed · ${totalFail} failed`;
+      summary.style.color = totalFail === 0 ? '#4ade80' : '#f87171';
+
+      const container = document.getElementById('groups');
+      for (const g of groups) {
+        const section = document.createElement('div');
+        section.className = 'group';
+        const label = document.createElement('div');
+        label.className = 'group-label';
+        label.textContent = g.label;
+        section.appendChild(label);
+        const ul = document.createElement('ul');
+        for (const r of g.results) {
+          const li = document.createElement('li');
+          li.className = r.ok ? 'pass' : 'fail';
+          li.textContent = r.label;
+          ul.appendChild(li);
+        }
+        section.appendChild(ul);
+        container.appendChild(section);
+      }
+    }
+  })();
+  </script>
+</body>
+</html>
