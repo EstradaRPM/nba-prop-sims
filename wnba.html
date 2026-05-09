@@ -223,6 +223,7 @@ async function fetchOdds(apiKey) {
   const overMap = {};
   const underMap = {};
   const games = {};
+  const playerGame = {};
 
   for (const event of events) {
     const oddsRes = await fetch(
@@ -258,6 +259,7 @@ async function fetchOdds(apiKey) {
         const bin = matchThreshold(outcome.point);
         if (!bin) continue;
         const playerKey = normalizeName(outcome.description).toLowerCase();
+        playerGame[playerKey] = event.id;
         const map = outcome.name === 'Over' ? overMap : underMap;
         if (!map[playerKey]) map[playerKey] = {};
         if (!map[playerKey][bin] || outcome.price > map[playerKey][bin].price) {
@@ -274,7 +276,82 @@ async function fetchOdds(apiKey) {
       players[pk][bin] = { over, under: underMap[pk]?.[bin] ?? null };
     }
   }
-  return { players, games };
+  return { players, games, playerGame };
+}
+
+function groupPlayersByGame(entries, oddsData) {
+  if (!oddsData) return [{ gameId: null, game: null, entries }];
+
+  const { players: playersOdds, games, playerGame } = oddsData;
+
+  function hasPositiveEdge([name, playerData]) {
+    const po = playersOdds?.[normalizeName(name).toLowerCase()];
+    if (!po) return false;
+    const rungs = TIER_RUNGS[derivePlayerTier(playerData.thresholds)];
+    return rungs.some(t => {
+      const entry = playerData.thresholds?.[t];
+      const o = po[t];
+      if (!entry || !o) return false;
+      return calcEdge(entry.p, o.over, o.under).edge > 0;
+    });
+  }
+
+  const groupMap = {};
+  const ungrouped = [];
+
+  for (const entry of entries) {
+    const gameId = playerGame?.[normalizeName(entry[0]).toLowerCase()];
+    if (gameId && games?.[gameId]) {
+      (groupMap[gameId] ??= []).push(entry);
+    } else {
+      ungrouped.push(entry);
+    }
+  }
+
+  const sortEntries = (arr) =>
+    [...arr].sort((a, b) => {
+      const diff = (hasPositiveEdge(a) ? 0 : 1) - (hasPositiveEdge(b) ? 0 : 1);
+      return diff !== 0 ? diff : a[0].localeCompare(b[0]);
+    });
+
+  const result = Object.entries(groupMap)
+    .sort(([aId], [bId]) =>
+      new Date(games[aId].commenceTime) - new Date(games[bId].commenceTime)
+    )
+    .map(([gameId, groupEntries]) => ({
+      gameId,
+      game: games[gameId],
+      entries: sortEntries(groupEntries),
+    }));
+
+  if (ungrouped.length > 0) result.push({ gameId: null, game: null, entries: ungrouped });
+  return result;
+}
+
+function GameHeader({ game }) {
+  const time = new Date(game.commenceTime).toLocaleString('en-US', {
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  });
+  const spreadStr = game.spread
+    ? ` · ${game.spread.team} ${game.spread.line > 0 ? '+' : ''}${game.spread.line}`
+    : '';
+  const totalStr = game.total != null ? ` · O/U ${game.total}` : '';
+
+  return (
+    <div style={{
+      gridColumn: '1 / -1',
+      padding: '10px 4px 6px',
+      fontFamily: 'Outfit', fontSize: 13, fontWeight: 600,
+      color: '#94a3b8', letterSpacing: 0.3,
+      borderBottom: '1px solid #1e293b',
+      marginBottom: 4,
+    }}>
+      {game.awayTeam} @ {game.homeTeam}
+      <span style={{ fontWeight: 400, color: '#64748b', fontFamily: 'JetBrains Mono', fontSize: 12 }}>
+        {` · ${time}${spreadStr}${totalStr}`}
+      </span>
+    </div>
+  );
 }
 
 function pColor(p) {
@@ -740,7 +817,6 @@ function App() {
   const [error, setError] = useState(null);
   const [showOdds, setShowOdds] = useState(false);
   const [oddsData, setOddsData] = useState(null);
-  const [gamesData, setGamesData] = useState(null);
   const [oddsLastFetched, setOddsLastFetched] = useState(null);
   const [oddsLoading, setOddsLoading] = useState(false);
   const [oddsError, setOddsError] = useState(null);
@@ -757,7 +833,6 @@ function App() {
       if (cached?.data && cached?.fetchedAt) {
         setOddsData(cached.data);
         setOddsLastFetched(cached.fetchedAt);
-        if (cached.games) setGamesData(cached.games);
       }
     } catch (_) {}
   }, []);
@@ -782,11 +857,10 @@ function App() {
     setOddsLoading(true);
     setOddsError(null);
     try {
-      const { players, games } = await fetchOdds(apiKey);
+      const result = await fetchOdds(apiKey);
       const fetchedAt = new Date().toISOString();
-      localStorage.setItem(LS_CACHE_KEY, JSON.stringify({ data: players, games, fetchedAt }));
-      setOddsData(players);
-      setGamesData(games);
+      localStorage.setItem(LS_CACHE_KEY, JSON.stringify({ data: result, fetchedAt }));
+      setOddsData(result);
       setOddsLastFetched(fetchedAt);
     } catch (e) {
       setOddsError(e.message);
@@ -846,20 +920,25 @@ function App() {
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 12 }}>
-        {entries.map(([name, playerData]) => {
-          const playerKey = normalizeName(name).toLowerCase();
-          return (
-            <PlayerCard
-              key={name}
-              name={name}
-              data={playerData}
-              playerOdds={oddsData?.[playerKey] ?? null}
-              rungs={TIER_RUNGS[derivePlayerTier(playerData.thresholds)]}
-              onLog={handleLog}
-              showOdds={showOdds}
-            />
-          );
-        })}
+        {groupPlayersByGame(entries, oddsData).map(({ gameId, game, entries: groupEntries }) => (
+          <React.Fragment key={gameId ?? '__ungrouped'}>
+            {game && <GameHeader game={game} />}
+            {groupEntries.map(([name, playerData]) => {
+              const playerKey = normalizeName(name).toLowerCase();
+              return (
+                <PlayerCard
+                  key={name}
+                  name={name}
+                  data={playerData}
+                  playerOdds={oddsData?.players?.[playerKey] ?? null}
+                  rungs={TIER_RUNGS[derivePlayerTier(playerData.thresholds)]}
+                  onLog={handleLog}
+                  showOdds={showOdds}
+                />
+              );
+            })}
+          </React.Fragment>
+        ))}
       </div>
 
       <BetLogPanel log={betLog} onUpdate={handleUpdate} onCheckResults={handleCheckResults} />
