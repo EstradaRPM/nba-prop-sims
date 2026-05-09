@@ -50,6 +50,74 @@ const BetLogger = (() => {
   };
 })();
 
+const WNBA_STATS_BASE = 'https://stats.wnba.com/stats';
+
+const ResultChecker = (() => {
+  function rowsToObjects({ headers, rowSet }) {
+    return rowSet.map(row => Object.fromEntries(headers.map((h, i) => [h, row[i]])));
+  }
+
+  async function wnbaFetch(path) {
+    const res = await fetch(`${WNBA_STATS_BASE}${path}`, {
+      headers: { Accept: 'application/json', Referer: 'https://www.wnba.com' },
+    });
+    if (!res.ok) throw new Error(`WNBA API ${res.status}`);
+    return res.json();
+  }
+
+  function dateOnlyMs(d) {
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  return {
+    async check() {
+      const pending = BetLogger.getPending();
+      if (pending.length === 0) return { resolved: 0 };
+
+      const allData = await wnbaFetch('/commonallplayers?LeagueID=10&Season=2026&IsOnlyCurrentSeason=1');
+      const idMap = Object.fromEntries(
+        rowsToObjects(allData.resultSets[0])
+          .map(p => [normalizeName(p.DISPLAY_FIRST_LAST).toLowerCase(), p.PERSON_ID])
+      );
+
+      const byPlayer = {};
+      for (const bet of pending) {
+        (byPlayer[bet.player] ??= []).push(bet);
+      }
+
+      let resolved = 0;
+      for (const [playerName, bets] of Object.entries(byPlayer)) {
+        const playerId = idMap[normalizeName(playerName).toLowerCase()];
+        if (!playerId) continue;
+
+        let games;
+        try {
+          const logData = await wnbaFetch(
+            `/playergamelog?PlayerID=${playerId}&Season=2026&SeasonType=Regular+Season&LeagueID=10`
+          );
+          games = rowsToObjects(logData.resultSets[0]);
+        } catch (_) {
+          continue;
+        }
+
+        const sorted = games
+          .map(g => ({ ms: dateOnlyMs(new Date(g.GAME_DATE)), pts: parseInt(g.PTS) }))
+          .sort((a, b) => a.ms - b.ms);
+
+        for (const bet of bets) {
+          const loggedMs = dateOnlyMs(new Date(bet.timestamp));
+          const match = sorted.find(g => g.ms >= loggedMs);
+          if (!match) continue;
+          BetLogger.updateResult(bet.id, match.pts);
+          resolved++;
+        }
+      }
+
+      return { resolved };
+    },
+  };
+})();
+
 const NAME_OVERRIDES = {
   "A'ja Wilson": "Aja Wilson",
   "Skylar Diggins-Smith": "Skylar Diggins",
@@ -342,9 +410,24 @@ function PlayerCard({ name, data, playerOdds, onLog }) {
   );
 }
 
-function BetLogPanel({ log, onUpdate }) {
+function BetLogPanel({ log, onUpdate, onCheckResults }) {
   const [open, setOpen] = useState(false);
   const [inputs, setInputs] = useState({});
+  const [checking, setChecking] = useState(false);
+  const [checkStatus, setCheckStatus] = useState(null);
+
+  async function handleCheck() {
+    setChecking(true);
+    setCheckStatus(null);
+    try {
+      const result = await onCheckResults();
+      setCheckStatus({ resolved: result.resolved });
+    } catch (e) {
+      setCheckStatus({ error: e.message });
+    } finally {
+      setChecking(false);
+    }
+  }
 
   if (log.length === 0) return null;
 
@@ -353,21 +436,48 @@ function BetLogPanel({ log, onUpdate }) {
 
   return (
     <div style={{ marginTop: 20, border: '1px solid #1e293b', borderRadius: 10, overflow: 'hidden' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', background: 'rgba(15,23,42,0.6)', border: 'none',
-          padding: '12px 16px', cursor: 'pointer', textAlign: 'left',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}
-      >
-        <span style={{ fontFamily: 'Outfit', fontWeight: 600, fontSize: 14, color: '#f8fafc' }}>
-          Bet Log
-        </span>
-        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#64748b' }}>
-          {pending} pending · {resolved} resolved {open ? '▲' : '▼'}
-        </span>
-      </button>
+      <div style={{ background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center' }}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{
+            flex: 1, background: 'none', border: 'none',
+            padding: '12px 16px', cursor: 'pointer', textAlign: 'left',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}
+        >
+          <span style={{ fontFamily: 'Outfit', fontWeight: 600, fontSize: 14, color: '#f8fafc' }}>
+            Bet Log
+          </span>
+          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#64748b' }}>
+            {pending} pending · {resolved} resolved {open ? '▲' : '▼'}
+          </span>
+        </button>
+        {pending > 0 && (
+          <div style={{ paddingRight: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {checkStatus && !checking && (
+              <span style={{
+                fontSize: 11, fontFamily: 'JetBrains Mono',
+                color: checkStatus.error ? '#f87171' : '#4ade80',
+              }}>
+                {checkStatus.error ?? `${checkStatus.resolved} resolved`}
+              </span>
+            )}
+            <button
+              onClick={handleCheck}
+              disabled={checking}
+              style={{
+                background: checking ? '#1e293b' : '#1d4ed8',
+                border: 'none', borderRadius: 6, color: '#f8fafc',
+                fontFamily: 'Outfit', fontWeight: 600, fontSize: 11,
+                padding: '5px 12px', cursor: checking ? 'not-allowed' : 'pointer',
+                opacity: checking ? 0.6 : 1, whiteSpace: 'nowrap',
+              }}
+            >
+              {checking ? 'Checking…' : 'Check Results'}
+            </button>
+          </div>
+        )}
+      </div>
       {open && (
         <div style={{ maxHeight: 420, overflowY: 'auto', background: 'rgba(15,23,42,0.4)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -566,6 +676,12 @@ function App() {
     setBetLog(BetLogger.getAll());
   }, []);
 
+  const handleCheckResults = useCallback(async () => {
+    const result = await ResultChecker.check();
+    setBetLog(BetLogger.getAll());
+    return result;
+  }, []);
+
   const handleRefresh = useCallback(async (apiKey) => {
     setOddsLoading(true);
     setOddsError(null);
@@ -639,7 +755,7 @@ function App() {
         })}
       </div>
 
-      <BetLogPanel log={betLog} onUpdate={handleUpdate} />
+      <BetLogPanel log={betLog} onUpdate={handleUpdate} onCheckResults={handleCheckResults} />
 
       <div style={{ marginTop: 32, padding: '12px 16px', background: 'rgba(15,23,42,0.4)', borderRadius: 8, border: '1px solid #1e293b' }}>
         <div style={{ fontSize: 11, color: '#475569', fontFamily: 'Outfit', lineHeight: 1.8 }}>
