@@ -1,0 +1,45 @@
+name: Nightly WNBA Update
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # 8 AM ET
+  workflow_dispatch:
+
+jobs:
+  update-wnba:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+
+    env:
+      PYTHONUTF8: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run compute_wnba.py
+        run: python scripts/compute_wnba.py
+
+      - name: Commit and push
+        shell: powershell
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
+          git add wnba_data.json
+          git diff --staged --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "chore: update wnba_data.json (nightly, $date)"
+            git push origin main
+          } else {
+            Write-Output "No changes to commit, skipping"
+          }
