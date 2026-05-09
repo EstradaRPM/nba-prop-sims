@@ -47,6 +47,45 @@ function fmtOdds(price) {
   return price > 0 ? `+${price}` : `${price}`;
 }
 
+function americanToImplied(odds) {
+  return odds < 0 ? -odds / (-odds + 100) : 100 / (odds + 100);
+}
+
+function calcEdge(modelP, over, under) {
+  const rawOver = americanToImplied(over.price);
+  if (!under) return { edge: modelP - rawOver, vigStripped: false };
+  const rawUnder = americanToImplied(under.price);
+  const vigFree = rawOver / (rawOver + rawUnder);
+  return { edge: modelP - vigFree, vigStripped: true };
+}
+
+function ladderTier(odds) {
+  if (odds >= 4000) return 'lotto';
+  if (odds >= 1201) return 'top';
+  if (odds >= 201) return 'middle';
+  return 'base';
+}
+
+const TIER_STYLES = {
+  base:   { bg: '#1e293b', color: '#64748b' },
+  middle: { bg: '#1e3a5f', color: '#60a5fa' },
+  top:    { bg: '#2d1b69', color: '#a78bfa' },
+  lotto:  { bg: '#78350f', color: '#fbbf24' },
+};
+
+function TierBadge({ tier }) {
+  const s = TIER_STYLES[tier];
+  return (
+    <span style={{
+      fontSize: 8, fontWeight: 700, letterSpacing: 0.5,
+      background: s.bg, color: s.color, borderRadius: 3,
+      padding: '1px 4px', textTransform: 'uppercase', fontFamily: 'Outfit',
+    }}>
+      {tier}
+    </span>
+  );
+}
+
 function minutesAgo(isoStr) {
   const mins = Math.floor((Date.now() - new Date(isoStr).getTime()) / 60000);
   return mins === 0 ? 'just now' : `${mins}m ago`;
@@ -57,7 +96,8 @@ async function fetchOdds(apiKey) {
   if (!eventsRes.ok) throw new Error(`Events API ${eventsRes.status}`);
   const events = await eventsRes.json();
 
-  const result = {};
+  const overMap = {};
+  const underMap = {};
 
   for (const event of events) {
     const oddsRes = await fetch(
@@ -72,18 +112,26 @@ async function fetchOdds(apiKey) {
       if (!market) continue;
 
       for (const outcome of (market.outcomes ?? [])) {
-        if (outcome.name !== 'Over') continue;
+        if (outcome.name !== 'Over' && outcome.name !== 'Under') continue;
         const bin = matchThreshold(outcome.point);
         if (!bin) continue;
         const playerKey = normalizeName(outcome.description).toLowerCase();
-        if (!result[playerKey]) result[playerKey] = {};
-        if (!result[playerKey][bin] || outcome.price > result[playerKey][bin].price) {
-          result[playerKey][bin] = { price: outcome.price, book: BOOK_ABBR[bookmaker.key] };
+        const map = outcome.name === 'Over' ? overMap : underMap;
+        if (!map[playerKey]) map[playerKey] = {};
+        if (!map[playerKey][bin] || outcome.price > map[playerKey][bin].price) {
+          map[playerKey][bin] = { price: outcome.price, book: BOOK_ABBR[bookmaker.key] };
         }
       }
     }
   }
 
+  const result = {};
+  for (const [pk, bins] of Object.entries(overMap)) {
+    result[pk] = {};
+    for (const [bin, over] of Object.entries(bins)) {
+      result[pk][bin] = { over, under: underMap[pk]?.[bin] ?? null };
+    }
+  }
   return result;
 }
 
@@ -98,10 +146,21 @@ function fmt(p) { return (p * 100).toFixed(1) + '%'; }
 
 function PlayerCard({ name, data, playerOdds }) {
   const limited = data.confidence === 'limited';
+
+  const edgeByThreshold = {};
+  if (playerOdds) {
+    for (const t of THRESHOLDS) {
+      const entry = data.thresholds?.[t];
+      const o = playerOdds[t];
+      if (entry && o) edgeByThreshold[t] = calcEdge(entry.p, o.over, o.under);
+    }
+  }
+  const hasAnyPositive = Object.values(edgeByThreshold).some(e => e.edge > 0);
+
   return (
     <div style={{
       background: 'rgba(15,23,42,0.6)',
-      border: limited ? '1px solid #78350f' : '1px solid #1e293b',
+      border: hasAnyPositive ? '1px solid #166534' : limited ? '1px solid #78350f' : '1px solid #1e293b',
       borderRadius: 10,
       padding: '14px 16px',
       opacity: limited ? 0.75 : 1,
@@ -123,6 +182,7 @@ function PlayerCard({ name, data, playerOdds }) {
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
+            <th style={{ width: 28 }} />
             {THRESHOLDS.map(t => (
               <th key={t} style={{
                 fontFamily: 'Outfit', fontSize: 11, fontWeight: 600, color: '#94a3b8',
@@ -135,11 +195,16 @@ function PlayerCard({ name, data, playerOdds }) {
         </thead>
         <tbody>
           <tr>
+            <td style={{ fontSize: 9, color: '#475569', fontFamily: 'Outfit', paddingRight: 4, verticalAlign: 'middle' }}>P</td>
             {THRESHOLDS.map(t => {
               const entry = data.thresholds?.[t];
+              const isPositive = edgeByThreshold[t]?.edge > 0;
               if (!entry) return <td key={t} style={{ textAlign: 'center', color: '#475569', fontFamily: 'JetBrains Mono', fontSize: 13 }}>—</td>;
               return (
-                <td key={t} style={{ textAlign: 'center', paddingTop: 6 }}>
+                <td key={t} style={{
+                  textAlign: 'center', paddingTop: 6,
+                  background: isPositive ? 'rgba(74,222,128,0.07)' : 'transparent',
+                }}>
                   <div style={{ fontFamily: 'JetBrains Mono', fontWeight: 600, fontSize: 14, color: pColor(entry.p) }}>
                     {fmt(entry.p)}
                   </div>
@@ -152,21 +217,60 @@ function PlayerCard({ name, data, playerOdds }) {
           </tr>
           {playerOdds && (
             <tr>
+              <td style={{ fontSize: 9, color: '#475569', fontFamily: 'Outfit', paddingRight: 4, verticalAlign: 'middle' }}>odds</td>
               {THRESHOLDS.map(t => {
                 const o = playerOdds[t];
+                const isPositive = edgeByThreshold[t]?.edge > 0;
                 if (!o) return (
                   <td key={t} style={{ textAlign: 'center', paddingTop: 4 }}>
                     <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: '#334155' }}>—</div>
                   </td>
                 );
                 return (
-                  <td key={t} style={{ textAlign: 'center', paddingTop: 4 }}>
+                  <td key={t} style={{
+                    textAlign: 'center', paddingTop: 4,
+                    background: isPositive ? 'rgba(74,222,128,0.07)' : 'transparent',
+                  }}>
                     <div style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#93c5fd', fontWeight: 600 }}>
-                      {fmtOdds(o.price)}
+                      {fmtOdds(o.over.price)}
                     </div>
                     <div style={{ fontFamily: 'JetBrains Mono', fontSize: 9, color: '#475569', marginTop: 1 }}>
-                      {o.book}
+                      {o.over.book}
                     </div>
+                    <div style={{ marginTop: 2 }}>
+                      <TierBadge tier={ladderTier(o.over.price)} />
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          )}
+          {playerOdds && (
+            <tr>
+              <td style={{ fontSize: 9, color: '#475569', fontFamily: 'Outfit', paddingRight: 4, verticalAlign: 'middle' }}>edge</td>
+              {THRESHOLDS.map(t => {
+                const info = edgeByThreshold[t];
+                if (!info) return (
+                  <td key={t} style={{ textAlign: 'center', paddingTop: 4 }}>
+                    <div style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: '#334155' }}>—</div>
+                  </td>
+                );
+                const { edge, vigStripped } = info;
+                const isPositive = edge > 0;
+                return (
+                  <td key={t} style={{
+                    textAlign: 'center', paddingTop: 4,
+                    background: isPositive ? 'rgba(74,222,128,0.07)' : 'transparent',
+                  }}>
+                    <div style={{
+                      fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 600,
+                      color: isPositive ? '#4ade80' : edge < -0.05 ? '#f87171' : '#64748b',
+                    }}>
+                      {isPositive ? '+' : ''}{(edge * 100).toFixed(1)}%
+                    </div>
+                    {!vigStripped && (
+                      <div style={{ fontSize: 8, color: '#92400e', fontFamily: 'Outfit' }}>raw</div>
+                    )}
                   </td>
                 );
               })}
@@ -348,7 +452,12 @@ function App() {
           <strong style={{ color: '#64748b' }}>Model:</strong> Beta-Binomial posterior · λ=0.9 recency decay ·
           {' '}<span style={{ color: '#78350f', background: 'rgba(120,53,15,0.2)', padding: '1px 5px', borderRadius: 3 }}>Limited</span>
           {' '}= fewer than 5 career games (prior-dominated) · Probabilities are points-scored thresholds ·
-          {' '}<span style={{ color: '#93c5fd' }}>Blue</span> = best available over odds (DK / FD / MGM / CZR / BR)
+          {' '}<span style={{ color: '#93c5fd' }}>Blue</span> = best available over odds (DK / FD / MGM / CZR / BR) ·
+          {' '}<span style={{ color: '#4ade80' }}>Green edge</span> = model P − vig-free implied (both sides) or raw over implied (one side, labeled <em>raw</em>) ·
+          {' '}Tier badges: <span style={{ background: '#1e293b', color: '#64748b', borderRadius: 3, padding: '1px 4px', fontSize: 10 }}>base</span>
+          {' '}<span style={{ background: '#1e3a5f', color: '#60a5fa', borderRadius: 3, padding: '1px 4px', fontSize: 10 }}>middle</span>
+          {' '}<span style={{ background: '#2d1b69', color: '#a78bfa', borderRadius: 3, padding: '1px 4px', fontSize: 10 }}>top</span>
+          {' '}<span style={{ background: '#78350f', color: '#fbbf24', borderRadius: 3, padding: '1px 4px', fontSize: 10 }}>lotto</span>
         </div>
       </div>
     </div>
