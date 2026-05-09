@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WNBA Prop Tool</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background: #0b0f1a; color: #f8fafc; font-family: 'Outfit', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0b0f1a; } ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useEffect } = React;
+
+const THRESHOLDS = ['10', '15', '18', '20', '25', '30'];
+
+function pColor(p) {
+  if (p >= 0.70) return '#4ade80';
+  if (p >= 0.55) return '#facc15';
+  if (p >= 0.40) return '#fb923c';
+  return '#f87171';
+}
+
+function fmt(p) { return (p * 100).toFixed(1) + '%'; }
+
+function PlayerCard({ name, data }) {
+  const limited = data.confidence === 'limited';
+  return (
+    <div style={{
+      background: 'rgba(15,23,42,0.6)',
+      border: limited ? '1px solid #78350f' : '1px solid #1e293b',
+      borderRadius: 10,
+      padding: '14px 16px',
+      opacity: limited ? 0.75 : 1,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontFamily: 'Outfit', fontWeight: 700, fontSize: 15, textTransform: 'capitalize', letterSpacing: 0.2 }}>
+          {name}
+        </span>
+        {limited && (
+          <span style={{
+            fontSize: 10, fontWeight: 600, letterSpacing: 0.5,
+            background: '#78350f', color: '#fbbf24', borderRadius: 4,
+            padding: '2px 6px', textTransform: 'uppercase',
+          }}>
+            Limited
+          </span>
+        )}
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            {THRESHOLDS.map(t => (
+              <th key={t} style={{
+                fontFamily: 'Outfit', fontSize: 11, fontWeight: 600, color: '#94a3b8',
+                textAlign: 'center', paddingBottom: 4, borderBottom: '1px solid #1e293b',
+              }}>
+                {t}+
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            {THRESHOLDS.map(t => {
+              const entry = data.thresholds?.[t];
+              if (!entry) return <td key={t} style={{ textAlign: 'center', color: '#475569', fontFamily: 'JetBrains Mono', fontSize: 13 }}>—</td>;
+              return (
+                <td key={t} style={{ textAlign: 'center', paddingTop: 6 }}>
+                  <div style={{ fontFamily: 'JetBrains Mono', fontWeight: 600, fontSize: 14, color: pColor(entry.p) }}>
+                    {fmt(entry.p)}
+                  </div>
+                  <div style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                    n={entry.n_current}
+                  </div>
+                </td>
+              );
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function App() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch('wnba_data.json')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(setData)
+      .catch(e => setError(e.message));
+  }, []);
+
+  if (error) return (
+    <div style={{ padding: 40, textAlign: 'center', color: '#f87171', fontFamily: 'Outfit' }}>
+      Failed to load wnba_data.json: {error}
+    </div>
+  );
+
+  if (!data) return (
+    <div style={{ padding: 40, textAlign: 'center', color: '#64748b', fontFamily: 'Outfit' }}>
+      Loading…
+    </div>
+  );
+
+  const { generated_at, ...players } = data;
+  const entries = Object.entries(players).sort(([a], [b]) => a.localeCompare(b));
+  const generatedDate = generated_at ? new Date(generated_at).toLocaleString() : null;
+  const limitedCount = entries.filter(([, v]) => v.confidence === 'limited').length;
+
+  return (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: -0.3 }}>
+          WNBA Prop Tool
+        </h1>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: '#64748b', fontFamily: 'JetBrains Mono' }}>
+            {entries.length} players · {limitedCount} limited
+          </span>
+          {generatedDate && (
+            <span style={{ fontSize: 12, color: '#475569', fontFamily: 'JetBrains Mono' }}>
+              updated {generatedDate}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 12 }}>
+        {entries.map(([name, playerData]) => (
+          <PlayerCard key={name} name={name} data={playerData} />
+        ))}
+      </div>
+
+      <div style={{ marginTop: 32, padding: '12px 16px', background: 'rgba(15,23,42,0.4)', borderRadius: 8, border: '1px solid #1e293b' }}>
+        <div style={{ fontSize: 11, color: '#475569', fontFamily: 'Outfit', lineHeight: 1.8 }}>
+          <strong style={{ color: '#64748b' }}>Model:</strong> Beta-Binomial posterior · λ=0.9 recency decay ·
+          {' '}<span style={{ color: '#78350f', background: 'rgba(120,53,15,0.2)', padding: '1px 5px', borderRadius: 3 }}>Limited</span>
+          {' '}= fewer than 5 career games (prior-dominated) · Probabilities are points-scored thresholds
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,1893 @@
+{
+  "generated_at": "2026-05-09T05:56:16.321839Z",
+  "aja wilson": {
+    "thresholds": {
+      "10": {
+        "p": 0.95989,
+        "alpha": 49.7724,
+        "beta": 2.0798,
+        "n_current": 40
+      },
+      "15": {
+        "p": 0.835004,
+        "alpha": 43.2968,
+        "beta": 8.5554,
+        "n_current": 40
+      },
+      "18": {
+        "p": 0.728498,
+        "alpha": 37.7742,
+        "beta": 14.078,
+        "n_current": 40
+      },
+      "20": {
+        "p": 0.628822,
+        "alpha": 32.6058,
+        "beta": 19.2464,
+        "n_current": 40
+      },
+      "25": {
+        "p": 0.446974,
+        "alpha": 23.1766,
+        "beta": 28.6756,
+        "n_current": 40
+      },
+      "30": {
+        "p": 0.35815,
+        "alpha": 18.5709,
+        "beta": 33.2813,
+        "n_current": 40
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "breanna stewart": {
+    "thresholds": {
+      "10": {
+        "p": 0.878857,
+        "alpha": 37.4555,
+        "beta": 5.163,
+        "n_current": 31
+      },
+      "15": {
+        "p": 0.683044,
+        "alpha": 29.1103,
+        "beta": 13.5082,
+        "n_current": 31
+      },
+      "18": {
+        "p": 0.539063,
+        "alpha": 22.974,
+        "beta": 19.6445,
+        "n_current": 31
+      },
+      "20": {
+        "p": 0.378972,
+        "alpha": 16.1512,
+        "beta": 26.4673,
+        "n_current": 31
+      },
+      "25": {
+        "p": 0.12508,
+        "alpha": 5.3307,
+        "beta": 37.2878,
+        "n_current": 31
+      },
+      "30": {
+        "p": 0.050098,
+        "alpha": 2.1351,
+        "beta": 40.4834,
+        "n_current": 31
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "sabrina ionescu": {
+    "thresholds": {
+      "10": {
+        "p": 0.829144,
+        "alpha": 41.3059,
+        "beta": 8.5116,
+        "n_current": 38
+      },
+      "15": {
+        "p": 0.574639,
+        "alpha": 28.6271,
+        "beta": 21.1905,
+        "n_current": 38
+      },
+      "18": {
+        "p": 0.389191,
+        "alpha": 19.3885,
+        "beta": 30.429,
+        "n_current": 38
+      },
+      "20": {
+        "p": 0.337611,
+        "alpha": 16.8189,
+        "beta": 32.9986,
+        "n_current": 38
+      },
+      "25": {
+        "p": 0.205261,
+        "alpha": 10.2256,
+        "beta": 39.5919,
+        "n_current": 38
+      },
+      "30": {
+        "p": 0.138192,
+        "alpha": 6.8844,
+        "beta": 42.9331,
+        "n_current": 38
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "kelsey plum": {
+    "thresholds": {
+      "10": {
+        "p": 0.959397,
+        "alpha": 52.6635,
+        "beta": 2.2288,
+        "n_current": 43
+      },
+      "15": {
+        "p": 0.793345,
+        "alpha": 43.5485,
+        "beta": 11.3437,
+        "n_current": 43
+      },
+      "18": {
+        "p": 0.627819,
+        "alpha": 34.4624,
+        "beta": 20.4299,
+        "n_current": 43
+      },
+      "20": {
+        "p": 0.529321,
+        "alpha": 29.0556,
+        "beta": 25.8366,
+        "n_current": 43
+      },
+      "25": {
+        "p": 0.206169,
+        "alpha": 11.3171,
+        "beta": 43.5752,
+        "n_current": 43
+      },
+      "30": {
+        "p": 0.057085,
+        "alpha": 3.1335,
+        "beta": 51.7587,
+        "n_current": 43
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "jewell loyd": {
+    "thresholds": {
+      "10": {
+        "p": 0.600941,
+        "alpha": 33.5944,
+        "beta": 22.3086,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.265412,
+        "alpha": 14.8373,
+        "beta": 41.0657,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.175063,
+        "alpha": 9.7866,
+        "beta": 46.1165,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.175063,
+        "alpha": 9.7866,
+        "beta": 46.1165,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.039459,
+        "alpha": 2.2059,
+        "beta": 53.6971,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "napheesa collier": {
+    "thresholds": {
+      "10": {
+        "p": 0.953045,
+        "alpha": 42.5925,
+        "beta": 2.0985,
+        "n_current": 33
+      },
+      "15": {
+        "p": 0.883849,
+        "alpha": 39.5001,
+        "beta": 5.1909,
+        "n_current": 33
+      },
+      "18": {
+        "p": 0.796262,
+        "alpha": 35.5857,
+        "beta": 9.1052,
+        "n_current": 33
+      },
+      "20": {
+        "p": 0.603102,
+        "alpha": 26.9532,
+        "beta": 17.7377,
+        "n_current": 33
+      },
+      "25": {
+        "p": 0.436743,
+        "alpha": 19.5185,
+        "beta": 25.1725,
+        "n_current": 33
+      },
+      "30": {
+        "p": 0.190629,
+        "alpha": 8.5194,
+        "beta": 36.1716,
+        "n_current": 33
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "jonquel jones": {
+    "thresholds": {
+      "10": {
+        "p": 0.7566,
+        "alpha": 32.2451,
+        "beta": 10.3733,
+        "n_current": 31
+      },
+      "15": {
+        "p": 0.378028,
+        "alpha": 16.111,
+        "beta": 26.5075,
+        "n_current": 31
+      },
+      "18": {
+        "p": 0.292183,
+        "alpha": 12.4524,
+        "beta": 30.1661,
+        "n_current": 31
+      },
+      "20": {
+        "p": 0.201846,
+        "alpha": 8.6024,
+        "beta": 34.0161,
+        "n_current": 31
+      },
+      "25": {
+        "p": 0.082843,
+        "alpha": 3.5306,
+        "beta": 39.0878,
+        "n_current": 31
+      },
+      "30": {
+        "p": 0.023464,
+        "alpha": 1,
+        "beta": 41.6185,
+        "n_current": 31
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "arike ogunbowale": {
+    "thresholds": {
+      "10": {
+        "p": 0.727802,
+        "alpha": 29.4971,
+        "beta": 11.0319,
+        "n_current": 29
+      },
+      "15": {
+        "p": 0.532139,
+        "alpha": 21.5671,
+        "beta": 18.9619,
+        "n_current": 29
+      },
+      "18": {
+        "p": 0.364073,
+        "alpha": 14.7555,
+        "beta": 25.7735,
+        "n_current": 29
+      },
+      "20": {
+        "p": 0.270399,
+        "alpha": 10.959,
+        "beta": 29.57,
+        "n_current": 29
+      },
+      "25": {
+        "p": 0.138648,
+        "alpha": 5.6193,
+        "beta": 34.9097,
+        "n_current": 29
+      },
+      "30": {
+        "p": 0.051534,
+        "alpha": 2.0886,
+        "beta": 38.4404,
+        "n_current": 29
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "dearica hamby": {
+    "thresholds": {
+      "10": {
+        "p": 0.963541,
+        "alpha": 53.8649,
+        "beta": 2.0382,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.782477,
+        "alpha": 43.7428,
+        "beta": 12.1602,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.555641,
+        "alpha": 31.062,
+        "beta": 24.841,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.495593,
+        "alpha": 27.7052,
+        "beta": 28.1979,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.236029,
+        "alpha": 13.1948,
+        "beta": 42.7083,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "chelsea gray": {
+    "thresholds": {
+      "10": {
+        "p": 0.630906,
+        "alpha": 35.2695,
+        "beta": 20.6335,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.206242,
+        "alpha": 11.5296,
+        "beta": 44.3735,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.073135,
+        "alpha": 4.0885,
+        "beta": 51.8145,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.054565,
+        "alpha": 3.0503,
+        "beta": 52.8527,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.036179,
+        "alpha": 2.0225,
+        "beta": 53.8805,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "kayla mcbride": {
+    "thresholds": {
+      "10": {
+        "p": 0.713009,
+        "alpha": 36.2463,
+        "beta": 14.5894,
+        "n_current": 39
+      },
+      "15": {
+        "p": 0.492593,
+        "alpha": 25.0413,
+        "beta": 25.7944,
+        "n_current": 39
+      },
+      "18": {
+        "p": 0.321315,
+        "alpha": 16.3343,
+        "beta": 34.5015,
+        "n_current": 39
+      },
+      "20": {
+        "p": 0.209539,
+        "alpha": 10.6521,
+        "beta": 40.1837,
+        "n_current": 39
+      },
+      "25": {
+        "p": 0.069256,
+        "alpha": 3.5207,
+        "beta": 47.3151,
+        "n_current": 39
+      },
+      "30": {
+        "p": 0.019671,
+        "alpha": 1,
+        "beta": 49.8358,
+        "n_current": 39
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "skylar diggins": {
+    "thresholds": {
+      "10": {
+        "p": 0.839469,
+        "alpha": 46.0803,
+        "beta": 8.8119,
+        "n_current": 43
+      },
+      "15": {
+        "p": 0.481144,
+        "alpha": 26.4111,
+        "beta": 28.4812,
+        "n_current": 43
+      },
+      "18": {
+        "p": 0.438869,
+        "alpha": 24.0905,
+        "beta": 30.8018,
+        "n_current": 43
+      },
+      "20": {
+        "p": 0.36055,
+        "alpha": 19.7914,
+        "beta": 35.1008,
+        "n_current": 43
+      },
+      "25": {
+        "p": 0.036942,
+        "alpha": 2.0278,
+        "beta": 52.8644,
+        "n_current": 43
+      },
+      "30": {
+        "p": 0.018218,
+        "alpha": 1,
+        "beta": 53.8922,
+        "n_current": 43
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "satou sabally": {
+    "thresholds": {
+      "10": {
+        "p": 0.856936,
+        "alpha": 43.563,
+        "beta": 7.2728,
+        "n_current": 39
+      },
+      "15": {
+        "p": 0.545353,
+        "alpha": 27.7234,
+        "beta": 23.1124,
+        "n_current": 39
+      },
+      "18": {
+        "p": 0.361876,
+        "alpha": 18.3962,
+        "beta": 32.4395,
+        "n_current": 39
+      },
+      "20": {
+        "p": 0.312291,
+        "alpha": 15.8755,
+        "beta": 34.9602,
+        "n_current": 39
+      },
+      "25": {
+        "p": 0.126692,
+        "alpha": 6.4405,
+        "beta": 44.3953,
+        "n_current": 39
+      },
+      "30": {
+        "p": 0.019671,
+        "alpha": 1,
+        "beta": 49.8358,
+        "n_current": 39
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "kelsey mitchell": {
+    "thresholds": {
+      "10": {
+        "p": 0.939669,
+        "alpha": 52.5304,
+        "beta": 3.3727,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.727142,
+        "alpha": 40.6494,
+        "beta": 15.2536,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.597702,
+        "alpha": 33.4134,
+        "beta": 22.4897,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.542882,
+        "alpha": 30.3488,
+        "beta": 25.5543,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.286938,
+        "alpha": 16.0407,
+        "beta": 39.8623,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.104084,
+        "alpha": 5.8186,
+        "beta": 50.0844,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "tina charles": {
+    "thresholds": {
+      "10": {
+        "p": 0.807341,
+        "alpha": 44.3168,
+        "beta": 10.5755,
+        "n_current": 43
+      },
+      "15": {
+        "p": 0.614631,
+        "alpha": 33.7385,
+        "beta": 21.1538,
+        "n_current": 43
+      },
+      "18": {
+        "p": 0.507727,
+        "alpha": 27.8703,
+        "beta": 27.022,
+        "n_current": 43
+      },
+      "20": {
+        "p": 0.350733,
+        "alpha": 19.2525,
+        "beta": 35.6397,
+        "n_current": 43
+      },
+      "25": {
+        "p": 0.075428,
+        "alpha": 4.1404,
+        "beta": 50.7518,
+        "n_current": 43
+      },
+      "30": {
+        "p": 0.018218,
+        "alpha": 1,
+        "beta": 53.8922,
+        "n_current": 43
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "nneka ogwumike": {
+    "thresholds": {
+      "10": {
+        "p": 0.900048,
+        "alpha": 50.3154,
+        "beta": 5.5876,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.735479,
+        "alpha": 41.1155,
+        "beta": 14.7875,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.48855,
+        "alpha": 27.3114,
+        "beta": 28.5916,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.467977,
+        "alpha": 26.1613,
+        "beta": 29.7417,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.166578,
+        "alpha": 9.3122,
+        "beta": 46.5908,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.066486,
+        "alpha": 3.7167,
+        "beta": 52.1863,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "dewanna bonner": {
+    "thresholds": {
+      "10": {
+        "p": 0.425007,
+        "alpha": 18.994,
+        "beta": 25.697,
+        "n_current": 33
+      },
+      "15": {
+        "p": 0.21854,
+        "alpha": 9.7668,
+        "beta": 34.9242,
+        "n_current": 33
+      },
+      "18": {
+        "p": 0.189845,
+        "alpha": 8.4843,
+        "beta": 36.2066,
+        "n_current": 33
+      },
+      "20": {
+        "p": 0.098566,
+        "alpha": 4.405,
+        "beta": 40.286,
+        "n_current": 33
+      },
+      "25": {
+        "p": 0.022376,
+        "alpha": 1,
+        "beta": 43.691,
+        "n_current": 33
+      },
+      "30": {
+        "p": 0.022376,
+        "alpha": 1,
+        "beta": 43.691,
+        "n_current": 33
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "marina mabrey": {
+    "thresholds": {
+      "10": {
+        "p": 0.653176,
+        "alpha": 30.5358,
+        "beta": 16.2139,
+        "n_current": 35
+      },
+      "15": {
+        "p": 0.487148,
+        "alpha": 22.774,
+        "beta": 23.9757,
+        "n_current": 35
+      },
+      "18": {
+        "p": 0.408763,
+        "alpha": 19.1095,
+        "beta": 27.6401,
+        "n_current": 35
+      },
+      "20": {
+        "p": 0.277957,
+        "alpha": 12.9944,
+        "beta": 33.7553,
+        "n_current": 35
+      },
+      "25": {
+        "p": 0.094526,
+        "alpha": 4.4191,
+        "beta": 42.3306,
+        "n_current": 35
+      },
+      "30": {
+        "p": 0.044025,
+        "alpha": 2.0581,
+        "beta": 44.6915,
+        "n_current": 35
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "dijonai carrington": {
+    "thresholds": {
+      "10": {
+        "p": 0.459459,
+        "alpha": 19.5814,
+        "beta": 23.037,
+        "n_current": 31
+      },
+      "15": {
+        "p": 0.279485,
+        "alpha": 11.9112,
+        "beta": 30.7073,
+        "n_current": 31
+      },
+      "18": {
+        "p": 0.093589,
+        "alpha": 3.9886,
+        "beta": 38.6299,
+        "n_current": 31
+      },
+      "20": {
+        "p": 0.049008,
+        "alpha": 2.0886,
+        "beta": 40.5299,
+        "n_current": 31
+      },
+      "25": {
+        "p": 0.023464,
+        "alpha": 1,
+        "beta": 41.6185,
+        "n_current": 31
+      },
+      "30": {
+        "p": 0.023464,
+        "alpha": 1,
+        "beta": 41.6185,
+        "n_current": 31
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "rhyne howard": {
+    "thresholds": {
+      "10": {
+        "p": 0.84237,
+        "alpha": 37.6463,
+        "beta": 7.0447,
+        "n_current": 33
+      },
+      "15": {
+        "p": 0.663506,
+        "alpha": 29.6527,
+        "beta": 15.0382,
+        "n_current": 33
+      },
+      "18": {
+        "p": 0.509979,
+        "alpha": 22.7914,
+        "beta": 21.8995,
+        "n_current": 33
+      },
+      "20": {
+        "p": 0.339482,
+        "alpha": 15.1718,
+        "beta": 29.5192,
+        "n_current": 33
+      },
+      "25": {
+        "p": 0.139752,
+        "alpha": 6.2457,
+        "beta": 38.4453,
+        "n_current": 33
+      },
+      "30": {
+        "p": 0.111057,
+        "alpha": 4.9632,
+        "beta": 39.7277,
+        "n_current": 33
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "aliyah boston": {
+    "thresholds": {
+      "10": {
+        "p": 0.836132,
+        "alpha": 46.7423,
+        "beta": 9.1607,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.454728,
+        "alpha": 25.4207,
+        "beta": 30.4824,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.286394,
+        "alpha": 16.0103,
+        "beta": 39.8927,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.248999,
+        "alpha": 13.9198,
+        "beta": 41.9832,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.100652,
+        "alpha": 5.6268,
+        "beta": 50.2763,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.036535,
+        "alpha": 2.0424,
+        "beta": 53.8606,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "aerial powers": {
+    "thresholds": {
+      "10": {
+        "p": 0.343868,
+        "alpha": 6.3661,
+        "beta": 12.1471,
+        "n_current": 10
+      },
+      "15": {
+        "p": 0.2461,
+        "alpha": 4.5561,
+        "beta": 13.9571,
+        "n_current": 10
+      },
+      "18": {
+        "p": 0.054015,
+        "alpha": 1.0,
+        "beta": 17.5132,
+        "n_current": 10
+      },
+      "20": {
+        "p": 0.054015,
+        "alpha": 1.0,
+        "beta": 17.5132,
+        "n_current": 10
+      },
+      "25": {
+        "p": 0.054015,
+        "alpha": 1.0,
+        "beta": 17.5132,
+        "n_current": 10
+      },
+      "30": {
+        "p": 0.054015,
+        "alpha": 1.0,
+        "beta": 17.5132,
+        "n_current": 10
+      }
+    },
+    "confidence": "partial",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "caitlin clark": {
+    "thresholds": {
+      "10": {
+        "p": 0.913072,
+        "alpha": 21.3276,
+        "beta": 2.0305,
+        "n_current": 13
+      },
+      "15": {
+        "p": 0.425718,
+        "alpha": 9.944,
+        "beta": 13.4142,
+        "n_current": 13
+      },
+      "18": {
+        "p": 0.442998,
+        "alpha": 10.3476,
+        "beta": 13.0105,
+        "n_current": 13
+      },
+      "20": {
+        "p": 0.299043,
+        "alpha": 6.9851,
+        "beta": 16.3731,
+        "n_current": 13
+      },
+      "25": {
+        "p": 0.174106,
+        "alpha": 4.0668,
+        "beta": 19.2913,
+        "n_current": 13
+      },
+      "30": {
+        "p": 0.112825,
+        "alpha": 2.6354,
+        "beta": 20.7228,
+        "n_current": 13
+      }
+    },
+    "confidence": "partial",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "angel reese": {
+    "thresholds": {
+      "10": {
+        "p": 0.871011,
+        "alpha": 36.2132,
+        "beta": 5.3628,
+        "n_current": 30
+      },
+      "15": {
+        "p": 0.571248,
+        "alpha": 23.7503,
+        "beta": 17.8258,
+        "n_current": 30
+      },
+      "18": {
+        "p": 0.383221,
+        "alpha": 15.9328,
+        "beta": 25.6433,
+        "n_current": 30
+      },
+      "20": {
+        "p": 0.237334,
+        "alpha": 9.8674,
+        "beta": 31.7087,
+        "n_current": 30
+      },
+      "25": {
+        "p": 0.024052,
+        "alpha": 1,
+        "beta": 40.5761,
+        "n_current": 30
+      },
+      "30": {
+        "p": 0.024052,
+        "alpha": 1,
+        "beta": 40.5761,
+        "n_current": 30
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "jackie young": {
+    "thresholds": {
+      "10": {
+        "p": 0.860821,
+        "alpha": 48.1225,
+        "beta": 7.7805,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.621771,
+        "alpha": 34.7589,
+        "beta": 21.1441,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.405399,
+        "alpha": 22.663,
+        "beta": 33.24,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.326722,
+        "alpha": 18.2647,
+        "beta": 37.6383,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.132732,
+        "alpha": 7.4201,
+        "beta": 48.4829,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.055653,
+        "alpha": 3.1112,
+        "beta": 52.7919,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "kahleah copper": {
+    "thresholds": {
+      "10": {
+        "p": 0.780207,
+        "alpha": 30.8,
+        "beta": 8.6767,
+        "n_current": 28
+      },
+      "15": {
+        "p": 0.533254,
+        "alpha": 21.0511,
+        "beta": 18.4256,
+        "n_current": 28
+      },
+      "18": {
+        "p": 0.382215,
+        "alpha": 15.0886,
+        "beta": 24.3881,
+        "n_current": 28
+      },
+      "20": {
+        "p": 0.225563,
+        "alpha": 8.9045,
+        "beta": 30.5722,
+        "n_current": 28
+      },
+      "25": {
+        "p": 0.15614,
+        "alpha": 6.1639,
+        "beta": 33.3128,
+        "n_current": 28
+      },
+      "30": {
+        "p": 0.053157,
+        "alpha": 2.0985,
+        "beta": 37.3782,
+        "n_current": 28
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "brittney griner": {
+    "thresholds": {
+      "10": {
+        "p": 0.483697,
+        "alpha": 24.5891,
+        "beta": 26.2466,
+        "n_current": 39
+      },
+      "15": {
+        "p": 0.256529,
+        "alpha": 13.0408,
+        "beta": 37.7949,
+        "n_current": 39
+      },
+      "18": {
+        "p": 0.103367,
+        "alpha": 5.2547,
+        "beta": 45.581,
+        "n_current": 39
+      },
+      "20": {
+        "p": 0.063058,
+        "alpha": 3.2056,
+        "beta": 47.6302,
+        "n_current": 39
+      },
+      "25": {
+        "p": 0.019671,
+        "alpha": 1,
+        "beta": 49.8358,
+        "n_current": 39
+      },
+      "30": {
+        "p": 0.019671,
+        "alpha": 1,
+        "beta": 49.8358,
+        "n_current": 39
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "natasha cloud": {
+    "thresholds": {
+      "10": {
+        "p": 0.582408,
+        "alpha": 30.7901,
+        "beta": 22.0768,
+        "n_current": 41
+      },
+      "15": {
+        "p": 0.171754,
+        "alpha": 9.0801,
+        "beta": 43.7869,
+        "n_current": 41
+      },
+      "18": {
+        "p": 0.152493,
+        "alpha": 8.0619,
+        "beta": 44.8051,
+        "n_current": 41
+      },
+      "20": {
+        "p": 0.100562,
+        "alpha": 5.3164,
+        "beta": 47.5505,
+        "n_current": 41
+      },
+      "25": {
+        "p": 0.018915,
+        "alpha": 1,
+        "beta": 51.867,
+        "n_current": 41
+      },
+      "30": {
+        "p": 0.018915,
+        "alpha": 1,
+        "beta": 51.867,
+        "n_current": 41
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "chennedy carter": {
+    "thresholds": {
+      "10": {
+        "p": 0.659552,
+        "alpha": 7.9146,
+        "beta": 4.0854,
+        "n_current": 0
+      },
+      "15": {
+        "p": 0.455261,
+        "alpha": 5.4631,
+        "beta": 6.5369,
+        "n_current": 0
+      },
+      "18": {
+        "p": 0.343144,
+        "alpha": 4.1177,
+        "beta": 7.8823,
+        "n_current": 0
+      },
+      "20": {
+        "p": 0.283312,
+        "alpha": 3.3997,
+        "beta": 8.6003,
+        "n_current": 0
+      },
+      "25": {
+        "p": 0.160414,
+        "alpha": 1.925,
+        "beta": 10.075,
+        "n_current": 0
+      },
+      "30": {
+        "p": 0.109746,
+        "alpha": 1.3169,
+        "beta": 10.6831,
+        "n_current": 0
+      }
+    },
+    "confidence": "limited",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "courtney williams": {
+    "thresholds": {
+      "10": {
+        "p": 0.727356,
+        "alpha": 40.6614,
+        "beta": 15.2416,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.419147,
+        "alpha": 23.4316,
+        "beta": 32.4715,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.261257,
+        "alpha": 14.6051,
+        "beta": 41.298,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.195446,
+        "alpha": 10.926,
+        "beta": 44.977,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.078643,
+        "alpha": 4.3964,
+        "beta": 51.5066,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "tiffany hayes": {
+    "thresholds": {
+      "10": {
+        "p": 0.623408,
+        "alpha": 23.2867,
+        "beta": 14.0672,
+        "n_current": 26
+      },
+      "15": {
+        "p": 0.335462,
+        "alpha": 12.5308,
+        "beta": 24.8231,
+        "n_current": 26
+      },
+      "18": {
+        "p": 0.118431,
+        "alpha": 4.4239,
+        "beta": 32.93,
+        "n_current": 26
+      },
+      "20": {
+        "p": 0.089738,
+        "alpha": 3.3521,
+        "beta": 34.0018,
+        "n_current": 26
+      },
+      "25": {
+        "p": 0.026771,
+        "alpha": 1,
+        "beta": 36.3539,
+        "n_current": 26
+      },
+      "30": {
+        "p": 0.026771,
+        "alpha": 1,
+        "beta": 36.3539,
+        "n_current": 26
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "destiny slocum": {
+    "thresholds": {
+      "10": {
+        "p": 0.659552,
+        "alpha": 7.9146,
+        "beta": 4.0854,
+        "n_current": 0
+      },
+      "15": {
+        "p": 0.455261,
+        "alpha": 5.4631,
+        "beta": 6.5369,
+        "n_current": 0
+      },
+      "18": {
+        "p": 0.343144,
+        "alpha": 4.1177,
+        "beta": 7.8823,
+        "n_current": 0
+      },
+      "20": {
+        "p": 0.283312,
+        "alpha": 3.3997,
+        "beta": 8.6003,
+        "n_current": 0
+      },
+      "25": {
+        "p": 0.160414,
+        "alpha": 1.925,
+        "beta": 10.075,
+        "n_current": 0
+      },
+      "30": {
+        "p": 0.109746,
+        "alpha": 1.3169,
+        "beta": 10.6831,
+        "n_current": 0
+      }
+    },
+    "confidence": "limited",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "ezi magbegor": {
+    "thresholds": {
+      "10": {
+        "p": 0.299131,
+        "alpha": 16.7223,
+        "beta": 39.1807,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.037538,
+        "alpha": 2.0985,
+        "beta": 53.8045,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.037538,
+        "alpha": 2.0985,
+        "beta": 53.8045,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "shakira austin": {
+    "thresholds": {
+      "10": {
+        "p": 0.689238,
+        "alpha": 34.3361,
+        "beta": 15.4814,
+        "n_current": 38
+      },
+      "15": {
+        "p": 0.341389,
+        "alpha": 17.0072,
+        "beta": 32.8104,
+        "n_current": 38
+      },
+      "18": {
+        "p": 0.18969,
+        "alpha": 9.4499,
+        "beta": 40.3676,
+        "n_current": 38
+      },
+      "20": {
+        "p": 0.116971,
+        "alpha": 5.8272,
+        "beta": 43.9903,
+        "n_current": 38
+      },
+      "25": {
+        "p": 0.071938,
+        "alpha": 3.5838,
+        "beta": 46.2337,
+        "n_current": 38
+      },
+      "30": {
+        "p": 0.050814,
+        "alpha": 2.5314,
+        "beta": 47.2861,
+        "n_current": 38
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "sophie cunningham": {
+    "thresholds": {
+      "10": {
+        "p": 0.456439,
+        "alpha": 18.977,
+        "beta": 22.5991,
+        "n_current": 30
+      },
+      "15": {
+        "p": 0.23535,
+        "alpha": 9.7849,
+        "beta": 31.7912,
+        "n_current": 30
+      },
+      "18": {
+        "p": 0.063885,
+        "alpha": 2.6561,
+        "beta": 38.92,
+        "n_current": 30
+      },
+      "20": {
+        "p": 0.024052,
+        "alpha": 1,
+        "beta": 40.5761,
+        "n_current": 30
+      },
+      "25": {
+        "p": 0.024052,
+        "alpha": 1,
+        "beta": 40.5761,
+        "n_current": 30
+      },
+      "30": {
+        "p": 0.024052,
+        "alpha": 1,
+        "beta": 40.5761,
+        "n_current": 30
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "brittney sykes": {
+    "thresholds": {
+      "10": {
+        "p": 0.66003,
+        "alpha": 33.5531,
+        "beta": 17.2826,
+        "n_current": 39
+      },
+      "15": {
+        "p": 0.317054,
+        "alpha": 16.1177,
+        "beta": 34.7181,
+        "n_current": 39
+      },
+      "18": {
+        "p": 0.317054,
+        "alpha": 16.1177,
+        "beta": 34.7181,
+        "n_current": 39
+      },
+      "20": {
+        "p": 0.227977,
+        "alpha": 11.5894,
+        "beta": 39.2464,
+        "n_current": 39
+      },
+      "25": {
+        "p": 0.126288,
+        "alpha": 6.42,
+        "beta": 44.4158,
+        "n_current": 39
+      },
+      "30": {
+        "p": 0.060486,
+        "alpha": 3.0749,
+        "beta": 47.7609,
+        "n_current": 39
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "erica wheeler": {
+    "thresholds": {
+      "10": {
+        "p": 0.505307,
+        "alpha": 28.2482,
+        "beta": 27.6549,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.276958,
+        "alpha": 15.4828,
+        "beta": 40.4203,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.114181,
+        "alpha": 6.3831,
+        "beta": 49.5199,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.092201,
+        "alpha": 5.1543,
+        "beta": 50.7487,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "lexie hull": {
+    "thresholds": {
+      "10": {
+        "p": 0.207121,
+        "alpha": 11.5787,
+        "beta": 44.3243,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.134144,
+        "alpha": 7.4991,
+        "beta": 48.404,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.074405,
+        "alpha": 4.1595,
+        "beta": 51.7436,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.043476,
+        "alpha": 2.4305,
+        "beta": 53.4726,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "brianna turner": {
+    "thresholds": {
+      "10": {
+        "p": 0.026029,
+        "alpha": 1,
+        "beta": 37.4185,
+        "n_current": 27
+      },
+      "15": {
+        "p": 0.026029,
+        "alpha": 1,
+        "beta": 37.4185,
+        "n_current": 27
+      },
+      "18": {
+        "p": 0.026029,
+        "alpha": 1,
+        "beta": 37.4185,
+        "n_current": 27
+      },
+      "20": {
+        "p": 0.026029,
+        "alpha": 1,
+        "beta": 37.4185,
+        "n_current": 27
+      },
+      "25": {
+        "p": 0.026029,
+        "alpha": 1,
+        "beta": 37.4185,
+        "n_current": 27
+      },
+      "30": {
+        "p": 0.026029,
+        "alpha": 1,
+        "beta": 37.4185,
+        "n_current": 27
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "kia nurse": {
+    "thresholds": {
+      "10": {
+        "p": 0.332228,
+        "alpha": 18.5726,
+        "beta": 37.3304,
+        "n_current": 44
+      },
+      "15": {
+        "p": 0.109447,
+        "alpha": 6.1184,
+        "beta": 49.7846,
+        "n_current": 44
+      },
+      "18": {
+        "p": 0.043476,
+        "alpha": 2.4305,
+        "beta": 53.4726,
+        "n_current": 44
+      },
+      "20": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      },
+      "25": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      },
+      "30": {
+        "p": 0.017888,
+        "alpha": 1,
+        "beta": 54.903,
+        "n_current": 44
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "paige bueckers": {
+    "thresholds": {
+      "10": {
+        "p": 0.945777,
+        "alpha": 45.1842,
+        "beta": 2.5905,
+        "n_current": 36
+      },
+      "15": {
+        "p": 0.778792,
+        "alpha": 37.2066,
+        "beta": 10.5682,
+        "n_current": 36
+      },
+      "18": {
+        "p": 0.560074,
+        "alpha": 26.7574,
+        "beta": 21.0174,
+        "n_current": 36
+      },
+      "20": {
+        "p": 0.468848,
+        "alpha": 22.3991,
+        "beta": 25.3756,
+        "n_current": 36
+      },
+      "25": {
+        "p": 0.163506,
+        "alpha": 7.8114,
+        "beta": 39.9633,
+        "n_current": 36
+      },
+      "30": {
+        "p": 0.073792,
+        "alpha": 3.5254,
+        "beta": 44.2493,
+        "n_current": 36
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "azzi fudd": {
+    "thresholds": {
+      "10": {
+        "p": 0.659552,
+        "alpha": 7.9146,
+        "beta": 4.0854,
+        "n_current": 0
+      },
+      "15": {
+        "p": 0.455261,
+        "alpha": 5.4631,
+        "beta": 6.5369,
+        "n_current": 0
+      },
+      "18": {
+        "p": 0.343144,
+        "alpha": 4.1177,
+        "beta": 7.8823,
+        "n_current": 0
+      },
+      "20": {
+        "p": 0.283312,
+        "alpha": 3.3997,
+        "beta": 8.6003,
+        "n_current": 0
+      },
+      "25": {
+        "p": 0.160414,
+        "alpha": 1.925,
+        "beta": 10.075,
+        "n_current": 0
+      },
+      "30": {
+        "p": 0.109746,
+        "alpha": 1.3169,
+        "beta": 10.6831,
+        "n_current": 0
+      }
+    },
+    "confidence": "limited",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "rickea jackson": {
+    "thresholds": {
+      "10": {
+        "p": 0.686217,
+        "alpha": 34.1856,
+        "beta": 15.6319,
+        "n_current": 38
+      },
+      "15": {
+        "p": 0.54275,
+        "alpha": 27.0384,
+        "beta": 22.7791,
+        "n_current": 38
+      },
+      "18": {
+        "p": 0.315891,
+        "alpha": 15.7369,
+        "beta": 34.0806,
+        "n_current": 38
+      },
+      "20": {
+        "p": 0.273001,
+        "alpha": 13.6003,
+        "beta": 36.2173,
+        "n_current": 38
+      },
+      "25": {
+        "p": 0.117549,
+        "alpha": 5.856,
+        "beta": 43.9615,
+        "n_current": 38
+      },
+      "30": {
+        "p": 0.040836,
+        "alpha": 2.0343,
+        "beta": 47.7832,
+        "n_current": 38
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "kate martin": {
+    "thresholds": {
+      "10": {
+        "p": 0.288702,
+        "alpha": 15.5553,
+        "beta": 38.3249,
+        "n_current": 42
+      },
+      "15": {
+        "p": 0.037994,
+        "alpha": 2.0471,
+        "beta": 51.8332,
+        "n_current": 42
+      },
+      "18": {
+        "p": 0.037994,
+        "alpha": 2.0471,
+        "beta": 51.8332,
+        "n_current": 42
+      },
+      "20": {
+        "p": 0.037994,
+        "alpha": 2.0471,
+        "beta": 51.8332,
+        "n_current": 42
+      },
+      "25": {
+        "p": 0.01856,
+        "alpha": 1,
+        "beta": 52.8803,
+        "n_current": 42
+      },
+      "30": {
+        "p": 0.01856,
+        "alpha": 1,
+        "beta": 52.8803,
+        "n_current": 42
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  },
+  "kamilla cardoso": {
+    "thresholds": {
+      "10": {
+        "p": 0.743705,
+        "alpha": 38.5627,
+        "beta": 13.2894,
+        "n_current": 40
+      },
+      "15": {
+        "p": 0.447053,
+        "alpha": 23.1807,
+        "beta": 28.6715,
+        "n_current": 40
+      },
+      "18": {
+        "p": 0.281463,
+        "alpha": 14.5945,
+        "beta": 37.2577,
+        "n_current": 40
+      },
+      "20": {
+        "p": 0.171827,
+        "alpha": 8.9096,
+        "beta": 42.9426,
+        "n_current": 40
+      },
+      "25": {
+        "p": 0.039817,
+        "alpha": 2.0646,
+        "beta": 49.7876,
+        "n_current": 40
+      },
+      "30": {
+        "p": 0.019286,
+        "alpha": 1,
+        "beta": 50.8522,
+        "n_current": 40
+      }
+    },
+    "confidence": "full",
+    "generated_at": "2026-05-09T05:56:16.321839Z"
+  }
+}
