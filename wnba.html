@@ -385,10 +385,92 @@ function calcParlayEdge(legs) {
   return { modelP, fairOdds, bookImpliedP, edge: modelP - bookImpliedP };
 }
 
-function ParlayBuilderPanel({ legs, onRemove, onClear }) {
-  if (legs.length === 0) return null;
-  const { modelP, fairOdds, bookImpliedP, edge } = calcParlayEdge(legs);
+function ParlayRung({ rung, index, isActive, onActivate, onRemoveLeg, onRemoveRung }) {
+  const { modelP, fairOdds, bookImpliedP, edge } = calcParlayEdge(rung.legs);
+  return (
+    <div
+      onClick={onActivate}
+      style={{
+        borderTop: index > 0 ? '1px solid #0f172a' : 'none',
+        background: isActive ? 'rgba(30,58,95,0.25)' : 'transparent',
+        cursor: 'pointer',
+      }}
+    >
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '6px 16px', borderBottom: '1px solid #0f172a',
+      }}>
+        <span style={{
+          fontFamily: 'Outfit', fontSize: 11, fontWeight: 700,
+          color: isActive ? '#93c5fd' : '#475569', flex: 1,
+        }}>
+          Rung {index + 1}{isActive ? ' ·' : ''}
+          {isActive && <span style={{ fontWeight: 400, color: '#334155' }}> active</span>}
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemoveRung(rung.id); }}
+          style={{
+            background: 'none', border: 'none', color: '#334155',
+            cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px',
+          }}
+        >
+          ╳
+        </button>
+      </div>
+      {rung.legs.map((leg, i) => (
+        <div key={i} style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '6px 16px', borderBottom: '1px solid #0a0f1a',
+        }}>
+          <span style={{ flex: 1, fontFamily: 'Outfit', fontSize: 13, textTransform: 'capitalize', color: '#f8fafc' }}>
+            {leg.player}
+          </span>
+          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#94a3b8', minWidth: 32 }}>
+            {leg.threshold}+
+          </span>
+          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: pColor(leg.modelP), minWidth: 44, textAlign: 'right' }}>
+            {fmt(leg.modelP)}
+          </span>
+          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#93c5fd', minWidth: 44, textAlign: 'right' }}>
+            {leg.bookOver ? fmtOdds(leg.bookOver.price) : '—'}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemoveLeg(rung.id, i); }}
+            style={{
+              background: 'none', border: 'none', color: '#475569',
+              cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 4px',
+            }}
+          >×</button>
+        </div>
+      ))}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 16px',
+        background: 'rgba(15,23,42,0.4)',
+      }}>
+        <span style={{ flex: 1, fontFamily: 'Outfit', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+          {rung.legs.length}-leg parlay
+        </span>
+        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 600, color: pColor(modelP), minWidth: 44, textAlign: 'right' }}>
+          {fmt(modelP)}
+        </span>
+        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 600, color: '#93c5fd', minWidth: 44, textAlign: 'right' }}>
+          {fmtAmerican(modelP)}
+        </span>
+        <span style={{
+          fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 600, minWidth: 44, textAlign: 'right',
+          color: edge == null ? '#475569' : edge > 0 ? '#4ade80' : '#f87171',
+        }}>
+          {edge == null ? '—' : (edge > 0 ? '+' : '') + (edge * 100).toFixed(1) + '%'}
+        </span>
+        <div style={{ width: 22 }} />
+      </div>
+    </div>
+  );
+}
 
+function ParlayBuilderPanel({ rungs, activeRungId, onActivate, onRemoveLeg, onRemoveRung, onNewRung, onClearAll }) {
+  if (rungs.length === 0) return null;
   return (
     <div style={{ marginBottom: 20, border: '1px solid #334155', borderRadius: 10, overflow: 'hidden' }}>
       <div style={{
@@ -398,66 +480,41 @@ function ParlayBuilderPanel({ legs, onRemove, onClear }) {
         <span style={{ fontFamily: 'Outfit', fontWeight: 700, fontSize: 14, color: '#f8fafc' }}>
           Parlay Builder
         </span>
-        <button onClick={onClear} style={{
-          background: 'none', border: '1px solid #334155', borderRadius: 5,
-          color: '#64748b', fontFamily: 'Outfit', fontSize: 11,
-          padding: '2px 10px', cursor: 'pointer',
-        }}>
-          Clear
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onNewRung} style={{
+            background: 'none', border: '1px solid #334155', borderRadius: 5,
+            color: '#93c5fd', fontFamily: 'Outfit', fontSize: 11,
+            padding: '2px 10px', cursor: 'pointer',
+          }}>
+            + Rung
+          </button>
+          <button onClick={onClearAll} style={{
+            background: 'none', border: '1px solid #334155', borderRadius: 5,
+            color: '#64748b', fontFamily: 'Outfit', fontSize: 11,
+            padding: '2px 10px', cursor: 'pointer',
+          }}>
+            Clear All
+          </button>
+        </div>
       </div>
       <div style={{ background: 'rgba(15,23,42,0.4)' }}>
-        {legs.map((leg, i) => (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '7px 16px', borderBottom: '1px solid #0f172a',
-          }}>
-            <span style={{ flex: 1, fontFamily: 'Outfit', fontSize: 13, textTransform: 'capitalize', color: '#f8fafc' }}>
-              {leg.player}
-            </span>
-            <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#94a3b8', minWidth: 32 }}>
-              {leg.threshold}+
-            </span>
-            <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: pColor(leg.modelP), minWidth: 44, textAlign: 'right' }}>
-              {fmt(leg.modelP)}
-            </span>
-            <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#93c5fd', minWidth: 44, textAlign: 'right' }}>
-              {leg.bookOver ? fmtOdds(leg.bookOver.price) : '—'}
-            </span>
-            <button onClick={() => onRemove(i)} style={{
-              background: 'none', border: 'none', color: '#475569',
-              cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 4px',
-            }}>×</button>
-          </div>
+        {rungs.map((rung, i) => (
+          <ParlayRung
+            key={rung.id}
+            rung={rung}
+            index={i}
+            isActive={rung.id === activeRungId}
+            onActivate={() => onActivate(rung.id)}
+            onRemoveLeg={onRemoveLeg}
+            onRemoveRung={onRemoveRung}
+          />
         ))}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '9px 16px', borderTop: '1px solid #1e293b',
-          background: 'rgba(15,23,42,0.6)',
-        }}>
-          <span style={{ flex: 1, fontFamily: 'Outfit', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
-            {legs.length}-leg parlay
-          </span>
-          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 600, color: pColor(modelP), minWidth: 44, textAlign: 'right' }}>
-            {fmt(modelP)}
-          </span>
-          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 600, color: '#93c5fd', minWidth: 44, textAlign: 'right' }}>
-            {fmtAmerican(modelP)}
-          </span>
-          <span style={{
-            fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 600, minWidth: 44, textAlign: 'right',
-            color: edge == null ? '#475569' : edge > 0 ? '#4ade80' : '#f87171',
-          }}>
-            {edge == null ? '—' : (edge > 0 ? '+' : '') + (edge * 100).toFixed(1) + '%'}
-          </span>
-          <div style={{ width: 22 }} />
-        </div>
       </div>
     </div>
   );
 }
 
-function PlayerCard({ name, data, playerOdds, rungs, onLog, onAddLeg, parlayLegs, showOdds }) {
+function PlayerCard({ name, data, playerOdds, rungs, onLog, onAddLeg, activeLegs, showOdds }) {
   const [logged, setLogged] = useState(new Set());
   const limited = data.confidence === 'limited';
 
@@ -514,8 +571,8 @@ function PlayerCard({ name, data, playerOdds, rungs, onLog, onAddLeg, parlayLegs
               const entry = data.thresholds?.[t];
               const isPositive = edgeByThreshold[t]?.edge > 0;
               if (!entry) return <td key={t} style={{ textAlign: 'center', color: '#475569', fontFamily: 'JetBrains Mono', fontSize: 13 }}>—</td>;
-              const alreadyAdded = parlayLegs.some(l => l.player === name && l.threshold === t);
-              const parlayFull = parlayLegs.length >= 4;
+              const alreadyAdded = activeLegs.some(l => l.player === name && l.threshold === t);
+              const parlayFull = activeLegs.length >= 4;
               return (
                 <td key={t} style={{
                   textAlign: 'center', paddingTop: 6,
@@ -926,7 +983,8 @@ function App() {
   const [oddsLoading, setOddsLoading] = useState(false);
   const [oddsError, setOddsError] = useState(null);
   const [betLog, setBetLog] = useState(() => BetLogger.getAll());
-  const [parlayLegs, setParlayLegs] = useState([]);
+  const [parlayRungs, setParlayRungs] = useState([]);
+  const [activeRungId, setActiveRungId] = useState(null);
   const [collapsed, setCollapsed] = useState(new Set());
 
   useEffect(() => {
@@ -961,15 +1019,42 @@ function App() {
   }, []);
 
   const handleAddLeg = useCallback((leg) => {
-    setParlayLegs(prev => {
-      if (prev.length >= 4) return prev;
-      if (prev.some(l => l.player === leg.player && l.threshold === leg.threshold)) return prev;
-      return [...prev, leg];
+    setParlayRungs(prev => {
+      if (prev.length === 0) {
+        const newId = Date.now();
+        setActiveRungId(newId);
+        return [{ id: newId, legs: [leg] }];
+      }
+      return prev.map(r => {
+        if (r.id !== activeRungId) return r;
+        if (r.legs.length >= 4) return r;
+        if (r.legs.some(l => l.player === leg.player && l.threshold === leg.threshold)) return r;
+        return { ...r, legs: [...r.legs, leg] };
+      });
+    });
+  }, [activeRungId]);
+
+  const handleRemoveLeg = useCallback((rungId, legIdx) => {
+    setParlayRungs(prev => prev.map(r =>
+      r.id !== rungId ? r : { ...r, legs: r.legs.filter((_, i) => i !== legIdx) }
+    ));
+  }, []);
+
+  const handleRemoveRung = useCallback((rungId) => {
+    setParlayRungs(prev => {
+      const next = prev.filter(r => r.id !== rungId);
+      setActiveRungId(cur => {
+        if (cur !== rungId) return cur;
+        return next.length > 0 ? next[next.length - 1].id : null;
+      });
+      return next;
     });
   }, []);
 
-  const handleRemoveLeg = useCallback((idx) => {
-    setParlayLegs(prev => prev.filter((_, i) => i !== idx));
+  const handleNewRung = useCallback(() => {
+    const newId = Date.now();
+    setParlayRungs(prev => [...prev, { id: newId, legs: [] }]);
+    setActiveRungId(newId);
   }, []);
 
   const handleRefresh = useCallback(async (apiKey) => {
@@ -1039,9 +1124,13 @@ function App() {
       />
 
       <ParlayBuilderPanel
-        legs={parlayLegs}
-        onRemove={handleRemoveLeg}
-        onClear={() => setParlayLegs([])}
+        rungs={parlayRungs}
+        activeRungId={activeRungId}
+        onActivate={setActiveRungId}
+        onRemoveLeg={handleRemoveLeg}
+        onRemoveRung={handleRemoveRung}
+        onNewRung={handleNewRung}
+        onClearAll={() => { setParlayRungs([]); setActiveRungId(null); }}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 12 }}>
@@ -1067,7 +1156,7 @@ function App() {
                     rungs={TIER_RUNGS[derivePlayerTier(playerData.thresholds)]}
                     onLog={handleLog}
                     onAddLeg={handleAddLeg}
-                    parlayLegs={parlayLegs}
+                    activeLegs={parlayRungs.find(r => r.id === activeRungId)?.legs ?? []}
                     showOdds={showOdds}
                   />
                 );
