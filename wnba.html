@@ -26,6 +26,29 @@ const BOOK_ABBR = { draftkings: 'DK', fanduel: 'FD', betmgm: 'MGM', caesars: 'CZ
 const ODDS_BASE = 'https://api.the-odds-api.com';
 const LS_KEY_KEY = 'wnbaOddsApiKey';
 const LS_CACHE_KEY = 'wnbaOddsCache';
+const LS_BET_KEY = 'wnbaBetLog';
+
+const BetLogger = (() => {
+  const read = () => { try { return JSON.parse(localStorage.getItem(LS_BET_KEY)) ?? []; } catch(_) { return []; } };
+  const write = (entries) => localStorage.setItem(LS_BET_KEY, JSON.stringify(entries));
+  return {
+    log(entry) {
+      const entries = read();
+      entries.push({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), result: null, actualPts: null, ...entry });
+      write(entries);
+    },
+    updateResult(id, actualPts) {
+      const entries = read();
+      const idx = entries.findIndex(e => e.id === id);
+      if (idx === -1) return;
+      entries[idx].result = actualPts >= parseInt(entries[idx].threshold) ? 'win' : 'loss';
+      entries[idx].actualPts = actualPts;
+      write(entries);
+    },
+    getAll: () => read(),
+    getPending: () => read().filter(e => e.result === null),
+  };
+})();
 
 const NAME_OVERRIDES = {
   "A'ja Wilson": "Aja Wilson",
@@ -144,7 +167,8 @@ function pColor(p) {
 
 function fmt(p) { return (p * 100).toFixed(1) + '%'; }
 
-function PlayerCard({ name, data, playerOdds }) {
+function PlayerCard({ name, data, playerOdds, onLog }) {
+  const [logged, setLogged] = useState(new Set());
   const limited = data.confidence === 'limited';
 
   const edgeByThreshold = {};
@@ -276,8 +300,164 @@ function PlayerCard({ name, data, playerOdds }) {
               })}
             </tr>
           )}
+          {playerOdds && (
+            <tr>
+              <td style={{ fontSize: 9, color: '#475569', fontFamily: 'Outfit', paddingRight: 4, verticalAlign: 'middle' }}>log</td>
+              {THRESHOLDS.map(t => {
+                const entry = data.thresholds?.[t];
+                const o = playerOdds[t];
+                const canLog = entry && o;
+                const wasLogged = logged.has(t);
+                return (
+                  <td key={t} style={{ textAlign: 'center', paddingTop: 4 }}>
+                    {canLog && (
+                      <button
+                        onClick={() => {
+                          const rawOver = americanToImplied(o.over.price);
+                          const bookImpliedP = o.under
+                            ? rawOver / (rawOver + americanToImplied(o.under.price))
+                            : rawOver;
+                          onLog({ player: name, threshold: t, modelP: entry.p, bookImpliedP, odds: o.over.price, book: o.over.book });
+                          setLogged(prev => new Set([...prev, t]));
+                        }}
+                        style={{
+                          background: wasLogged ? '#14532d' : '#1e293b',
+                          border: `1px solid ${wasLogged ? '#15803d' : '#334155'}`,
+                          borderRadius: 4, color: wasLogged ? '#4ade80' : '#94a3b8',
+                          fontFamily: 'JetBrains Mono', fontSize: 11,
+                          padding: '1px 7px', cursor: 'pointer', lineHeight: 1.6,
+                        }}
+                      >
+                        {wasLogged ? '✓' : '+'}
+                      </button>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function BetLogPanel({ log, onUpdate }) {
+  const [open, setOpen] = useState(false);
+  const [inputs, setInputs] = useState({});
+
+  if (log.length === 0) return null;
+
+  const pending = log.filter(e => e.result === null).length;
+  const resolved = log.length - pending;
+
+  return (
+    <div style={{ marginTop: 20, border: '1px solid #1e293b', borderRadius: 10, overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', background: 'rgba(15,23,42,0.6)', border: 'none',
+          padding: '12px 16px', cursor: 'pointer', textAlign: 'left',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}
+      >
+        <span style={{ fontFamily: 'Outfit', fontWeight: 600, fontSize: 14, color: '#f8fafc' }}>
+          Bet Log
+        </span>
+        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#64748b' }}>
+          {pending} pending · {resolved} resolved {open ? '▲' : '▼'}
+        </span>
+      </button>
+      {open && (
+        <div style={{ maxHeight: 420, overflowY: 'auto', background: 'rgba(15,23,42,0.4)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                {['Time', 'Player', 'Pts+', 'Model', 'Impl', 'Edge', 'Odds', 'Book', 'Result', ''].map(h => (
+                  <th key={h} style={{
+                    padding: '7px 10px', color: '#64748b', fontWeight: 600,
+                    textAlign: 'left', fontSize: 11, fontFamily: 'Outfit',
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {log.map(entry => {
+                const edge = entry.modelP - entry.bookImpliedP;
+                return (
+                  <tr key={entry.id} style={{ borderBottom: '1px solid #0f172a' }}>
+                    <td style={{ padding: '7px 10px', color: '#475569', fontSize: 11, fontFamily: 'JetBrains Mono' }}>
+                      {new Date(entry.timestamp).toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </td>
+                    <td style={{ padding: '7px 10px', color: '#f8fafc', fontFamily: 'Outfit', fontSize: 13, textTransform: 'capitalize' }}>
+                      {entry.player}
+                    </td>
+                    <td style={{ padding: '7px 10px', color: '#94a3b8', fontFamily: 'JetBrains Mono', fontSize: 12 }}>
+                      {entry.threshold}+
+                    </td>
+                    <td style={{ padding: '7px 10px', fontFamily: 'JetBrains Mono', fontSize: 12, color: pColor(entry.modelP) }}>
+                      {fmt(entry.modelP)}
+                    </td>
+                    <td style={{ padding: '7px 10px', fontFamily: 'JetBrains Mono', fontSize: 12, color: '#94a3b8' }}>
+                      {fmt(entry.bookImpliedP)}
+                    </td>
+                    <td style={{ padding: '7px 10px', fontFamily: 'JetBrains Mono', fontSize: 12, fontWeight: 600, color: edge > 0 ? '#4ade80' : '#f87171' }}>
+                      {edge > 0 ? '+' : ''}{(edge * 100).toFixed(1)}%
+                    </td>
+                    <td style={{ padding: '7px 10px', fontFamily: 'JetBrains Mono', fontSize: 12, color: '#93c5fd' }}>
+                      {fmtOdds(entry.odds)}
+                    </td>
+                    <td style={{ padding: '7px 10px', fontFamily: 'JetBrains Mono', fontSize: 12, color: '#64748b' }}>
+                      {entry.book}
+                    </td>
+                    <td style={{ padding: '7px 10px' }}>
+                      {entry.result === null ? (
+                        <span style={{ color: '#475569', fontFamily: 'Outfit', fontSize: 11 }}>pending</span>
+                      ) : (
+                        <span style={{ fontFamily: 'JetBrains Mono', fontWeight: 600, fontSize: 12, color: entry.result === 'win' ? '#4ade80' : '#f87171' }}>
+                          {entry.result === 'win' ? 'WIN' : 'LOSS'} ({entry.actualPts})
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '7px 10px' }}>
+                      {entry.result === null && (
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <input
+                            type="number"
+                            placeholder="pts"
+                            value={inputs[entry.id] ?? ''}
+                            onChange={e => setInputs(prev => ({ ...prev, [entry.id]: e.target.value }))}
+                            style={{
+                              width: 46, background: '#0b0f1a', border: '1px solid #334155',
+                              borderRadius: 4, padding: '2px 5px', color: '#f8fafc',
+                              fontFamily: 'JetBrains Mono', fontSize: 11, outline: 'none',
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              const val = parseFloat(inputs[entry.id]);
+                              if (isNaN(val)) return;
+                              onUpdate(entry.id, val);
+                              setInputs(prev => { const n = { ...prev }; delete n[entry.id]; return n; });
+                            }}
+                            style={{
+                              background: '#1d4ed8', border: 'none', borderRadius: 4,
+                              color: '#f8fafc', fontFamily: 'Outfit', fontSize: 11,
+                              padding: '2px 8px', cursor: 'pointer',
+                            }}
+                          >
+                            ✓
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -359,6 +539,7 @@ function App() {
   const [oddsLastFetched, setOddsLastFetched] = useState(null);
   const [oddsLoading, setOddsLoading] = useState(false);
   const [oddsError, setOddsError] = useState(null);
+  const [betLog, setBetLog] = useState(() => BetLogger.getAll());
 
   useEffect(() => {
     fetch('wnba_data.json')
@@ -373,6 +554,16 @@ function App() {
         setOddsLastFetched(cached.fetchedAt);
       }
     } catch (_) {}
+  }, []);
+
+  const handleLog = useCallback((entry) => {
+    BetLogger.log(entry);
+    setBetLog(BetLogger.getAll());
+  }, []);
+
+  const handleUpdate = useCallback((id, actualPts) => {
+    BetLogger.updateResult(id, actualPts);
+    setBetLog(BetLogger.getAll());
   }, []);
 
   const handleRefresh = useCallback(async (apiKey) => {
@@ -442,10 +633,13 @@ function App() {
               name={name}
               data={playerData}
               playerOdds={oddsData?.[playerKey] ?? null}
+              onLog={handleLog}
             />
           );
         })}
       </div>
+
+      <BetLogPanel log={betLog} onUpdate={handleUpdate} />
 
       <div style={{ marginTop: 32, padding: '12px 16px', background: 'rgba(15,23,42,0.4)', borderRadius: 8, border: '1px solid #1e293b' }}>
         <div style={{ fontSize: 11, color: '#475569', fontFamily: 'Outfit', lineHeight: 1.8 }}>
