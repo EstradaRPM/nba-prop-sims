@@ -173,6 +173,15 @@
       return Math.round(((1 - p) / p) * 100);
     }
 
+    function calcParlayEdge(legs) {
+      const modelP = legs.reduce((acc, l) => acc * l.modelP, 1);
+      const fairOdds = pToAmerican(modelP);
+      const hasAllOdds = legs.every(l => l.bookOver != null);
+      if (!hasAllOdds) return { modelP, fairOdds, bookImpliedP: null, edge: null };
+      const bookImpliedP = legs.reduce((acc, l) => acc * americanToImplied(l.bookOver.price), 1);
+      return { modelP, fairOdds, bookImpliedP, edge: modelP - bookImpliedP };
+    }
+
     function groupPlayersByGame(entries, oddsData) {
       if (!oddsData) return [{ gameId: null, game: null, entries }];
 
@@ -352,6 +361,39 @@
       const result = groupPlayersByGame([noOdds, withEdge], oddsData);
       assert('mixed → positive-edge player first',   result[0].entries[0][0] === 'Player Z');
       assert('mixed → model-only player second',     result[0].entries[1][0] === 'Player A');
+    }
+
+    group('calcParlayEdge');
+    {
+      const legA = { modelP: 0.6, bookOver: { price: -130 } };
+      const legB = { modelP: 0.5, bookOver: { price: +110 } };
+      const r2 = calcParlayEdge([legA, legB]);
+      assert('2-leg: modelP = product', approx(r2.modelP, 0.6 * 0.5));
+      assert('2-leg: fairOdds is integer', Number.isInteger(r2.fairOdds));
+      assert('2-leg: bookImpliedP = product of raw implieds',
+        approx(r2.bookImpliedP, americanToImplied(-130) * americanToImplied(110)));
+      assert('2-leg: edge = modelP − bookImpliedP',
+        approx(r2.edge, r2.modelP - r2.bookImpliedP));
+
+      const legNoOdds = { modelP: 0.55, bookOver: null };
+      const rMissing = calcParlayEdge([legA, legNoOdds]);
+      assert('missing odds → bookImpliedP null', rMissing.bookImpliedP === null);
+      assert('missing odds → edge null',         rMissing.edge === null);
+      assert('missing odds → modelP still computed', approx(rMissing.modelP, 0.6 * 0.55));
+
+      const r1 = calcParlayEdge([legA]);
+      assert('1-leg: modelP = single leg modelP', approx(r1.modelP, 0.6));
+      assert('1-leg: edge computed',               r1.edge !== null);
+
+      const legs4 = [
+        { modelP: 0.7, bookOver: { price: -140 } },
+        { modelP: 0.65, bookOver: { price: -120 } },
+        { modelP: 0.6, bookOver: { price: -110 } },
+        { modelP: 0.55, bookOver: { price: +105 } },
+      ];
+      const r4 = calcParlayEdge(legs4);
+      assert('4-leg: modelP = product of all', approx(r4.modelP, 0.7 * 0.65 * 0.6 * 0.55));
+      assert('4-leg: edge is finite',           isFinite(r4.edge));
     }
 
     group('OddsAPIClient (cache)');

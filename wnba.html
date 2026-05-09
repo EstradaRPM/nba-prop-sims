@@ -368,7 +368,88 @@ function pToAmerican(p) {
 }
 function fmtAmerican(p) { const v = pToAmerican(p); return (v > 0 ? '+' : '') + v; }
 
-function PlayerCard({ name, data, playerOdds, rungs, onLog, showOdds }) {
+function calcParlayEdge(legs) {
+  const modelP = legs.reduce((acc, l) => acc * l.modelP, 1);
+  const fairOdds = pToAmerican(modelP);
+  const hasAllOdds = legs.every(l => l.bookOver != null);
+  if (!hasAllOdds) return { modelP, fairOdds, bookImpliedP: null, edge: null };
+  const bookImpliedP = legs.reduce((acc, l) => acc * americanToImplied(l.bookOver.price), 1);
+  return { modelP, fairOdds, bookImpliedP, edge: modelP - bookImpliedP };
+}
+
+function ParlayBuilderPanel({ legs, onRemove, onClear }) {
+  if (legs.length === 0) return null;
+  const { modelP, fairOdds, bookImpliedP, edge } = calcParlayEdge(legs);
+
+  return (
+    <div style={{ marginBottom: 20, border: '1px solid #334155', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{
+        background: 'rgba(15,23,42,0.8)', padding: '10px 16px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ fontFamily: 'Outfit', fontWeight: 700, fontSize: 14, color: '#f8fafc' }}>
+          Parlay Builder
+        </span>
+        <button onClick={onClear} style={{
+          background: 'none', border: '1px solid #334155', borderRadius: 5,
+          color: '#64748b', fontFamily: 'Outfit', fontSize: 11,
+          padding: '2px 10px', cursor: 'pointer',
+        }}>
+          Clear
+        </button>
+      </div>
+      <div style={{ background: 'rgba(15,23,42,0.4)' }}>
+        {legs.map((leg, i) => (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '7px 16px', borderBottom: '1px solid #0f172a',
+          }}>
+            <span style={{ flex: 1, fontFamily: 'Outfit', fontSize: 13, textTransform: 'capitalize', color: '#f8fafc' }}>
+              {leg.player}
+            </span>
+            <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#94a3b8', minWidth: 32 }}>
+              {leg.threshold}+
+            </span>
+            <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: pColor(leg.modelP), minWidth: 44, textAlign: 'right' }}>
+              {fmt(leg.modelP)}
+            </span>
+            <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#93c5fd', minWidth: 44, textAlign: 'right' }}>
+              {leg.bookOver ? fmtOdds(leg.bookOver.price) : '—'}
+            </span>
+            <button onClick={() => onRemove(i)} style={{
+              background: 'none', border: 'none', color: '#475569',
+              cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 4px',
+            }}>×</button>
+          </div>
+        ))}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '9px 16px', borderTop: '1px solid #1e293b',
+          background: 'rgba(15,23,42,0.6)',
+        }}>
+          <span style={{ flex: 1, fontFamily: 'Outfit', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+            {legs.length}-leg parlay
+          </span>
+          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 600, color: pColor(modelP), minWidth: 44, textAlign: 'right' }}>
+            {fmt(modelP)}
+          </span>
+          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 600, color: '#93c5fd', minWidth: 44, textAlign: 'right' }}>
+            {fmtAmerican(modelP)}
+          </span>
+          <span style={{
+            fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 600, minWidth: 44, textAlign: 'right',
+            color: edge == null ? '#475569' : edge > 0 ? '#4ade80' : '#f87171',
+          }}>
+            {edge == null ? '—' : (edge > 0 ? '+' : '') + (edge * 100).toFixed(1) + '%'}
+          </span>
+          <div style={{ width: 22 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlayerCard({ name, data, playerOdds, rungs, onLog, onAddLeg, parlayLegs, showOdds }) {
   const [logged, setLogged] = useState(new Set());
   const limited = data.confidence === 'limited';
 
@@ -425,6 +506,8 @@ function PlayerCard({ name, data, playerOdds, rungs, onLog, showOdds }) {
               const entry = data.thresholds?.[t];
               const isPositive = edgeByThreshold[t]?.edge > 0;
               if (!entry) return <td key={t} style={{ textAlign: 'center', color: '#475569', fontFamily: 'JetBrains Mono', fontSize: 13 }}>—</td>;
+              const alreadyAdded = parlayLegs.some(l => l.player === name && l.threshold === t);
+              const parlayFull = parlayLegs.length >= 4;
               return (
                 <td key={t} style={{
                   textAlign: 'center', paddingTop: 6,
@@ -436,6 +519,20 @@ function PlayerCard({ name, data, playerOdds, rungs, onLog, showOdds }) {
                   <div style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: '#64748b', marginTop: 2 }}>
                     n={entry.n_current}
                   </div>
+                  <button
+                    onClick={() => onAddLeg({ player: name, threshold: t, modelP: entry.p, bookOver: playerOdds?.[t]?.over ?? null })}
+                    disabled={alreadyAdded || parlayFull}
+                    style={{
+                      marginTop: 3, background: alreadyAdded ? '#14532d' : 'transparent',
+                      border: `1px solid ${alreadyAdded ? '#15803d' : '#334155'}`,
+                      borderRadius: 3, color: alreadyAdded ? '#4ade80' : parlayFull ? '#1e293b' : '#475569',
+                      fontFamily: 'JetBrains Mono', fontSize: 10,
+                      padding: '0px 5px', cursor: alreadyAdded || parlayFull ? 'default' : 'pointer',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {alreadyAdded ? '✓' : '+'}
+                  </button>
                 </td>
               );
             })}
@@ -821,6 +918,7 @@ function App() {
   const [oddsLoading, setOddsLoading] = useState(false);
   const [oddsError, setOddsError] = useState(null);
   const [betLog, setBetLog] = useState(() => BetLogger.getAll());
+  const [parlayLegs, setParlayLegs] = useState([]);
 
   useEffect(() => {
     fetch('wnba_data.json')
@@ -851,6 +949,18 @@ function App() {
     const result = await ResultChecker.check();
     setBetLog(BetLogger.getAll());
     return result;
+  }, []);
+
+  const handleAddLeg = useCallback((leg) => {
+    setParlayLegs(prev => {
+      if (prev.length >= 4) return prev;
+      if (prev.some(l => l.player === leg.player && l.threshold === leg.threshold)) return prev;
+      return [...prev, leg];
+    });
+  }, []);
+
+  const handleRemoveLeg = useCallback((idx) => {
+    setParlayLegs(prev => prev.filter((_, i) => i !== idx));
   }, []);
 
   const handleRefresh = useCallback(async (apiKey) => {
@@ -919,6 +1029,12 @@ function App() {
         lastFetched={oddsLastFetched}
       />
 
+      <ParlayBuilderPanel
+        legs={parlayLegs}
+        onRemove={handleRemoveLeg}
+        onClear={() => setParlayLegs([])}
+      />
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 12 }}>
         {groupPlayersByGame(entries, oddsData).map(({ gameId, game, entries: groupEntries }) => (
           <React.Fragment key={gameId ?? '__ungrouped'}>
@@ -933,6 +1049,8 @@ function App() {
                   playerOdds={oddsData?.players?.[playerKey] ?? null}
                   rungs={TIER_RUNGS[derivePlayerTier(playerData.thresholds)]}
                   onLog={handleLog}
+                  onAddLeg={handleAddLeg}
+                  parlayLegs={parlayLegs}
                   showOdds={showOdds}
                 />
               );
