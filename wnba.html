@@ -285,8 +285,13 @@ function pColor(p) {
 }
 
 function fmt(p) { return (p * 100).toFixed(1) + '%'; }
+function pToAmerican(p) {
+  if (p >= 0.5) return Math.round(-(p / (1 - p)) * 100);
+  return Math.round(((1 - p) / p) * 100);
+}
+function fmtAmerican(p) { const v = pToAmerican(p); return (v > 0 ? '+' : '') + v; }
 
-function PlayerCard({ name, data, playerOdds, rungs, onLog }) {
+function PlayerCard({ name, data, playerOdds, rungs, onLog, showOdds }) {
   const [logged, setLogged] = useState(new Set());
   const limited = data.confidence === 'limited';
 
@@ -349,7 +354,7 @@ function PlayerCard({ name, data, playerOdds, rungs, onLog }) {
                   background: isPositive ? 'rgba(74,222,128,0.07)' : 'transparent',
                 }}>
                   <div style={{ fontFamily: 'JetBrains Mono', fontWeight: 600, fontSize: 14, color: pColor(entry.p) }}>
-                    {fmt(entry.p)}
+                    {showOdds ? fmtAmerican(entry.p) : fmt(entry.p)}
                   </div>
                   <div style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: '#64748b', marginTop: 2 }}>
                     n={entry.n_current}
@@ -733,6 +738,7 @@ function OddsPanel({ onRefresh, loading, error, lastFetched }) {
 function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [showOdds, setShowOdds] = useState(false);
   const [oddsData, setOddsData] = useState(null);
   const [gamesData, setGamesData] = useState(null);
   const [oddsLastFetched, setOddsLastFetched] = useState(null);
@@ -816,6 +822,14 @@ function App() {
           <span style={{ fontSize: 12, color: '#64748b', fontFamily: 'JetBrains Mono' }}>
             {entries.length} players · {limitedCount} limited
           </span>
+          <button onClick={() => setShowOdds(v => !v)} style={{
+            fontSize: 11, fontFamily: 'JetBrains Mono', fontWeight: 600, cursor: 'pointer',
+            padding: '4px 10px', borderRadius: 5, border: '1px solid #334155',
+            background: showOdds ? '#1e3a5f' : 'transparent',
+            color: showOdds ? '#93c5fd' : '#64748b',
+          }}>
+            {showOdds ? 'odds' : '%'}
+          </button>
           {generatedDate && (
             <span style={{ fontSize: 12, color: '#475569', fontFamily: 'JetBrains Mono' }}>
               updated {generatedDate}
@@ -842,6 +856,7 @@ function App() {
               playerOdds={oddsData?.[playerKey] ?? null}
               rungs={TIER_RUNGS[derivePlayerTier(playerData.thresholds)]}
               onLog={handleLog}
+              showOdds={showOdds}
             />
           );
         })}
