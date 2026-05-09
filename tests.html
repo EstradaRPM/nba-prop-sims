@@ -155,6 +155,73 @@
       };
     })();
 
+    const TIER_RUNGS = {
+      low:  ['10', '12', '15', '18', '20'],
+      mid:  ['10', '15', '18', '20', '25', '30'],
+      high: ['15', '20', '25', '30', '35', '40'],
+    };
+    const TIER_CUTOFFS = { highThreshold: '25', highMinP: 0.45, lowThreshold: '15', lowMaxP: 0.40 };
+
+    function derivePlayerTier(thresholds) {
+      if ((thresholds?.[TIER_CUTOFFS.highThreshold]?.p ?? 0) > TIER_CUTOFFS.highMinP) return 'high';
+      if ((thresholds?.[TIER_CUTOFFS.lowThreshold]?.p ?? 1) < TIER_CUTOFFS.lowMaxP) return 'low';
+      return 'mid';
+    }
+
+    function pToAmerican(p) {
+      if (p >= 0.5) return Math.round(-(p / (1 - p)) * 100);
+      return Math.round(((1 - p) / p) * 100);
+    }
+
+    function groupPlayersByGame(entries, oddsData) {
+      if (!oddsData) return [{ gameId: null, game: null, entries }];
+
+      const { players: playersOdds, games, playerGame } = oddsData;
+
+      function hasPositiveEdge([name, playerData]) {
+        const po = playersOdds?.[normalizeName(name).toLowerCase()];
+        if (!po) return false;
+        const rungs = TIER_RUNGS[derivePlayerTier(playerData.thresholds)];
+        return rungs.some(t => {
+          const entry = playerData.thresholds?.[t];
+          const o = po[t];
+          if (!entry || !o) return false;
+          return calcEdge(entry.p, o.over, o.under).edge > 0;
+        });
+      }
+
+      const groupMap = {};
+      const ungrouped = [];
+
+      for (const entry of entries) {
+        const gameId = playerGame?.[normalizeName(entry[0]).toLowerCase()];
+        if (gameId && games?.[gameId]) {
+          (groupMap[gameId] ??= []).push(entry);
+        } else {
+          ungrouped.push(entry);
+        }
+      }
+
+      const sortEntries = (arr) =>
+        [...arr].sort((a, b) => {
+          const diff = (hasPositiveEdge(a) ? 0 : 1) - (hasPositiveEdge(b) ? 0 : 1);
+          return diff !== 0 ? diff : a[0].localeCompare(b[0]);
+        });
+
+      const result = Object.entries(groupMap)
+        .sort(([aId], [bId]) =>
+          new Date(games[aId].commenceTime) - new Date(games[bId].commenceTime)
+        )
+        .map(([gameId, groupEntries]) => ({
+          gameId,
+          game: games[gameId],
+          entries: sortEntries(groupEntries),
+        }));
+
+      if (ungrouped.length > 0) result.push({ gameId: null, game: null, entries: ungrouped });
+      return result;
+    }
+
     // ── Test suites ──────────────────────────────────────────────────────────
 
     group('ThresholdMatcher');
@@ -208,6 +275,84 @@
     assert('accented chars stripped',                normalizeName('Pelé') === 'Pele');
     assert('whitespace stripped',                    normalizeName('  Aja Wilson  ') === 'Aja Wilson');
     assert('unoverridden name unchanged',            normalizeName('Breanna Stewart') === 'Breanna Stewart');
+
+    group('derivePlayerTier');
+    assert('P(25+)=0.46 → high',          derivePlayerTier({ '25': { p: 0.46 } }) === 'high');
+    assert('P(25+)=0.45 → not high (boundary)',
+      derivePlayerTier({ '25': { p: 0.45 } }) !== 'high');
+    assert('P(15+)=0.39 → low',           derivePlayerTier({ '15': { p: 0.39 } }) === 'low');
+    assert('P(15+)=0.40 → not low (boundary)',
+      derivePlayerTier({ '15': { p: 0.40 } }) !== 'low');
+    assert('mid when between cutoffs',
+      derivePlayerTier({ '25': { p: 0.44 }, '15': { p: 0.41 } }) === 'mid');
+    assert('missing keys → mid',           derivePlayerTier({}) === 'mid');
+    assert('null input → mid',             derivePlayerTier(null) === 'mid');
+
+    group('pToAmerican');
+    assert('p=0.5 → -100',                pToAmerican(0.5) === -100);
+    assert('p=0.63 → -170',               pToAmerican(0.63) === -170);
+    assert('p=0.37 → +170',               pToAmerican(0.37) === 170);
+    assert('p=0.99 → large negative',      pToAmerican(0.99) < -1000);
+    assert('p=0.01 → large positive',      pToAmerican(0.01) > 1000);
+    assert('p=0.99 does not crash',        isFinite(pToAmerican(0.99)));
+    assert('p=0.01 does not crash',        isFinite(pToAmerican(0.01)));
+
+    group('groupPlayersByGame');
+    {
+      // no odds data → single group, game null, entries preserved
+      const entries = [['Caitlin Clark', { thresholds: {} }], ['Aja Wilson', { thresholds: {} }]];
+      const result = groupPlayersByGame(entries, null);
+      assert('no odds → single group',        result.length === 1);
+      assert('no odds → game is null',         result[0].game === null);
+      assert('no odds → entries preserved',    result[0].entries === entries);
+    }
+    {
+      // single game → correct meta, players in group
+      const entries = [['Aja Wilson', { thresholds: { '25': { p: 0.5 }, '15': { p: 0.5 } } }]];
+      const oddsData = {
+        players: {},
+        games: { g1: { commenceTime: '2026-06-01T12:00:00Z', homeTeam: 'LV', awayTeam: 'IND' } },
+        playerGame: { 'aja wilson': 'g1' },
+      };
+      const result = groupPlayersByGame(entries, oddsData);
+      assert('single game → one group',        result.length === 1);
+      assert('single game → correct home team', result[0].game.homeTeam === 'LV');
+      assert('single game → player in group',  result[0].entries.length === 1);
+    }
+    {
+      // multi-game → ordered by commenceTime
+      const entries = [
+        ['Player A', { thresholds: {} }],
+        ['Player B', { thresholds: {} }],
+      ];
+      const oddsData = {
+        players: {},
+        games: {
+          g1: { commenceTime: '2026-06-02T12:00:00Z', homeTeam: 'X', awayTeam: 'Y' },
+          g2: { commenceTime: '2026-06-01T12:00:00Z', homeTeam: 'A', awayTeam: 'B' },
+        },
+        playerGame: { 'player a': 'g1', 'player b': 'g2' },
+      };
+      const result = groupPlayersByGame(entries, oddsData);
+      assert('multi-game → two groups',          result.length === 2);
+      assert('multi-game → earlier game first',  result[0].gameId === 'g2');
+      assert('multi-game → later game second',   result[1].gameId === 'g1');
+    }
+    {
+      // mixed: player with positive edge sorted before model-only player
+      const withEdge = ['Player Z', { thresholds: { '25': { p: 0.9 }, '15': { p: 0.9 } } }];
+      const noOdds   = ['Player A', { thresholds: { '25': { p: 0.3 }, '15': { p: 0.3 } } }];
+      const oddsData = {
+        players: {
+          'player z': { '25': { over: { price: -110 }, under: { price: -110 } } },
+        },
+        games: { g1: { commenceTime: '2026-06-01T12:00:00Z', homeTeam: 'LV', awayTeam: 'IND' } },
+        playerGame: { 'player z': 'g1', 'player a': 'g1' },
+      };
+      const result = groupPlayersByGame([noOdds, withEdge], oddsData);
+      assert('mixed → positive-edge player first',   result[0].entries[0][0] === 'Player Z');
+      assert('mixed → model-only player second',     result[0].entries[1][0] === 'Player A');
+    }
 
     group('OddsAPIClient (cache)');
     const asyncGroup = currentGroup;
