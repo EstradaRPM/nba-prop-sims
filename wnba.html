@@ -328,7 +328,7 @@ function groupPlayersByGame(entries, oddsData) {
   return result;
 }
 
-function GameHeader({ game }) {
+function GameHeader({ game, collapsed, onToggle }) {
   const time = new Date(game.commenceTime).toLocaleString('en-US', {
     hour: 'numeric', minute: '2-digit', hour12: true,
   });
@@ -338,17 +338,25 @@ function GameHeader({ game }) {
   const totalStr = game.total != null ? ` · O/U ${game.total}` : '';
 
   return (
-    <div style={{
+    <div onClick={onToggle} style={{
       gridColumn: '1 / -1',
       padding: '10px 4px 6px',
       fontFamily: 'Outfit', fontSize: 13, fontWeight: 600,
       color: '#94a3b8', letterSpacing: 0.3,
       borderBottom: '1px solid #1e293b',
-      marginBottom: 4,
+      marginBottom: collapsed ? 0 : 4,
+      cursor: 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      userSelect: 'none',
     }}>
-      {game.awayTeam} @ {game.homeTeam}
-      <span style={{ fontWeight: 400, color: '#64748b', fontFamily: 'JetBrains Mono', fontSize: 12 }}>
-        {` · ${time}${spreadStr}${totalStr}`}
+      <span>
+        {game.awayTeam} @ {game.homeTeam}
+        <span style={{ fontWeight: 400, color: '#64748b', fontFamily: 'JetBrains Mono', fontSize: 12 }}>
+          {` · ${time}${spreadStr}${totalStr}`}
+        </span>
+      </span>
+      <span style={{ fontSize: 11, color: '#475569', marginLeft: 8 }}>
+        {collapsed ? '▶' : '▼'}
       </span>
     </div>
   );
@@ -919,6 +927,7 @@ function App() {
   const [oddsError, setOddsError] = useState(null);
   const [betLog, setBetLog] = useState(() => BetLogger.getAll());
   const [parlayLegs, setParlayLegs] = useState([]);
+  const [collapsed, setCollapsed] = useState(new Set());
 
   useEffect(() => {
     fetch('wnba_data.json')
@@ -1036,27 +1045,36 @@ function App() {
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 12 }}>
-        {groupPlayersByGame(entries, oddsData).map(({ gameId, game, entries: groupEntries }) => (
-          <React.Fragment key={gameId ?? '__ungrouped'}>
-            {game && <GameHeader game={game} />}
-            {groupEntries.map(([name, playerData]) => {
-              const playerKey = normalizeName(name).toLowerCase();
-              return (
-                <PlayerCard
-                  key={name}
-                  name={name}
-                  data={playerData}
-                  playerOdds={oddsData?.players?.[playerKey] ?? null}
-                  rungs={TIER_RUNGS[derivePlayerTier(playerData.thresholds)]}
-                  onLog={handleLog}
-                  onAddLeg={handleAddLeg}
-                  parlayLegs={parlayLegs}
-                  showOdds={showOdds}
-                />
-              );
-            })}
-          </React.Fragment>
-        ))}
+        {groupPlayersByGame(entries, oddsData).map(({ gameId, game, entries: groupEntries }) => {
+          const key = gameId ?? '__ungrouped';
+          const isCollapsed = collapsed.has(key);
+          const toggle = () => setCollapsed(prev => {
+            const next = new Set(prev);
+            next.has(key) ? next.delete(key) : next.add(key);
+            return next;
+          });
+          return (
+            <React.Fragment key={key}>
+              {game && <GameHeader game={game} collapsed={isCollapsed} onToggle={toggle} />}
+              {!isCollapsed && groupEntries.map(([name, playerData]) => {
+                const playerKey = normalizeName(name).toLowerCase();
+                return (
+                  <PlayerCard
+                    key={name}
+                    name={name}
+                    data={playerData}
+                    playerOdds={oddsData?.players?.[playerKey] ?? null}
+                    rungs={TIER_RUNGS[derivePlayerTier(playerData.thresholds)]}
+                    onLog={handleLog}
+                    onAddLeg={handleAddLeg}
+                    parlayLegs={parlayLegs}
+                    showOdds={showOdds}
+                  />
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
       </div>
 
       <BetLogPanel log={betLog} onUpdate={handleUpdate} onCheckResults={handleCheckResults} />
